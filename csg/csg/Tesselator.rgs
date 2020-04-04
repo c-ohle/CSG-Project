@@ -1,0 +1,16 @@
+HKCR
+{
+	NoRemove CLSID
+	{
+		ForceRemove {96b75f96-e933-4eff-a6a2-ac2aceb1b824} = s 'Tesselator class'
+		{
+			ForceRemove Programmable
+			InprocServer32 = s '%MODULE%'
+			{
+				val ThreadingModel = s 'Apartment'
+			}
+			TypeLib = s '{41c66e67-2de1-4273-a1bb-f0a013dc2a0f}'
+			Version = s '1.0'
+		}
+	}
+}

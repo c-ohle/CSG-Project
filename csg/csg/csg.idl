@@ -1,0 +1,48 @@
+
+import "oaidl.idl";
+import "ocidl.idl";
+import "shobjidl.idl";
+
+typedef enum tagMode
+{
+	EvenOdd = 0x01, NonZero = 0x02, Positive = 0x04, Negative = 0x08, AbsGeqTwo = 0x10, GeqThree = 0x20,
+	Fill = 0x0100, FillFast = 0x0200, IndexOnly = 0x0800,
+	Outline = 0x1000, OutlinePrecise = 0x2000, NoTrim = 0x4000,
+	NormX = 0x10000, NormY = 0x20000, NormZ = 0x40000, NormNeg = 0x80000,
+} Mode;
+
+typedef struct tagVertex
+{
+	double x, y, z;
+} Vertex;
+
+[object,	uuid(d210bdc1-65a3-43f7-a296-bf8d4bb7b962), pointer_default(unique)]
+interface ITesselator : IUnknown
+{
+	[propget] HRESULT Version([out, retval] LONG* pVal);
+	[propget] HRESULT Mode([out, retval] Mode* pVal);
+	[propput] HRESULT Mode([in] Mode newVal);
+	HRESULT BeginPolygon();
+	HRESULT BeginContour();
+	HRESULT AddVertex([in] DOUBLE x, [in] DOUBLE y, [in] DOUBLE z);
+	HRESULT EndContour();
+	HRESULT EndPolygon();
+  [propget] HRESULT VertexCount([out, retval] LONG* pVal);
+	HRESULT VertexAt([in] LONG i, [out, retval] Vertex* pVal);
+	[propget] HRESULT IndexCount([out, retval] LONG* pVal);
+	HRESULT IndexAt([in] LONG i, [out, retval] LONG* pVal);
+	[propget] HRESULT OutlineCount([out, retval] LONG* pVal);
+	HRESULT OutlineAt([in] LONG i, [out, retval] LONG* pVal);
+};
+
+[uuid(41c66e67-2de1-4273-a1bb-f0a013dc2a0f),version(1.0),]
+library csgLib
+{
+	importlib("stdole2.tlb"); 
+	[uuid(96b75f96-e933-4eff-a6a2-ac2aceb1b824)]
+	coclass Tesselator
+	{
+		[default] interface ITesselator;
+	};
+};
+
