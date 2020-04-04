@@ -17,6 +17,7 @@ namespace csgtest
     public Form1()
     {
       InitializeComponent();
+      this.Text = $"CsgTest {IntPtr.Size << 3} Bit {(Program.DEBUG ? "Debug" : "Release")}";
       this.DoubleBuffered = true;
       var ca1 = new CheckBox() { Text = "Correct T-Junctions", Location = new Point(32, 380), Width = 500, Checked = GLU.Tesselator.correctTJunctions };
       this.Controls.Add(ca1); ca1.Click += (p, e) => { GLU.Tesselator.correctTJunctions = ca1.Checked; min1 = long.MaxValue; Invalidate(); };
@@ -92,8 +93,8 @@ namespace csgtest
       {
         var tess = CSG.Tesselator;
         var ver = tess.Version;
-        gr.DrawString($"CSG Tesselator {(ver & 0xff) << 3} Bit {((ver & 0x100) != 0 ? "Debug" : "Release")}", SystemFonts.MenuFont, Brushes.Black, new PointF(0, -25));
-        tess.Mode = CSG.Mode.Positive | (delauny ? CSG.Mode.Fill : CSG.Mode.FillFast) | (outlines?CSG.Mode.Outline:0) | CSG.Mode.NoTrim;
+        gr.DrawString($"CSG Tesselator {((ver & 0x100) != 0 ? "Debug" : "Release")} Build", SystemFonts.MenuFont, Brushes.Black, new PointF(0, -25));
+        tess.Mode = CSG.Mode.Positive | (delauny ? CSG.Mode.Fill : CSG.Mode.FillFast) | (outlines ? CSG.Mode.Outline : 0) | CSG.Mode.NoTrim;
         sw.Restart();
         demo1(tess);
         sw.Stop();

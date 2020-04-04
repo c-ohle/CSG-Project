@@ -115,9 +115,10 @@ public:
   HRESULT FinalConstruct() { return S_OK; }
   void FinalRelease() { }
 public:
+  STDMETHOD(SetNormal)(Vertex* p);
   STDMETHOD(BeginPolygon)();
   STDMETHOD(BeginContour)();
-  STDMETHOD(AddVertex)(DOUBLE x, DOUBLE y, DOUBLE z);
+  STDMETHOD(AddVertex)(Vertex* p);
   STDMETHOD(EndContour)();
   STDMETHOD(EndPolygon)();
   STDMETHOD(get_Version)(LONG* pVal);

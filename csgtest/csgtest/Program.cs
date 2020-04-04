@@ -22,12 +22,17 @@ namespace csgtest
     }
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     static extern bool SetProcessDPIAware();
+#if(DEBUG)
+    internal const bool DEBUG = true;
+#else
+    internal const bool DEBUG = false;
+#endif
   }
-
 
   struct Vector3
   {
     public double x, y, z;
+    public Vector3(double x, double y, double z) { this.x = x; this.y = y; this.z = z; }
     public static explicit operator PointF(in Vector3 p) => new PointF((float)p.x, (float)p.y);
   }
 
@@ -40,9 +45,10 @@ namespace csgtest
     {
       int Version { get; }
       Mode Mode { get; set; }
+      void SetNormal(in Vector3 v);
       void BeginPolygon();
       void BeginContour();
-      void AddVertex(double x, double y, double z = 0);
+      void AddVertex(in Vector3 p);
       void EndContour();
       void EndPolygon();
       int VertexCount { get; }
@@ -62,6 +68,7 @@ namespace csgtest
     }
     static ITesselator tess;
     public static ITesselator Tesselator => tess ?? (tess = (ITesselator)new CTesselator());
+    public static void AddVertex(this ITesselator t, double x, double y) => t.AddVertex(new Vector3(x, y, 0));
   }
 
   static unsafe class GLU
@@ -75,6 +82,7 @@ namespace csgtest
       public bool correctTJunctions = true;
       int CSG.ITesselator.Version => 0;
       CSG.Mode CSG.ITesselator.Mode { get => 0; set => throw new NotImplementedException(); }
+      void CSG.ITesselator.SetNormal(in Vector3 v) => throw new NotImplementedException();
       int CSG.ITesselator.OutlineCount => 0;
       int CSG.ITesselator.OutlineAt(int i) => throw new NotImplementedException();
       public void SetWinding(Winding v) => gluTessProperty(tess, 100140, 100130 + (int)v);
@@ -87,10 +95,10 @@ namespace csgtest
       {
         gluTessBeginContour(tess);
       }
-      public void AddVertex(double x, double y, double z = 0)
+      public void AddVertex(in Vector3 p)
       {
         if (np == maxnp) throw new OutOfMemoryException();
-        int i = np++; pp[i].x = x; pp[i].y = y; pp[i].z = z; gluTessVertex(tess, &pp[i], (void*)i);
+        int i = np++; pp[i] = p; gluTessVertex(tess, &pp[i], (void*)i);
       }
       public void EndContour()
       {
@@ -145,7 +153,7 @@ namespace csgtest
       }
       void onend()
       {
-        if(boundaryonly) ii[ni - 1] |= 0x40000000;
+        if (boundaryonly) ii[ni - 1] |= 0x40000000;
       }
       void onerror(int id)
       {
@@ -192,7 +200,7 @@ namespace csgtest
       {
         Vector3 v; cross(a, b, c, &v); return dot(&v);
       }
-      
+
       public void CorrectTJunctions()
       {
         var ii = this.ii; var ni = this.ni; //if (ni != 0) ii[ni - 1] &= 0x0fffffff;
@@ -243,12 +251,12 @@ namespace csgtest
         for (int i = 0; i < ni; i += 3)
         {
           var l = dot(&pp[ii[i + 0]], &pp[ii[i + 1]], &pp[ii[i + 2]]); if (l <= 1e-15) continue;
-          if (t != i) { ii[t + 0] = ii[i + 0]; ii[t + 1] = ii[i + 1]; ii[t + 2] = ii[i + 2]; } t += 3;
+          if (t != i) { ii[t + 0] = ii[i + 0]; ii[t + 1] = ii[i + 1]; ii[t + 2] = ii[i + 2]; }
+          t += 3;
         }
         this.ni = t;
       }
     }
-     
     [DllImport("glu32.dll"), SuppressUnmanagedCodeSecurity]
     extern static void* gluNewTess();
     [DllImport("glu32.dll"), SuppressUnmanagedCodeSecurity]
@@ -276,3 +284,5 @@ namespace csgtest
   }
 
 }
+
+

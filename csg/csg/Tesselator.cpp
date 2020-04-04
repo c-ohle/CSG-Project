@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "Tesselator.h"
 
-
 STDMETHODIMP CTesselator::get_Version(LONG* pVal)
 {
   auto p = (BYTE*)pVal;
@@ -18,6 +17,13 @@ STDMETHODIMP CTesselator::put_Mode(Mode newVal)
 {
   mode = newVal; return 0;
 }
+STDMETHODIMP CTesselator::SetNormal(Vertex* v)
+{
+  int i = abs(v->x) >= abs(v->y) && abs(v->x) >= abs(v->z) ? 0 : abs(v->y) >= abs(v->z) ? 1 : 2;
+  int s = ((double*)v)[i] < 0 ? -1 : +1;
+  mode = (Mode)((mode & (Mode)0xffff) | ((int)Mode::NormX << i) | (s & (int)Mode::NormNeg));
+  return 0; 
+}
 STDMETHODIMP CTesselator::BeginPolygon()
 {
   np = 0; return 0;
@@ -26,11 +32,11 @@ STDMETHODIMP CTesselator::BeginContour()
 {
   fi = np; return 0;
 }
-STDMETHODIMP CTesselator::AddVertex(DOUBLE x, DOUBLE y, DOUBLE z)
+STDMETHODIMP CTesselator::AddVertex(Vertex* p)
 {
   if (np == ppLength) resize(64);
   if (np != fi) pp[np - 1].next = np;
-  auto a = &pp[np++]; a->x = x; a->y = y; a->z = z; a->next = fi;
+  auto a = &pp[np++]; *(Vertex*)&a->x = *p; a->next = fi;
   return 0;
 }
 STDMETHODIMP CTesselator::EndContour()
@@ -245,12 +251,11 @@ STDMETHODIMP CTesselator::OutlineAt(LONG i, LONG* pVal)
   if ((ULONG)i >= (ULONG)nl) return -1;
   *pVal = ll[i]; return 0;
 }
-
-const __m128d abs_mask = _mm_castsi128_pd(_mm_setr_epi32(-1, 0x7FFFFFFF, -1, 0x7FFFFFFF));
-
+ 
 int CTesselator::ccw(ts* a, ts* b, ts* c)
 {
 #if(USESSE) 
+  const __m128d abs_mask = _mm_castsi128_pd(_mm_setr_epi32(-1, 0x7FFFFFFF, -1, 0x7FFFFFFF));
   __m128d ma = _mm_load_pd(&a->x), mb = _mm_load_pd(&b->x), mc = _mm_load_pd(&c->x);
   __m128d ab = _mm_sub_pd(mb, ma), ac = _mm_sub_pd(mc, ma);
   __m128d ms = _mm_cross_pd(ab, ac);

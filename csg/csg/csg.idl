@@ -22,9 +22,10 @@ interface ITesselator : IUnknown
 	[propget] HRESULT Version([out, retval] LONG* pVal);
 	[propget] HRESULT Mode([out, retval] Mode* pVal);
 	[propput] HRESULT Mode([in] Mode newVal);
+	HRESULT SetNormal([in] Vertex* v);
 	HRESULT BeginPolygon();
 	HRESULT BeginContour();
-	HRESULT AddVertex([in] DOUBLE x, [in] DOUBLE y, [in] DOUBLE z);
+	HRESULT AddVertex([in] Vertex* p);
 	HRESULT EndContour();
 	HRESULT EndPolygon();
   [propget] HRESULT VertexCount([out, retval] LONG* pVal);
@@ -35,7 +36,7 @@ interface ITesselator : IUnknown
 	HRESULT OutlineAt([in] LONG i, [out, retval] LONG* pVal);
 };
 
-[uuid(41c66e67-2de1-4273-a1bb-f0a013dc2a0f),version(1.0),]
+[uuid(41c66e67-2de1-4273-a1bb-f0a013dc2a0f),version(1.0)]
 library csgLib
 {
 	importlib("stdole2.tlb"); 

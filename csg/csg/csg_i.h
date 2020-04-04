@@ -133,14 +133,15 @@ EXTERN_C const IID IID_ITesselator;
         virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_Mode( 
             /* [in] */ Mode newVal) = 0;
         
+        virtual HRESULT STDMETHODCALLTYPE SetNormal( 
+            /* [in] */ Vertex *v) = 0;
+        
         virtual HRESULT STDMETHODCALLTYPE BeginPolygon( void) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE BeginContour( void) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE AddVertex( 
-            /* [in] */ DOUBLE x,
-            /* [in] */ DOUBLE y,
-            /* [in] */ DOUBLE z) = 0;
+            /* [in] */ Vertex *p) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE EndContour( void) = 0;
         
@@ -200,6 +201,10 @@ EXTERN_C const IID IID_ITesselator;
             ITesselator * This,
             /* [in] */ Mode newVal);
         
+        HRESULT ( STDMETHODCALLTYPE *SetNormal )( 
+            ITesselator * This,
+            /* [in] */ Vertex *v);
+        
         HRESULT ( STDMETHODCALLTYPE *BeginPolygon )( 
             ITesselator * This);
         
@@ -208,9 +213,7 @@ EXTERN_C const IID IID_ITesselator;
         
         HRESULT ( STDMETHODCALLTYPE *AddVertex )( 
             ITesselator * This,
-            /* [in] */ DOUBLE x,
-            /* [in] */ DOUBLE y,
-            /* [in] */ DOUBLE z);
+            /* [in] */ Vertex *p);
         
         HRESULT ( STDMETHODCALLTYPE *EndContour )( 
             ITesselator * This);
@@ -277,14 +280,17 @@ EXTERN_C const IID IID_ITesselator;
 #define ITesselator_put_Mode(This,newVal)	\
     ( (This)->lpVtbl -> put_Mode(This,newVal) ) 
 
+#define ITesselator_SetNormal(This,v)	\
+    ( (This)->lpVtbl -> SetNormal(This,v) ) 
+
 #define ITesselator_BeginPolygon(This)	\
     ( (This)->lpVtbl -> BeginPolygon(This) ) 
 
 #define ITesselator_BeginContour(This)	\
     ( (This)->lpVtbl -> BeginContour(This) ) 
 
-#define ITesselator_AddVertex(This,x,y,z)	\
-    ( (This)->lpVtbl -> AddVertex(This,x,y,z) ) 
+#define ITesselator_AddVertex(This,p)	\
+    ( (This)->lpVtbl -> AddVertex(This,p) ) 
 
 #define ITesselator_EndContour(This)	\
     ( (This)->lpVtbl -> EndContour(This) ) 
