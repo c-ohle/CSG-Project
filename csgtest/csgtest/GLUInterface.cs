@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace csgtest
 {
@@ -218,5 +214,13 @@ namespace csgtest
     delegate void ActionByte(byte type);
     delegate void ActionPtr(void* data);
     delegate void ActionCom(Vector3* coords, void** data, float* weight, void** outData);
+  }
+
+  struct Vector3
+  {
+    public double x, y, z;
+    public Vector3(double x, double y, double z) { this.x = x; this.y = y; this.z = z; }
+    public static explicit operator PointF(in Vector3 p) => new PointF((float)p.x, (float)p.y);
+    public static implicit operator Vector3(PointF p) => new Vector3(p.X, p.Y, 0);
   }
 }
