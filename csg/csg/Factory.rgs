@@ -2,9 +2,8 @@ HKCR
 {
 	NoRemove CLSID
 	{
-		ForceRemove {96b75f96-e933-4eff-a6a2-ac2aceb1b824} = s 'Tesselator class'
+		ForceRemove {54ca8e82-bdb3-41db-8ed5-3b890279c431} = s 'CsgFactory class'
 		{
-			ForceRemove Programmable
 			InprocServer32 = s '%MODULE%'
 			{
 				val ThreadingModel = s 'Apartment'

@@ -1,4 +1,3 @@
-// dllmain.h : Deklaration der Modulklasse.
 
 class CcsgModule : public ATL::CAtlDllModuleT< CcsgModule >
 {

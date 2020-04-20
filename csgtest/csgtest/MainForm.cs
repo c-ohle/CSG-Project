@@ -12,12 +12,12 @@ using System.Windows.Forms;
 
 namespace csgtest
 {
-  public partial class Form1 : Form
+  public partial class MainForm : Form
   {
-    public Form1()
+    public MainForm()
     {
       InitializeComponent();
-      this.Text = $"CsgTest {IntPtr.Size << 3} Bit {(Program.DEBUG ? "Debug" : "Release")}";
+      this.Text = $"CsgTest {IntPtr.Size << 3} Bit {(COM.DEBUG ? "Debug" : "Release")}";
       this.DoubleBuffered = true;
       var ca1 = new CheckBox() { Text = "Correct T-Junctions", Location = new Point(32, 380), Width = 500, Checked = GLU.Tesselator.correctTJunctions };
       this.Controls.Add(ca1); ca1.Click += (p, e) => { GLU.Tesselator.correctTJunctions = ca1.Checked; min1 = long.MaxValue; Invalidate(); };
@@ -36,6 +36,7 @@ namespace csgtest
     static Stopwatch sw = new Stopwatch();
     static Pen penl = new Pen(Color.Black, 2);
     long min1 = long.MaxValue, min2 = long.MaxValue; bool delauny = true, outlines = true, gluoutlines = true;
+    CSG.ITesselator dbltess = CSG.Factory.CreateTessalator(CSG.Unit.Double);
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
@@ -88,11 +89,10 @@ namespace csgtest
         }
         gr.DrawString($"{sw.ElapsedMilliseconds} ms min: {min1 = Math.Min(min1, sw.ElapsedMilliseconds)} ms",
           SystemFonts.MenuFont, Brushes.Black, new PointF(0, 310));
-      }
+      } 
       gr.Transform = mat2;
       {
-        var tess = CSG.Tesselator;
-        var ver = tess.Version;
+        var tess = dbltess; var ver = CSG.Factory.Version;
         gr.DrawString($"CSG Tesselator {((ver & 0x100) != 0 ? "Debug" : "Release")} Build", SystemFonts.MenuFont, Brushes.Black, new PointF(0, -25));
         tess.Mode = CSG.Mode.Positive | (delauny ? CSG.Mode.Fill : CSG.Mode.FillFast) | (outlines ? CSG.Mode.Outline : 0) | CSG.Mode.NoTrim;
         sw.Restart();
@@ -100,16 +100,16 @@ namespace csgtest
         sw.Stop();
         for (int i = 0; i < tess.IndexCount; i += 3)
         {
-          polygon[0] = (PointF)tess.VertexAt(tess.IndexAt(i + 0));
-          polygon[1] = (PointF)tess.VertexAt(tess.IndexAt(i + 1));
-          polygon[2] = (PointF)tess.VertexAt(tess.IndexAt(i + 2));
+          polygon[0] = (PointF)tess.GetVertex(tess.IndexAt(i + 0));
+          polygon[1] = (PointF)tess.GetVertex(tess.IndexAt(i + 1));
+          polygon[2] = (PointF)tess.GetVertex(tess.IndexAt(i + 2));
           gr.FillPolygon(Brushes.LightGray, polygon);
         }
         for (int i = 0; i < tess.IndexCount; i += 3)
         {
-          polygon[0] = (PointF)tess.VertexAt(tess.IndexAt(i + 0));
-          polygon[1] = (PointF)tess.VertexAt(tess.IndexAt(i + 1));
-          polygon[2] = (PointF)tess.VertexAt(tess.IndexAt(i + 2));
+          polygon[0] = (PointF)tess.GetVertex(tess.IndexAt(i + 0));
+          polygon[1] = (PointF)tess.GetVertex(tess.IndexAt(i + 1));
+          polygon[2] = (PointF)tess.GetVertex(tess.IndexAt(i + 2));
           gr.DrawLine(Pens.Gray, polygon[0], polygon[1]);
           gr.DrawLine(Pens.Gray, polygon[1], polygon[2]);
           gr.DrawLine(Pens.Gray, polygon[2], polygon[0]);
@@ -118,7 +118,7 @@ namespace csgtest
         {
           var t1 = tess.OutlineAt(i); var last = (t1 & 0x40000000) != 0;
           var t2 = tess.OutlineAt(last ? l : i + 1); if (last) l = i + 1;
-          gr.DrawLine(penl, (PointF)tess.VertexAt(t1 & 0x00ffffff), (PointF)tess.VertexAt(t2 & 0x00ffffff));
+          gr.DrawLine(penl, (PointF)tess.GetVertex(t1 & 0x00ffffff), (PointF)tess.GetVertex(t2 & 0x00ffffff));
         }
         gr.DrawString($"{sw.ElapsedMilliseconds} ms min: {min2 = Math.Min(min2, sw.ElapsedMilliseconds)} ms",
           SystemFonts.MenuFont, Brushes.Black, new PointF(0, 310));

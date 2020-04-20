@@ -4,7 +4,7 @@
 //
 #define IDS_PROJNAME                    100
 #define IDR_CSG                         101
-#define IDR_TESSELATOR                  106
+#define IDR_FACTORY                     107
 
 // Next default values for new objects
 // 

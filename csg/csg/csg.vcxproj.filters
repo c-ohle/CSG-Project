@@ -37,10 +37,22 @@
     <ClInclude Include="pch.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-    <ClInclude Include="Tesselator.h">
+    <ClInclude Include="vector.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-    <ClInclude Include="vector.h">
+    <ClInclude Include="rational.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="Factory.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="Mesh.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="TesselatorDbl.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="TesselatorRat.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>
@@ -57,7 +69,16 @@
     <ClCompile Include="pch.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-    <ClCompile Include="Tesselator.cpp">
+    <ClCompile Include="Factory.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="Mesh.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="TesselatorDbl.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="TesselatorRat.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
   </ItemGroup>
@@ -73,7 +94,7 @@
     <None Include="csg.def">
       <Filter>Quelldateien</Filter>
     </None>
-    <None Include="Tesselator.rgs">
+    <None Include="Factory.rgs">
       <Filter>Ressourcendateien</Filter>
     </None>
   </ItemGroup>

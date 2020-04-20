@@ -1,54 +1,47 @@
 #include "pch.h"
-#include "Tesselator.h"
+#include "TesselatorDbl.h"
 
-STDMETHODIMP CTesselator::get_Version(LONG* pVal)
+HRESULT CTesselatorDbl::get_Mode(CSG_TESS* p)
 {
-  auto p = (BYTE*)pVal;
-  p[0] = sizeof(void*);
-  p[1] = Debug ? 1 : 0;
-  p[2] = p[3] = 1;
-  return 0;
+  *p = mode; return 0;
 }
-STDMETHODIMP CTesselator::get_Mode(Mode* pVal)
-{
-  *pVal = mode; return 0;
-}
-STDMETHODIMP CTesselator::put_Mode(Mode newVal)
+HRESULT CTesselatorDbl::put_Mode(CSG_TESS newVal)
 {
   mode = newVal; return 0;
 }
-STDMETHODIMP CTesselator::SetNormal(Vertex* v)
+HRESULT CTesselatorDbl::SetNormal(CSGVAR n)
 {
-  int i = abs(v->x) >= abs(v->y) && abs(v->x) >= abs(v->z) ? 0 : abs(v->y) >= abs(v->z) ? 1 : 2;
-  int s = ((double*)v)[i] < 0 ? -1 : +1;
-  mode = (Mode)((mode & (Mode)0xffff) | ((int)Mode::NormX << i) | (s & (int)Mode::NormNeg));
-  return 0; 
+  double v[3]; conv(v, 3, n);
+  int i = abs(v[0]) >= abs(v[1]) && abs(v[0]) >= abs(v[2]) ? 0 : abs(v[1]) >= abs(v[2]) ? 1 : 2;
+  int s = v[i] < 0 ? -1 : +1;
+  mode = (CSG_TESS)((mode & (CSG_TESS)0xffff) | ((int)CSG_TESS_NORMX << i) | (s & (int)CSG_TESS_NORMNEG));
+  return 0;
 }
-STDMETHODIMP CTesselator::BeginPolygon()
+HRESULT CTesselatorDbl::BeginPolygon()
 {
   np = 0; return 0;
 }
-STDMETHODIMP CTesselator::BeginContour()
+HRESULT CTesselatorDbl::BeginContour()
 {
   fi = np; return 0;
 }
-STDMETHODIMP CTesselator::AddVertex(Vertex* p)
+HRESULT CTesselatorDbl::AddVertex(CSGVAR v)
 {
-  if (np == ppLength) resize(64);
+  if (np == pp.n) resize(64);
   if (np != fi) pp[np - 1].next = np;
-  auto a = &pp[np++]; *(Vertex*)&a->x = *p; a->next = fi;
-  return 0;
+  auto a = &pp[np++]; a->next = fi;
+  conv(&a->x, 3, v); return 0;
 }
-STDMETHODIMP CTesselator::EndContour()
+HRESULT CTesselatorDbl::EndContour()
 {
   return 0;
 }
-STDMETHODIMP CTesselator::EndPolygon()
+HRESULT CTesselatorDbl::EndPolygon()
 {
   auto pro = project(0);
   ns = nl = this->ni = 0; int np = this->np, shv = 1; worstcase:
   for (int i = 0; i < this->np; i++) { auto p = &pp[i]; p->y += p->x * kill; }
-  memset(dict, 0, hash * sizeof(int)); int ni = 0;
+  memset(dict.p, 0, hash * sizeof(int)); int ni = 0;
   for (int i = 0; i < np; i++)
   {
     auto a = &pp[i]; auto b = &pp[a->next];
@@ -58,7 +51,7 @@ STDMETHODIMP CTesselator::EndPolygon()
     a->f = a->x - a->y * (a->a = dx / dy);
     kk[ni++] = ab(i, dy > 0 ? i : a->next); a->line = -1; addpt(a->x, a->y, i);
   }
-  qsort_s(kk, ni, sizeof(ab), cmp1, this);
+  qsort_s(kk.p, ni, sizeof(ab), cmp1, this);
   double y1, y2 = 0, lx = 0; int active = 0, nfl = 0;
   for (int l = 0; l < ni;)
   {
@@ -88,7 +81,7 @@ STDMETHODIMP CTesselator::EndPolygon()
         auto a = &pp[kk[t].a]; a->x1 = a->x2; a->yy = y1;
         a->x2 = a->y == y2 ? a->x : pp[a->next].y == y2 ? pp[a->next].x : a->f + y2 * a->a;
       }
-      qsort_s(kk, active, sizeof(ab), cmp2, this);
+      qsort_s(kk.p, active, sizeof(ab), cmp2, this);
       int nc = 0, e = active;
       for (int i = 1; i < active; i++)
       {
@@ -109,29 +102,29 @@ STDMETHODIMP CTesselator::EndPolygon()
         auto b = &pp[t = kk[i].a]; auto d = t != kk[i].b;
         if ((d ? b->y : pp[b->next].y) == y2) b->next = -1 - b->next;
         auto old = dir; dir += d ? +1 : -1;
-        switch ((Mode)((int)mode & 0xff))
+        switch ((CSG_TESS)((int)mode & 0xff))
         {
-        case Mode::EvenOdd:
+        case CSG_TESS_EVENODD:
           if ((old & 1) == 0 && (dir & 1) == 1) { k = i; continue; }
           if ((old & 1) == 1 && (dir & 1) == 0) break;
           goto skip;
-        case Mode::Positive:
+        case CSG_TESS_POSITIVE:
           if (dir == +1 && old == 0) { k = i; continue; }
           if (old == +1 && dir == 0) break;
           goto skip;
-        case Mode::Negative:
+        case CSG_TESS_NEGATIVE:
           if (dir == -1 && old == 0) { k = i; continue; }
           if (old == -1 && dir == 0) break;
           goto skip;
-        case Mode::NonZero:
+        case CSG_TESS_NONZERO:
           if (old == 0) { k = i; continue; }
           if (dir == 0) break;
           goto skip;
-        case Mode::AbsGeqTwo:
+        case CSG_TESS_ABSGEQTWO:
           if (abs(old) == 1 && abs(dir) == 2) { k = i; continue; }
           if (abs(old) == 2 && abs(dir) == 1) break;
           goto skip;
-        case Mode::GeqThree:
+        case CSG_TESS_GEQTHREE:
           if (old == 2 && dir == 3) { k = i; continue; }
           if (old == 3 && dir == 2) break;
           goto skip;
@@ -159,7 +152,7 @@ STDMETHODIMP CTesselator::EndPolygon()
       }
       for (int i = 0, j; i < nc; i++)
       {
-        if (this->np + 4 >= ppLength) resize();
+        if (this->np + 4 >= (int)pp.n) resize();
         auto b = &pp[j = pp[i].ic];
         bool f1 = false, f2 = false;
         for (int k = i - 1; k <= i + 1; k += 2)
@@ -196,7 +189,7 @@ STDMETHODIMP CTesselator::EndPolygon()
         auto k1 = addpt(b->x1, y1, -1 - j);
         if (f1 && b->line != -1) { if (ii[b->line].a == -1) ii[b->line].a = k1; else ii[b->line].b = k1; }
         auto k2 = f2 ? addpt(b->x2, y2, -1 - j) : -1;
-        b->line = f2 ? -1 : this->ni; if (this->ni == iiLength) __realloc(ii, iiLength = max(ppLength, this->ni << 1));
+        b->line = f2 ? -1 : this->ni; if (this->ni == ii.n) ii.setsize(max((int)pp.n, this->ni << 1));
         ii[this->ni++] = (i & 1) != 0 ? ab(k1, k2) : ab(k2, k1);
       }
       for (int i = 0, j; i < nfl; i++)
@@ -215,44 +208,44 @@ STDMETHODIMP CTesselator::EndPolygon()
     auto c = &pp[j = kk[i].a]; if (c->line == -1) continue;
     auto t = addpt(c->x2, y2, -1 - j); if (ii[c->line].a == -1) ii[c->line].a = t; else ii[c->line].b = t;
   }
-  if ((mode & (Mode::FillFast | Mode::Fill)) != 0) fill();
-  if ((mode & Mode::IndexOnly) == 0) { auto f = kill * shv; for (int i = 0; i < this->np; i++) { auto p = &pp[i]; p->y -= p->x * f; } }
-  if ((mode & (Mode::Outline | Mode::OutlinePrecise)) != 0) outline();
-  if ((mode & Mode::Fill) != 0) optimize();
-  if ((mode & Mode::IndexOnly) != 0) { this->np = 0; return 0; }
+  if ((mode & (CSG_TESS_FILLFAST | CSG_TESS_FILL)) != 0) fill();
+  if ((mode & CSG_TESS_INDEXONLY) == 0) { auto f = kill * shv; for (int i = 0; i < this->np; i++) { auto p = &pp[i]; p->y -= p->x * f; } }
+  if ((mode & (CSG_TESS_OUTLINE | CSG_TESS_OUTLINEPRECISE)) != 0) outline();
+  if ((mode & CSG_TESS_FILL) != 0) optimize();
+  if ((mode & CSG_TESS_INDEXONLY) != 0) { this->np = 0; return 0; }
   if (pro != 0) project(pro << 2);
-  if ((mode & Mode::NoTrim) == 0) trim();
+  if ((mode & CSG_TESS_NOTRIM) == 0) trim();
   return 0;
 }
-STDMETHODIMP CTesselator::get_VertexCount(LONG* pVal)
+HRESULT CTesselatorDbl::get_VertexCount(UINT* p)
 {
-  *pVal = np; return 0;
+  *p = np; return 0;
 }
-STDMETHODIMP CTesselator::VertexAt(LONG i, Vertex* pVal)
+HRESULT CTesselatorDbl::VertexAt(UINT i, CSGVAR* v)
 {
-  if ((ULONG)i >= (ULONG)np) return -1;
-  *pVal = *(Vertex*)&pp[i].x; return 0;
+  if (i >= (UINT)np) return -1;
+  conv(*v, &pp[i].x, 3); return 0;
 }
-STDMETHODIMP CTesselator::get_IndexCount(LONG* pVal)
+HRESULT CTesselatorDbl::get_IndexCount(UINT* p)
 {
-  *pVal = ns; return 0;
+  *p = ns; return 0;
 }
-STDMETHODIMP CTesselator::IndexAt(LONG i, LONG* pVal)
+HRESULT CTesselatorDbl::IndexAt(UINT i, UINT* p)
 {
-  if ((ULONG)i >= (ULONG)ns) return -1;
-  *pVal = ss[i];  return 0;
+  if (i >= (UINT)ns) return -1;
+  *p = ss[i];  return 0;
 }
-STDMETHODIMP CTesselator::get_OutlineCount(LONG* pVal)
+HRESULT CTesselatorDbl::get_OutlineCount(UINT* p)
 {
-  *pVal = nl; return 0;
+  *p = nl; return 0;
 }
-STDMETHODIMP CTesselator::OutlineAt(LONG i, LONG* pVal)
+HRESULT CTesselatorDbl::OutlineAt(UINT i, UINT* p)
 {
-  if ((ULONG)i >= (ULONG)nl) return -1;
-  *pVal = ll[i]; return 0;
+  if (i >= (UINT)nl) return -1;
+  *p = ll[i]; return 0;
 }
- 
-int CTesselator::ccw(ts* a, ts* b, ts* c)
+
+int CTesselatorDbl::ccw(ts* a, ts* b, ts* c)
 {
 #if(USESSE) 
   const __m128d abs_mask = _mm_castsi128_pd(_mm_setr_epi32(-1, 0x7FFFFFFF, -1, 0x7FFFFFFF));
@@ -281,19 +274,19 @@ int CTesselator::ccw(ts* a, ts* b, ts* c)
   return s < 0 ? -1 : +1;
 #endif
 }
-void CTesselator::fill()
+void CTesselatorDbl::fill()
 {
-  qsort_s(ii, ni, sizeof(ab), cmp4, this);
-  if (ni > ppLength) resize(iiLength);
+  qsort_s(ii.p, ni, sizeof(ab), cmp4, this);
+  if (ni > (int)pp.n) resize(ii.n);
   for (int i = 0; i < ni; i++)
   {
     auto c = &pp[i]; c->ic = 0;
     c->fl = compare(pp[ii[i].a].y, pp[ii[i].b].y);
   }
-  if (ni > ssLength) __realloc(ss, ssLength = iiLength);
+  if (ni > (int)ss.n) ss.setsize(ii.n);
   for (int i = 0; i < ni; i++) ss[i] = i;
-  qsort_s(ss, ni, sizeof(int), cmp3, this); // y-max //create trapezoidal map on dict in O(n)
-  memset(dict, 0, (mi = ni) * sizeof(int)); fs l1, l2;
+  qsort_s(ss.p, ni, sizeof(int), cmp3, this); // y-max //create trapezoidal map on dict in O(n)
+  memset(dict.p, 0, (mi = ni) * sizeof(int)); fs l1, l2;
   for (int i = 0, lp = -1, active = ni; i < ni; i++)
   {
     auto ip = ii[i].a; if (ip == lp) continue; lp = ip;
@@ -314,7 +307,7 @@ void CTesselator::fill()
     {
       auto p = l == 1 ? &l2 : &l1;
       if (p->k == -1 || p->d1 * p->d2 != 1) continue;
-      if (mi + 2 > dictLength) __realloc(dict, dictLength = dictLength << 1);
+      if (mi + 2 > (int)dict.n) dict.setsize(dict.n << 1);
       auto h = dict[p->k]; auto n = 0;
       if (p->d1 > 0) { n = h; h = mi; }
       else { if (h != 0) dict[(h >> 16) + 1] = mi; else h = mi; h = (h & 0xffff) | (mi << 16); }
@@ -328,16 +321,16 @@ void CTesselator::fill()
       {
         t2 = dict[t]; t3 = (n = dict[t + 1]) != 0 ? dict[n] : ii[i].b;
         if (ccw(&pp[t1], &pp[t2], &pp[t3]) != -1) continue; //possible: fans after sequence of left turns  
-        if (ns + 3 >= ssLength) __realloc(ss, ssLength = ssLength << 1);
+        if (ns + 3 >= (int)ss.n) ss.setsize(ss.n << 1);
         ss[ns++] = t1; ss[ns++] = t3; ss[ns++] = t2;
         dict[l == -1 ? i : l + 1] = n; break;
       }
 }
-void CTesselator::outline()
+void CTesselatorDbl::outline()
 {
-  if (ll == 0 || ni > llLength) __realloc(ll, llLength = iiLength);
-  if (np + (ni << 1) > dictLength) __realloc(dict, dictLength = max(ppLength, np) + (iiLength << 1));
-  memset(dict, 0, np * sizeof(int));
+  if (ni > (int)ll.n) ll.setsize(ii.n);
+  if (np + (ni << 1) > (int)dict.n) dict.setsize(max((int)pp.n, np) + (ii.n << 1));
+  memset(dict.p, 0, np * sizeof(int));
   for (int i = 0, k, j = np; i < ni; i++)
   {
     dict[j] = i; dict[j + 1] = dict[k = ii[i].a]; dict[k] = j; j += 2;
@@ -348,7 +341,7 @@ void CTesselator::outline()
     for (auto ab = nl; ;)
     {
       auto u = ii[dict[t]]; //for (auto j = t; j != 0; j = dict[j + 1]) { auto xx = ii[dict[j]]; }
-      if ((mode & Mode::OutlinePrecise) != 0)
+      if (mode & CSG_TESS_OUTLINEPRECISE)
       {
         if (dict[t + 1] != 0) //branches
         {
@@ -357,8 +350,8 @@ void CTesselator::outline()
           {
             for (auto j = dict[t + 1]; j != 0; j = dict[j + 1])
             {
-              auto v = ii[dict[j]];
-              auto d = ccw(&pp[ll[nl - 1]], &pp[u.a], &pp[u.b]) -
+              auto v = ii[dict[j]]; auto d =
+                ccw(&pp[ll[nl - 1]], &pp[u.a], &pp[u.b]) -
                 ccw(&pp[ll[nl - 1]], &pp[u.a], &pp[v.b]);
               if (d > 0) continue;
               if (d == 0 && ccw(&pp[u.a], &pp[u.b], &pp[v.b]) <= 0) continue;
@@ -385,12 +378,12 @@ static int mod(int i, int k)
 {
   auto r = i % 3; return i - r + (r + k) % 3;
 }
-void CTesselator::optimize()
+void CTesselatorDbl::optimize()
 {
-  if (ns > iiLength) __realloc(ii, iiLength = ssLength);
-  if (hash + ns > dictLength) __realloc(dict, dictLength = hash + ssLength);
-  if (ns > kkLength) __realloc(kk, kkLength = ssLength);
-  for (int i = 0; i < ns; i++) kk[i] = ab(-1, 0); memset(dict, 0, hash * sizeof(int));
+  if (ns > (int)ii.n) ii.setsize(ss.n);
+  if (hash + ns > (int)dict.n) dict.setsize(hash + ss.n);
+  if (ns > (int)kk.n) kk.setsize(ss.n);
+  for (int i = 0; i < ns; i++) kk[i] = ab(-1, 0); memset(dict.p, 0, hash * sizeof(int));
   for (int i = 0; i < ns; i++)
   {
     auto l = ab(ss[i], ss[mod(i, 1)]);
@@ -400,7 +393,7 @@ void CTesselator::optimize()
     h = (ii[i] = ab(l.b, l.a)).hashcode() % hash;
     dict[hash + i] = dict[h]; dict[h] = i + 1;
   }
-  for (int i = 0, t; i < ns; i++)
+  for (int i = 0, t, s = 0; i < ns; i++)
   {
     if (kk[i].b == 1) continue; auto k = kk[i].a; if (k == -1) continue; //tests++;
     int u1, u2, v2, i1 = ss[i], i2 = ss[u1 = mod(i, 1)], i3 = ss[u2 = mod(i, 2)], k3 = ss[v2 = mod(k, 2)];
@@ -411,11 +404,12 @@ void CTesselator::optimize()
     if ((t = kk[i].a = kk[v2].a) != -1) { kk[t].a = i; kk[t].b = 0; if (t < j) j = t; }
     if ((t = kk[k].a = kk[u2].a) != -1) { kk[t].a = k; kk[t].b = 0; if (t < j) j = t; }
     kk[kk[u2].a = v2].a = u2; if (j < i) i = j - 1;
+    if (s++ == ns) break;
   }
 }
-bool CTesselator::circum(int i1, int i2, int i3, int i4)
+bool CTesselatorDbl::circum(int i1, int i2, int i3, int i4)
 {
-#if(USESSE)
+#if(USE_SSE)
   __m128d ma = _mm_load_pd(&pp[i1].x), mb = _mm_load_pd(&pp[i2].x);
   __m128d mc = _mm_load_pd(&pp[i3].x), md = _mm_load_pd(&pp[i4].x);
   __m128d mab = _mm_mul_pd(_mm_add_pd(ma, mb), _mm_set1_pd(0.5));
@@ -439,13 +433,13 @@ bool CTesselator::circum(int i1, int i2, int i3, int i4)
   return (v - d).Dot() >= (v - a).Dot();
 #endif
 }
-void CTesselator::resize(int c)
+void CTesselatorDbl::resize(int c)
 {
-  __realloc(pp, ppLength = max(c, ppLength << 1));
-  if (kkLength < ppLength << 1) __realloc(kk, kkLength = ppLength << 1);
-  if (hash + ppLength > dictLength) __realloc(dict, dictLength = hash + ppLength);
+  pp.setsize(max(c, (int)pp.n << 1));
+  if (kk.n < pp.n << 1) kk.setsize(pp.n << 1);
+  if (hash + pp.n > dict.n) dict.setsize(hash + pp.n);
 }
-int CTesselator::project(int m)
+int CTesselatorDbl::project(int m)
 {
   if (m == 0 && (m = (((int)mode >> 15) & 0x12) | (((int)mode >> 17) & 1)) == 0) return m;
   for (int i = 0; i < np; i++)
@@ -461,21 +455,21 @@ int CTesselator::project(int m)
   }
   return m;
 }
-int CTesselator::addpt(double x, double y, int v)
+int CTesselatorDbl::addpt(double x, double y, int v)
 {
   int h = (int)((UINT)(hashcode(x) + hashcode(y) * 13) % hash), i = dict[h] - 1;
   for (; i != -1; i = dict[hash + i] - 1) if (pp[i].x == x && pp[i].y == y) return i;
   if ((i = v) < 0)
   {
-    if (np == ppLength) resize(); //todo: check necessary? possible?
+    if (np == pp.n) resize(); //todo: check necessary? possible?
     auto b = &pp[-v - 1]; auto n = b->next; auto c = &pp[n < 0 ? -n - 1 : n];
     auto p = &pp[i = np++]; p->x = x; p->y = y; p->z = b->z + (y - b->y) * (c->z - b->z) / (c->y - b->y);
   }
   dict[hash + i] = dict[h]; dict[h] = i + 1; return i;
 }
-void CTesselator::trim()
+void CTesselatorDbl::trim()
 {
-  memset(dict, 0, this->np * sizeof(int)); auto np = 0;
+  memset(dict.p, 0, this->np * sizeof(int)); auto np = 0;
   for (int i = 0; i < ns; i++) dict[ss[i]] = 1;
   for (int i = 0; i < nl; i++) dict[ll[i] & 0x0fffffff] = 1;
   for (int i = 0; i < this->np; i++) if (dict[i] != 0) { if (np != i) { auto d = &pp[np].x; auto s = &pp[i].x; d[0] = s[0]; d[1] = s[1]; d[2] = s[2]; } dict[i] = np++; }
