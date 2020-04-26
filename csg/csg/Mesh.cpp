@@ -3,105 +3,283 @@
 #include "TesselatorRat.h"
 #include "Mesh.h"
 
-HRESULT CTesselatorDbl::Update(ICSGMesh* mesh, CSGVAR v)
+HRESULT CTesselatorRat::Update(ICSGMesh* mesh, CSGVAR v, UINT flags)
 {
-  auto& m = *static_cast<CMesh*>(mesh); bool inv = false;
-  m.pp.setsize(nl != 0 ? np * 2 : np);
-  m.ii.setsize(ns * 2 + nl * 6); m.ee.setsize(0);
-  for (int i = 0; i < np; i++) m.pp[i] = Vector3R(&pp[i].x);
-  if (nl)
+  auto& m = *static_cast<CMesh*>(mesh); m.resetee(); bool inv = false;
+  UINT mo = (flags >> 16) & 0x0f, nn = nl != 0 ? max(1, flags & 0x0000ffff) : 0, nb = ns ? nn : nn + 1, nt = np;
+  if (mo & 3)
   {
-    Vector3R dv; if (v.count == 0) conv(&dv.z, 1, v); else conv(&dv.x, 3, v);
-    for (int i = 0; i < this->np; i++) m.pp[np + i] = m.pp[i] + dv; inv = dv.z.sign() > 0;
-  }
-  for (int i = 0; i < ns; i++) m.ii[i] = ss[i];
-  for (int i = 0, l = 0, t = ns; i < nl; i++)
-  {
-    int t1 = ll[i]; int e = (t1 & 0x40000000) != 0;
-    int t2 = ll[e ? l : i + 1] & 0x0fffffff; if (e) { l = i + 1; t1 &= 0x0fffffff; }
-    m.ii[t++] = t1; m.ii[t++] = np + t1; m.ii[t++] = t2;
-    m.ii[t++] = t2; m.ii[t++] = np + t1; m.ii[t++] = np + t2;
-  }
-  for (int i = 0, t = ns + 6 * nl, k = nl != 0 ? np : 0; i < ns; i += 3, t += 3)
-  {
-    m.ii[t + 0] = k + m.ii[i + 0];
-    m.ii[t + 1] = k + m.ii[i + 2];
-    m.ii[t + 2] = k + m.ii[i + 1];
-  }
-  if (inv) m.invert();
-  return 0;
-}
-
-HRESULT CTesselatorRat::Update(ICSGMesh* mesh, CSGVAR v)
-{
-  auto& m = *static_cast<CMesh*>(mesh); bool inv = false;
-  m.pp.setsize(nl != 0 ? np * 2 : np);
-  m.ii.setsize(ns * 2 + nl * 6); m.ee.setsize(0);
-  for (int i = 0; i < np; i++) m.pp[i] = *(Vector3R*)&pp[i].x;
-  if (nl)
-  {
-    Vector3R dv; if (v.count <= 1) conv(&dv.z, 1, v); else conv(&dv.x, 3, v);
-    for (int i = 0; i < this->np; i++) m.pp[np + i] = m.pp[i] + dv; inv = dv.z.sign() > 0;
-  }
-  for (int i = 0; i < ns; i++) m.ii[i] = ss[i];
-  for (int i = 0, l = 0, t = ns; i < nl; i++)
-  {
-    int t1 = ll[i]; int e = (t1 & 0x40000000) != 0;
-    int t2 = ll[e ? l : i + 1] & 0x0fffffff; if (e) { l = i + 1; t1 &= 0x0fffffff; }
-    m.ii[t++] = t1; m.ii[t++] = np + t1; m.ii[t++] = t2;
-    m.ii[t++] = t2; m.ii[t++] = np + t1; m.ii[t++] = np + t2;
-  }
-  for (int i = 0, t = ns + 6 * nl, k = nl != 0 ? np : 0; i < ns; i += 3, t += 3)
-  {
-    m.ii[t + 0] = k + m.ii[i + 0];
-    m.ii[t + 1] = k + m.ii[i + 2];
-    m.ii[t + 2] = k + m.ii[i + 1];
-  }
-  if (inv) m.invert();
-  if (m.ii.n) encode(m.ii.p, false);
-  return 0;
-}
-
-void CTesselatorRat::initplanes(CMesh& m)
-{
-  if (m.ii.n == 0) return;
-  if (decode(m.ii.p))
-  {
-    UINT c = 1; for (UINT i = 3; i < m.ii.n; i += 3) if (decode(m.ii.p + i)) c++;
-    m.ee.setsize(c);
-    for (UINT i = 0, k = 0; i < m.ii.n; i += 3)
-      if (decode(m.ii.p + i))
-        m.ee[k++] = 0 | Vector4R::PlaneFromPoints(m.pp[m.ii[i + 0]], m.pp[m.ii[i + 1]], m.pp[m.ii[i + 2]]);
-    return;
-  }
-  auto nd = m.ii.n / 3;
-  auto ff = csg.ff.getptr(nd + m.pp.n);
-  auto ii = csg.ii.getptr(nd + m.ii.n);
-  csg.dictee(64); memset(ff + nd, -1, m.pp.n * sizeof(int)); //for (int i = 0; i < m.pp.n; i++) ff[nd + i] = -1;
-  for (UINT i = 0, k = 0, l = 0, x = 0, i1, i2, i3; k < nd; i += 3, k++)
-  {
-    const auto& a = m.pp[i1 = m.ii[i + 0]];
-    const auto& b = m.pp[i2 = m.ii[i + 1]];
-    const auto& c = m.pp[i3 = m.ii[i + 2]]; if ((ii[k] = i) == 0) goto m1;
-    const auto& e = csg.ee[l];
-    if (ff[nd + i1] != l) if ((0 ^ e.DotCoord(a)) != 0) goto m1;
-    if (ff[nd + i2] != l) if ((0 ^ e.DotCoord(b)) != 0) goto m1;
-    if (ff[nd + i3] != l) if ((0 ^ e.DotCoord(c)) != 0) goto m1;
-    switch (x != -1 ? x : (x = ((const Vector3R*)&e)->LongAxis()))
+    for (UINT i = nt = 0; i < (UINT)np; i++)
     {
-    case 0: if ((0 ^ (b.y - a.y) * (c.z - a.z) - (b.z - a.z) * (c.y - a.y)) != e.x.sign()) goto m1; break;
-    case 1: if ((0 ^ (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z)) != e.y.sign()) goto m1; break;
-    case 2: if ((0 ^ (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)) != e.z.sign()) goto m1; break;
+      auto& t = pp.p[i]; const Vector3R& p = *(const Vector3R*)&t.x;
+      if (t.ic = (&t.x)[mo & 1].sign()) pp.p[t.t1 = nt++].t2 = i;
     }
-    ff[k] = l; goto m2; m1: //TRACE(L"plane %i at %i\n", csg.ne, i);
-    ff[k] = l = csg.addee(0 | Vector4R::PlaneFromPoints(a, b, c)); x = -1; m2:
-    ff[nd + i1] = ff[nd + i2] = ff[nd + i3] = l;
   }
-  qsort(ff, ii, 0, nd - 1);
-  for (UINT i = 0, j = 0; i < nd; i++, j += 3) for (UINT k = 0; k < 3; k++) ii[nd + j + k] = m.ii[ii[i] + k];
-  m.ii.copy((const UINT*)ii + nd, m.ii.n);
-  for (UINT i = 0, k = 0; i < m.ii.n; i += 3, k++) encode(m.ii.p + i, k == 0 || ff[k - 1] != ff[k]);
-  m.ee.copy(csg.ee.p, csg.ne);
+  m.pp.setsize(np + nt * nn);
+  for (UINT i = 0; i < (UINT)np; i++) m.pp[i] = *(Vector3R*)&pp[i].x;
+  if (nn)
+  {
+    switch (mo)
+    {
+    case 0:
+    {
+      Rational dz; conv(&dz, 1, v); inv = dz.sign() > 0;
+      for (UINT i = 0, n = nn * np; i < n; i++)
+      {
+        const auto& s = m.pp[i]; auto& d = m.pp[np + i];
+        d.x = s.x; d.y = s.y; d.z = s.z + dz;
+      }
+      break;
+    }
+    case 1:
+    case 2:
+    {
+      double a; conv(&a, 1, v); if (!a) a = 2 * M_PI * nn / (nn + 1); inv = a > 0;
+      for (UINT j = 1, l = np; j <= nn; j++)
+      {
+        auto sc = Vector2R::SinCos(a * j / nn, (char)(flags >> 24));
+        for (UINT i = 0; i < nt; i++, l++)
+        {
+          const auto& s = m.pp[pp[i].t2]; auto& d = m.pp[l];
+          d.x = mo == 1 ? s.x : s.x * sc.x;
+          d.y = mo == 1 ? s.y * sc.x : s.y;
+          d.z = mo == 1 ? s.y * sc.y : s.x * sc.y;
+        }
+      }
+      break;
+    }
+    }
+  }
+  m.ii.setsize(ns * 2 + (nl + nt - np) * nb * 6);
+  memcpy(m.ii.p, ss.p, ns << 2); UINT t = ns;
+  for (UINT j = 0, k1 = 0, k2 = np; j < nb; j++, k1 = k2, k2 = j != nn ? k2 + nt : 0)
+    for (UINT i = 0, l = 0; i < (UINT)nl; i++)
+    {
+      UINT t1 = ll[i]; auto e = (t1 & 0x40000000) != 0;
+      UINT t2 = ll[e ? l : i + 1] & 0x0fffffff; if (e) { l = i + 1; t1 &= 0x0fffffff; }
+      UINT l1 = nt == np ? k1 + t1 : k1 == 0 || !pp.p[t1].ic ? t1 : k1 + pp.p[t1].t1;
+      UINT l2 = nt == np ? k2 + t1 : k2 == 0 || !pp.p[t1].ic ? t1 : k2 + pp.p[t1].t1;
+      UINT l3 = nt == np ? k1 + t2 : k1 == 0 || !pp.p[t2].ic ? t2 : k1 + pp.p[t2].t1;
+      UINT l4 = nt == np ? k2 + t2 : k2 == 0 || !pp.p[t2].ic ? t2 : k2 + pp.p[t2].t1;
+      if (l1 != l2) { m.ii.p[t + 0] = l1; m.ii.p[t + 1] = l2; m.ii.p[t + 2] = l3; t += 3; }
+      if (l3 != l4) { m.ii.p[t + 0] = l3; m.ii.p[t + 1] = l2; m.ii.p[t + 2] = l4; t += 3; }
+    }
+  for (UINT i = 0, k = np + nt * (nn - 1); i < (UINT)ns; i += 3, t += 3)
+  {
+    m.ii.p[t + 0] = nt == np ? k + ss[i + 0] : !pp.p[ss[i + 0]].ic ? ss[i + 0] : k + pp.p[ss[i + 0]].t1;
+    m.ii.p[t + 1] = nt == np ? k + ss[i + 2] : !pp.p[ss[i + 2]].ic ? ss[i + 2] : k + pp.p[ss[i + 2]].t1;
+    m.ii.p[t + 2] = nt == np ? k + ss[i + 1] : !pp.p[ss[i + 1]].ic ? ss[i + 1] : k + pp.p[ss[i + 1]].t1;
+  }
+  _ASSERT(t == m.ii.n);
+  if (inv) m.invert();
+  m.flags = !nn && m.ii.n ? 2 : 0;
+  /// todo: the other cases
+  if (nn && mo == 0 && nn == 1 && simplepoly())
+  {
+    UINT e = m.ii.n - ns;
+    for (UINT i = 0; i < (UINT)ns; i += 3) { encode(m.ii.p + i, i == 0); encode(m.ii.p + e + i, i == 0); }
+    for (UINT i = ns, k = 1; i < e; i += 3, k++) encode(m.ii.p + i, k & 1); m.flags |= 1;
+  }
+  ///
+  return 0;
+}
+
+HRESULT CTesselatorDbl::Update(ICSGMesh* mesh, CSGVAR v, UINT flags)
+{
+  auto& m = *static_cast<CMesh*>(mesh); m.resetee(); bool inv = false;
+  UINT mo = (flags >> 16) & 0x0f, nn = nl != 0 ? max(1, flags & 0x0000ffff) : 0, nb = ns ? nn : nn + 1, nt = np;
+  if (mo & 3)
+  {
+    for (UINT i = nt = 0; i < (UINT)np; i++)
+    {
+      auto& t = pp.p[i]; const Vector3& p = *(const Vector3*)&t.x;
+      if (t.ic = (&t.x)[mo & 1] != 0) pp.p[t.line = nt++].next = i;
+    }
+  }
+  m.pp.setsize(np + nt * nn);
+  for (UINT i = 0; i < (UINT)np; i++) m.pp[i] = Vector3R(&pp[i].x);
+  if (nn)
+  {
+    switch (mo)
+    {
+    case 0:
+    {
+      Rational dz; conv(&dz, 1, v); inv = dz.sign() > 0;
+      for (UINT i = 0, n = nn * np; i < n; i++)
+      {
+        const auto& s = m.pp[i]; auto& d = m.pp[np + i];
+        d.x = s.x; d.y = s.y; d.z = s.z + dz;
+      }
+      break;
+    }
+    case 1:
+    case 2:
+    {
+      double a; conv(&a, 1, v); if (!a) a = 2 * M_PI * nn / (nn + 1); inv = a > 0;
+      for (UINT j = 1, l = np; j <= nn; j++)
+      {
+        auto sc = Vector2R::SinCos(a * j / nn, (char)(flags >> 24));
+        for (UINT i = 0; i < nt; i++, l++)
+        {
+          const auto& s = m.pp[pp[i].next]; auto& d = m.pp[l];
+          d.x = mo == 1 ? s.x : s.x * sc.x;
+          d.y = mo == 1 ? s.y * sc.x : s.y;
+          d.z = mo == 1 ? s.y * sc.y : s.x * sc.y;
+        }
+      }
+      break;
+    }
+    }
+  }
+  m.ii.setsize(ns * 2 + (nl + nt - np) * nb * 6);
+  memcpy(m.ii.p, ss.p, ns << 2); UINT t = ns;
+  for (UINT j = 0, k1 = 0, k2 = np; j < nb; j++, k1 = k2, k2 = j != nn ? k2 + nt : 0)
+    for (UINT i = 0, l = 0; i < (UINT)nl; i++)
+    {
+      int t1 = ll[i]; int e = (t1 & 0x40000000) != 0;
+      int t2 = ll[e ? l : i + 1] & 0x0fffffff; if (e) { l = i + 1; t1 &= 0x0fffffff; }
+      UINT l1 = nt == np ? k1 + t1 : k1 == 0 || !pp.p[t1].ic ? t1 : k1 + pp.p[t1].line;
+      UINT l2 = nt == np ? k2 + t1 : k2 == 0 || !pp.p[t1].ic ? t1 : k2 + pp.p[t1].line;
+      UINT l3 = nt == np ? k1 + t2 : k1 == 0 || !pp.p[t2].ic ? t2 : k1 + pp.p[t2].line;
+      UINT l4 = nt == np ? k2 + t2 : k2 == 0 || !pp.p[t2].ic ? t2 : k2 + pp.p[t2].line;
+      if (l1 != l2) { m.ii.p[t + 0] = l1; m.ii.p[t + 1] = l2; m.ii.p[t + 2] = l3; t += 3; }
+      if (l3 != l4) { m.ii.p[t + 0] = l3; m.ii.p[t + 1] = l2; m.ii.p[t + 2] = l4; t += 3; }
+    }
+  for (UINT i = 0, k = np + nt * (nn - 1); i < (UINT)ns; i += 3, t += 3)
+  {
+    m.ii.p[t + 0] = nt == np ? k + ss[i + 0] : !pp.p[ss[i + 0]].ic ? ss[i + 0] : k + pp.p[ss[i + 0]].line;
+    m.ii.p[t + 1] = nt == np ? k + ss[i + 2] : !pp.p[ss[i + 2]].ic ? ss[i + 2] : k + pp.p[ss[i + 2]].line;
+    m.ii.p[t + 2] = nt == np ? k + ss[i + 1] : !pp.p[ss[i + 1]].ic ? ss[i + 1] : k + pp.p[ss[i + 1]].line;
+  }
+  _ASSERT(t == m.ii.n);
+  if (inv) m.invert();
+  m.flags = !nn && m.ii.n ? 2 : 0; return 0;
+}
+
+HRESULT CMesh::Check(CSG_MESH_CHECK check, CSG_MESH_CHECK* p)
+{
+  sarray<UINT> tt; *p = (CSG_MESH_CHECK)0; if (!check) check = (CSG_MESH_CHECK)0xff;
+  if (check & CSG_MESH_CHECK_DUP_POINTS)
+  {
+    UINT ts = min(pp.n, 1024), * ht = (UINT*)_alloca(ts * sizeof(UINT)); memset(ht, 0, ts * sizeof(UINT));
+    for (UINT i = 0, k; i < pp.n; i++)
+    {
+      const auto& e = pp.p[i];
+      UINT& hc = ht[e.GetHashCode() % ts];
+      if (!hc) { hc = i + 1; continue; }
+      for (k = hc - 1; k < i && !e.Equals(pp[k]); k++);
+      if (k == i) continue;
+      *p = (CSG_MESH_CHECK)(*p | CSG_MESH_CHECK_DUP_POINTS); break;
+    }
+  }
+  if (check & (CSG_MESH_CHECK_BAD_INDEX | CSG_MESH_CHECK_UNUSED_POINT))
+  {
+    tt.getptr(pp.n); memset(tt.p, 0, pp.n * sizeof(UINT));
+    for (UINT i = 0; i < ii.n; i++)
+    {
+      if (ii[i] < pp.n) { tt[ii[i]] = 1; continue; }
+      *p = (CSG_MESH_CHECK)(*p | CSG_MESH_CHECK_BAD_INDEX); return 0;
+    }
+    for (UINT i = 0; i < pp.n; i++)
+    {
+      if (tt[i]) continue;
+      *p = (CSG_MESH_CHECK)(*p | CSG_MESH_CHECK_UNUSED_POINT); break;
+    }
+  }
+  if (check & CSG_MESH_CHECK_OPENINGS)
+  {
+    UINT nk = 0; UINT64* kk = 0;
+    for (UINT i = 0; i < ii.n; i += 3)
+    {
+      for (UINT k = 0, j, e; k < 3; k++)
+      {
+        UINT64 t = ii[i + k] | ((UINT64)ii[i + (k + 1) % 3] << 32);
+        for (j = 0, e = -1; j < nk && kk[j] != t; j++) if (e == -1 && !kk[j]) e = j;
+        if (j != nk) { kk[j] = 0; continue; }
+        t = (t >> 32) | (t << 32);
+        if (e != -1) { kk[e] = t; continue; }
+        (kk = (UINT64*)tt.getptr((nk + 1) << 1))[nk++] = t;
+      }
+    }
+    for (UINT i = 0; i < nk; i++)
+    {
+      if (!kk[i]) continue;
+      *p = (CSG_MESH_CHECK)(*p | CSG_MESH_CHECK_OPENINGS); break; //openings
+    }
+  }
+  if (check & CSG_MESH_CHECK_PLANES)
+  {
+    if (flags & 1 && ee.n != 0)
+    {
+      UINT ne = -1;
+      for (UINT i = 0, j = -1, k = 0, l; i < ii.n; i += 3)
+      {
+        if (decode(ii.p + i)) ne++;
+        if (ne >= ee.n) break;
+        for (l = 0; l < 3 && (0 ^ ee.p[ne].DotCoord(pp.p[ii[i + l]])) == 0; l++);
+        if (l != 3) break;
+      }
+      if (ne + 1 != ee.n)
+        *p = (CSG_MESH_CHECK)(*p | CSG_MESH_CHECK_PLANES);
+    }
+  }
+  return 0;
+}
+
+HRESULT CMesh::Transform(CSGVAR m)
+{
+  if (ee.n) ee.setsize(0);
+  if (m.vt == CSG_TYPE_RATIONAL)
+  {
+    if (m.count == 12)
+    {
+      auto& p = *static_cast<const CVector*>((ICSGVector*)m.p);
+      Matrix3x4R::Transform(pp.p, pp.n, *(const Matrix3x4R*)(&p.val + m.length)); return 0;
+    }
+  }
+  if (m.count <= 3)
+  {
+    Vector3R v; conv(&v.x, m.count <= 1 ? 1 : 3, m);
+    if (m.count <= 1) for (UINT i = 0; i < pp.n; i++) pp.p[i] *= v.x;
+    else for (UINT i = 0; i < pp.n; i++) pp.p[i] += v; return 0;
+  }
+  Matrix3x4R t; conv(t.m[0], 12, m);
+  Matrix3x4R::Transform(pp.p, pp.n, t); return 0;
+}
+
+HRESULT CMesh::CreateBox(CSGVAR a, CSGVAR b)
+{
+  UINT l = -1; ee.setsize(0); flags = 0;
+  Vector3R ab[2]; conv(&ab[0].x, 3, a); conv(&ab[1].x, 3, b);
+  for (UINT i = 0; i < 3; i++)
+  {
+    auto s = (&ab[0].x)[i].CompareTo((&ab[1].x)[i]);
+    if (s > 0) swap(*(UINT64*)&(&ab[0].x)[i], *(UINT64*)&(&ab[1].x)[i]);
+    if (s == 0) { if (l != -1) { pp.setsize(0); ii.setsize(0); return 0; } l = i; }
+  }
+  if (l != -1)
+  {
+    pp.setsize(4); ii.setsize(12); auto p = pp.p;
+    p[0] = ab[0]; p[1].x = ab[1].x; p[1].y = ab[l == 0 ? 1 : 0].y; p[1].z = ab[0].z;
+    p[2] = ab[1]; p[3].x = ab[0].x; p[3].y = ab[l == 0 ? 0 : 1].y; p[3].z = ab[1].z;
+    byte bb[12] = { 2, 0, 1, 2, 3, 0, 1, 0, 2, 0, 3, 2 };
+    for (UINT i = 0; i < 12; i++) ii.p[i] = bb[i]; flags = 1 | 2;
+  }
+  else
+  {
+    pp.setsize(8); ii.setsize(36); auto p = pp.p;
+    p[0].x = ab[0].x; p[0].y = ab[0].y; p[0].z = ab[0].z;
+    p[1].x = ab[1].x; p[1].y = ab[0].y; p[1].z = ab[0].z;
+    p[2].x = ab[1].x; p[2].y = ab[1].y; p[2].z = ab[0].z;
+    p[3].x = ab[0].x; p[3].y = ab[1].y; p[3].z = ab[0].z;
+    p[4].x = ab[0].x; p[4].y = ab[0].y; p[4].z = ab[1].z;
+    p[5].x = ab[1].x; p[5].y = ab[0].y; p[5].z = ab[1].z;
+    p[6].x = ab[1].x; p[6].y = ab[1].y; p[6].z = ab[1].z;
+    p[7].x = ab[0].x; p[7].y = ab[1].y; p[7].z = ab[1].z;
+    byte bb[36] = { 2, 1, 0, 0, 3, 2, 4, 0, 1, 1, 5, 4, 5, 1, 2, 2, 6, 5, 6, 2, 3, 3, 7, 6, 3, 0, 7, 0, 4, 7, 6, 4, 5, 6, 7, 4 }; //encoded
+    for (UINT i = 0; i < 36; i++) ii.p[i] = bb[i]; flags = 1;
+  }
+  return 0;
 }
 
 HRESULT CTesselatorRat::Cut(ICSGMesh* mesh, CSGVAR vplane)
@@ -109,12 +287,12 @@ HRESULT CTesselatorRat::Cut(ICSGMesh* mesh, CSGVAR vplane)
   auto& m = *static_cast<CMesh*>(mesh);
   if (!m.ee.n) initplanes(m); if (vplane.vt == 0) return 0;
   Vector4R plane; conv(&plane.x, 4, vplane);
-  int np = m.pp.n, xe = np, mf = 0; auto ff = csg.ff.getptr(np + m.ee.n + 1);
-  for (int i = 0; i < np; i++) mf |= ff[i] = 1 << (1 + (0 ^ plane.DotCoord(m.pp[i])));
+  UINT np = m.pp.n, xe = np, mf = 0; auto ff = csg.ff.getptr(np + m.ee.n + 1);
+  for (UINT i = 0; i < np; i++) mf |= ff[i] = 1 << (1 + (0 ^ plane.DotCoord(m.pp[i])));
   if (mf == 1) return 0;
   if (mf == 4) { m.clear(); return 0; }
-  auto vv = csg.pp.getptr(csg.np = np); for (int i = 0; i < np; i++) vv[i] = m.pp[i];
-  auto nk = 0; auto kk = csg.ii.getptr(m.ii.n); int ss[4];
+  auto vv = csg.pp.getptr(csg.np = np); for (UINT i = 0; i < np; i++) vv[i] = m.pp[i];
+  auto nk = 0; auto kk = csg.ii.getptr(m.ii.n); UINT ss[4];
   auto nt = 0; auto tt = csg.tt.getptr(128); csg.clearab();
   mode = (CSG_TESS)(CSG_TESS_POSITIVE | CSG_TESS_INDEXONLY | CSG_TESS_NOTRIM | CSG_TESS_FILL);
   for (int e = 0, h = 0, b, fl, x; h < (int)m.ii.n; h = b, e++)
@@ -134,7 +312,7 @@ HRESULT CTesselatorRat::Cut(ICSGMesh* mesh, CSGVAR vplane)
     beginsex(); vv = csg.pp.getptr(csg.np + (x = (b - h) / 3 + 1)); tt = csg.tt.getptr(nt + x);
     for (int i = h; i < b; i += 3)
     {
-      int ns = 0;
+      UINT ns = 0;
       for (int k = 0; k < 3; k++)
       {
         int z, ik, iz, f1 = ff[ik = m.ii[i + k]], f2 = ff[iz = m.ii[i + (z = (k + 1) % 3)]];
@@ -143,7 +321,7 @@ HRESULT CTesselatorRat::Cut(ICSGMesh* mesh, CSGVAR vplane)
         csg.setab(ik, iz, ss[ns++] = csg.np);
         vv[csg.np++] = 0 | plane.Intersect(m.pp[ik], m.pp[iz]);
       }
-      for (int k = 0, l = ns - 1; k < ns; l = k++)
+      for (UINT k = 0, l = ns - 1; k < ns; l = k++)
       {
         addsex(ss[l], ss[k]);
         if (ss[l] < np && ff[ss[l]] != 2) continue;
@@ -171,14 +349,12 @@ HRESULT CTesselatorRat::Cut(ICSGMesh* mesh, CSGVAR vplane)
       for (int i = j; i < nk; i += 3) encode((UINT*)kk + i, i == j); ff[xe++] = -1;
     }
   }
-  m.ee.setsize(xe); xe -= np; auto dd = m.ee.p;
-  for (int i = 0, k; i < xe; i++) if ((k = ff[np + i]) == -1) dd[i] = plane; else if (i != k) dd[i] = dd[k];
+  xe -= np; if (xe > m.ee.n) m.ee.setsize(xe);
+  for (UINT i = 0, k; i < xe; i++) if ((k = ff[np + i]) == -1) m.ee[i] = plane; else if (i != k) m.ee[i] = m.ee[k];
+  m.ee.setsize(xe);
   csg.trim(nk);
   m.pp.copy(csg.pp.p, csg.np);
   m.ii.copy((const UINT*)csg.ii.p, nk);
-
-  m.ee.setsize(0); if (m.ii.n != 0) encode(m.ii.p, false);
-
   return 0;
 }
 
@@ -248,9 +424,9 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
     continue; ex:;
     if (mp == 0) //a + b
     {
-      auto an = a.pp.n; a.pp.setsize(a.pp.n + b.pp.n); for (UINT i = 0; i < b.pp.n; i++) a.pp[an + i] = b.pp[i];
-      auto in = a.ii.n; a.ii.setsize(a.ii.n + b.ii.n); for (UINT i = 0; i < b.ii.n; i++) a.ii[in + i] = an + b.ii[i];
-      if (csg.ne < a.ee.n + b.ee.n) { a.ee.setsize(0); if (a.ii.p) encode(a.ii.p, false); }
+      auto an = a.pp.n; a.pp.setsize(a.pp.n + b.pp.n); for (UINT i = 0; i < b.pp.n; i++) a.pp.p[an + i] = b.pp.p[i];
+      auto in = a.ii.n; a.ii.setsize(a.ii.n + b.ii.n); for (UINT i = 0; i < b.ii.n; i++) a.ii.p[in + i] = an + b.ii.p[i];
+      if (csg.ne < a.ee.n + b.ee.n) a.resetee();
       else { auto en = a.ee.n; a.ee.setsize(a.ee.n + b.ee.n); for (UINT i = 0; i < b.ee.n; i++) a.ee[en + i] = b.ee[i]; }
       return 0;
     }
@@ -281,7 +457,7 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
         if (f == 1 || f == 4) continue;
         if (f == 2)
         {
-          for (j = i; i + 3 < (int)m.ii.n && !decode(m.ii.p + (i + 3)); i += 3);
+          for (j = i; i + 3 < (int)m.ii.n && !decode(m.ii.p + i + 3); i += 3);
           if (e != (r == 0 ? o : tt[cn + o])) continue;
           for (; j <= i; j += 3)
           {
@@ -322,17 +498,55 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
     if (op == 0x10) { Join(pa, pb, (CSG_JOIN)(0x20 | 0x40)); return Join(pa, pb, (CSG_JOIN)0x80); }
     return -1; //degenerated input mesh
   }
-  a.ee.copy(csg.ee.p, csg.ne);
+  UINT nx = 0; for (UINT i = 0; i < csg.ne; i++) if (ff[i] != 1) nx++;
+  a.ee.setsize(nx); for (UINT i = 0, k = 0; i < csg.ne; i++) if (ff[i] != 1) a.ee[k++] = csg.ee[i];
   csg.trim(ni);
   a.pp.copy(csg.pp.p, csg.np);
   a.ii.copy((const UINT*)csg.ii.p, ni);
-
-  a.ee.setsize(0); if (a.ii.n != 0) encode(a.ii.p, false);
-
   return 0;
 }
 
-#if(CSG_EXTENSION)
+void CTesselatorRat::initplanes(CMesh& m)
+{
+  if (m.ii.n == 0) return;
+  if (m.flags & 1)
+  {
+    UINT c = 1; for (UINT i = 3; i < m.ii.n; i += 3) if (decode(m.ii.p + i)) c++;
+    m.ee.setsize(c);
+    for (UINT i = 0, k = 0; i < m.ii.n; i += 3)
+      if (decode(m.ii.p + i))
+        m.ee[k++] = 0 | Vector4R::PlaneFromPoints(m.pp[m.ii[i + 0]], m.pp[m.ii[i + 1]], m.pp[m.ii[i + 2]]);
+    return;
+  }
+  auto nd = m.ii.n / 3;
+  auto ff = csg.ff.getptr(nd + m.pp.n);
+  auto ii = csg.ii.getptr(nd + m.ii.n);
+  csg.dictee(64); memset(ff + nd, -1, m.pp.n * sizeof(int)); //for (int i = 0; i < m.pp.n; i++) ff[nd + i] = -1;
+  for (UINT i = 0, k = 0, l = 0, x = 0, i1, i2, i3; k < nd; i += 3, k++)
+  {
+    const auto& a = m.pp[i1 = m.ii[i + 0]];
+    const auto& b = m.pp[i2 = m.ii[i + 1]];
+    const auto& c = m.pp[i3 = m.ii[i + 2]]; if ((ii[k] = i) == 0) goto m1;
+    const auto& e = csg.ee[l];
+    if (ff[nd + i1] != l) if ((0 ^ e.DotCoord(a)) != 0) goto m1;
+    if (ff[nd + i2] != l) if ((0 ^ e.DotCoord(b)) != 0) goto m1;
+    if (ff[nd + i3] != l) if ((0 ^ e.DotCoord(c)) != 0) goto m1;
+    switch (x != -1 ? x : (x = ((const Vector3R*)&e)->LongAxis()))
+    {
+    case 0: if ((0 ^ (b.y - a.y) * (c.z - a.z) - (b.z - a.z) * (c.y - a.y)) != e.x.sign()) goto m1; break;
+    case 1: if ((0 ^ (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z)) != e.y.sign()) goto m1; break;
+    case 2: if ((0 ^ (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)) != e.z.sign()) goto m1; break;
+    }
+    ff[k] = l; goto m2; m1: //TRACE(L"plane %i at %i\n", csg.ne, i);
+    ff[k] = l = csg.addee(0 | Vector4R::PlaneFromPoints(a, b, c)); x = -1; m2:
+    ff[nd + i1] = ff[nd + i2] = ff[nd + i3] = l;
+  }
+  qsort(ff, ii, 0, nd - 1);
+  for (UINT i = 0, j = 0; i < nd; i++, j += 3) for (UINT k = 0; k < 3; k++) ii[nd + j + k] = m.ii[ii[i] + k];
+  m.ii.copy((const UINT*)ii + nd, m.ii.n);
+  for (UINT i = 0, k = 0; i < m.ii.n; i += 3, k++) encode(m.ii.p + i, k == 0 || ff[k - 1] != ff[k]);
+  m.ee.copy(csg.ee.p, csg.ne); m.flags |= 1;
+}
 void CTesselatorRat::setnormal(const Vector3R& v)
 {
   auto i = v.LongAxis(); auto s = (&v.x)[i].sign();
@@ -421,4 +635,4 @@ int CTesselatorRat::join(int ni, int fl)
   }
   return ni;
 }
-#endif
+

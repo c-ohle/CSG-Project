@@ -18,7 +18,7 @@ namespace csgtest
       CSG.Mode CSG.ITesselator.Mode { get => 0; set => throw new NotImplementedException(); }
       void CSG.ITesselator.SetNormal(CSG.Variant v) => throw new NotImplementedException();
       int CSG.ITesselator.OutlineCount => 0;
-      int CSG.ITesselator.OutlineAt(int i) => throw new NotImplementedException();
+      int CSG.ITesselator.GetOutline(int i) => throw new NotImplementedException();
       public void SetWinding(Winding v) => gluTessProperty(tess, 100140, 100130 + (int)v);
       public void SetBoundaryOnly(bool on) => gluTessProperty(tess, 100141, (boundaryonly = on) ? 1 : 0);
       public void BeginPolygon()
@@ -51,9 +51,9 @@ namespace csgtest
         if (!boundaryonly && correctTJunctions) CorrectTJunctions();
       }
       public int IndexCount => ni;
-      public int IndexAt(int i) => ii[i];
+      public int GetIndex(int i) => ii[i];
       public int VertexCount => np;
-      public Vector3 VertexAt(int i) => pp[i];
+      public Vector3 GetVertex(int i) => pp[i];
       const int maxni = 10000, maxnp = 5000;
       internal Tess()
       {
@@ -185,8 +185,8 @@ namespace csgtest
         this.ni = t;
       }
 
-      void CSG.ITesselator.VertexAt(int i, ref CSG.Variant p) => throw new NotImplementedException();
-      void CSG.ITesselator.Update(CSG.IMesh mesh, CSG.Variant z) => throw new NotImplementedException();
+      void CSG.ITesselator.GetVertex(int i, ref CSG.Variant p) => throw new NotImplementedException();
+      void CSG.ITesselator.Update(CSG.IMesh mesh, CSG.Variant z, int flags) => throw new NotImplementedException();
       void CSG.ITesselator.Cut(CSG.IMesh a, CSG.Variant plane) => throw new NotImplementedException();
       void CSG.ITesselator.Join(CSG.IMesh a, CSG.IMesh b, CSG.JoinOp op) => throw new NotImplementedException();
     }

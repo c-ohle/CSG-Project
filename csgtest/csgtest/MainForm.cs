@@ -62,19 +62,19 @@ namespace csgtest
         sw.Stop();
         for (int i = 0; i < tess.IndexCount; i += 3)
         {
-          polygon[0] = (PointF)tess.VertexAt(tess.IndexAt(i + 0) & 0x00ffffff);
-          polygon[1] = (PointF)tess.VertexAt(tess.IndexAt(i + 1) & 0x00ffffff);
-          polygon[2] = (PointF)tess.VertexAt(tess.IndexAt(i + 2) & 0x00ffffff);
+          polygon[0] = (PointF)tess.GetVertex(tess.GetIndex(i + 0) & 0x00ffffff);
+          polygon[1] = (PointF)tess.GetVertex(tess.GetIndex(i + 1) & 0x00ffffff);
+          polygon[2] = (PointF)tess.GetVertex(tess.GetIndex(i + 2) & 0x00ffffff);
           gr.FillPolygon(Brushes.LightGray, polygon);
         }
         for (int i = 0; i < tess.IndexCount; i += 3)
         {
-          polygon[0] = (PointF)tess.VertexAt(tess.IndexAt(i + 0) & 0x00ffffff);
-          polygon[1] = (PointF)tess.VertexAt(tess.IndexAt(i + 1) & 0x00ffffff);
-          polygon[2] = (PointF)tess.VertexAt(tess.IndexAt(i + 2) & 0x00ffffff);
-          gr.DrawLine(/*(tess.IndexAt(i + 0) & 0x10000000) != 0 ? penl :*/ Pens.Gray, polygon[0], polygon[1]);
-          gr.DrawLine(/*(tess.IndexAt(i + 1) & 0x10000000) != 0 ? penl :*/ Pens.Gray, polygon[1], polygon[2]);
-          gr.DrawLine(/*(tess.IndexAt(i + 2) & 0x10000000) != 0 ? penl :*/ Pens.Gray, polygon[2], polygon[0]);
+          polygon[0] = (PointF)tess.GetVertex(tess.GetIndex(i + 0) & 0x00ffffff);
+          polygon[1] = (PointF)tess.GetVertex(tess.GetIndex(i + 1) & 0x00ffffff);
+          polygon[2] = (PointF)tess.GetVertex(tess.GetIndex(i + 2) & 0x00ffffff);
+          gr.DrawLine(/*(tess.GetIndex(i + 0) & 0x10000000) != 0 ? penl :*/ Pens.Gray, polygon[0], polygon[1]);
+          gr.DrawLine(/*(tess.GetIndex(i + 1) & 0x10000000) != 0 ? penl :*/ Pens.Gray, polygon[1], polygon[2]);
+          gr.DrawLine(/*(tess.GetIndex(i + 2) & 0x10000000) != 0 ? penl :*/ Pens.Gray, polygon[2], polygon[0]);
         }
         if (gluoutlines)
         {
@@ -85,9 +85,9 @@ namespace csgtest
           sw.Stop();
           for (int i = 0, l = 0; i < tess.IndexCount; i++)
           {
-            var t1 = tess.IndexAt(i); var last = (t1 & 0x40000000) != 0;
-            var t2 = tess.IndexAt(last ? l : i + 1); if (last) l = i + 1;
-            gr.DrawLine(penl, (PointF)tess.VertexAt(t1 & 0x00ffffff), (PointF)tess.VertexAt(t2 & 0x00ffffff));
+            var t1 = tess.GetIndex(i); var last = (t1 & 0x40000000) != 0;
+            var t2 = tess.GetIndex(last ? l : i + 1); if (last) l = i + 1;
+            gr.DrawLine(penl, (PointF)tess.GetVertex(t1 & 0x00ffffff), (PointF)tess.GetVertex(t2 & 0x00ffffff));
           }
         }
         gr.DrawString($"{sw.ElapsedMilliseconds} ms min: {min1 = Math.Min(min1, sw.ElapsedMilliseconds)} ms",
@@ -103,24 +103,24 @@ namespace csgtest
         sw.Stop();
         for (int i = 0; i < tess.IndexCount; i += 3)
         {
-          polygon[0] = (PointF)tess.GetVertex(tess.IndexAt(i + 0));
-          polygon[1] = (PointF)tess.GetVertex(tess.IndexAt(i + 1));
-          polygon[2] = (PointF)tess.GetVertex(tess.IndexAt(i + 2));
+          polygon[0] = (PointF)tess.GetVertex(tess.GetIndex(i + 0));
+          polygon[1] = (PointF)tess.GetVertex(tess.GetIndex(i + 1));
+          polygon[2] = (PointF)tess.GetVertex(tess.GetIndex(i + 2));
           gr.FillPolygon(Brushes.LightGray, polygon);
         }
         for (int i = 0; i < tess.IndexCount; i += 3)
         {
-          polygon[0] = (PointF)tess.GetVertex(tess.IndexAt(i + 0));
-          polygon[1] = (PointF)tess.GetVertex(tess.IndexAt(i + 1));
-          polygon[2] = (PointF)tess.GetVertex(tess.IndexAt(i + 2));
+          polygon[0] = (PointF)tess.GetVertex(tess.GetIndex(i + 0));
+          polygon[1] = (PointF)tess.GetVertex(tess.GetIndex(i + 1));
+          polygon[2] = (PointF)tess.GetVertex(tess.GetIndex(i + 2));
           gr.DrawLine(Pens.Gray, polygon[0], polygon[1]);
           gr.DrawLine(Pens.Gray, polygon[1], polygon[2]);
           gr.DrawLine(Pens.Gray, polygon[2], polygon[0]);
         }
         for (int i = 0, l = 0; i < tess.OutlineCount; i++)
         {
-          var t1 = tess.OutlineAt(i); var last = (t1 & 0x40000000) != 0;
-          var t2 = tess.OutlineAt(last ? l : i + 1); if (last) l = i + 1;
+          var t1 = tess.GetOutline(i); var last = (t1 & 0x40000000) != 0;
+          var t2 = tess.GetOutline(last ? l : i + 1); if (last) l = i + 1;
           gr.DrawLine(penl, (PointF)tess.GetVertex(t1 & 0x00ffffff), (PointF)tess.GetVertex(t2 & 0x00ffffff));
         }
         gr.DrawString($"{sw.ElapsedMilliseconds} ms min: {min2 = Math.Min(min2, sw.ElapsedMilliseconds)} ms",

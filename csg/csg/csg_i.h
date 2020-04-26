@@ -7,8 +7,8 @@
 /* at Tue Jan 19 04:14:07 2038
  */
 /* Compiler settings for csg.idl:
-    Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0622 
-    protocol : all , ms_ext, c_ext, robust
+    Oicf, W1, Zp8, env=Win32 (32b run), target_arch=X86 8.01.0622 
+    protocol : dce , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
     VC __declspec() decoration level: 
          __declspec(uuid()), __declspec(selectany), __declspec(novtable)
@@ -194,27 +194,28 @@ EXTERN_C const IID IID_ICSGTesselator;
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_VertexCount( 
             /* [retval][out] */ UINT *p) = 0;
         
-        virtual HRESULT STDMETHODCALLTYPE VertexAt( 
+        virtual HRESULT STDMETHODCALLTYPE GetVertex( 
             /* [in] */ UINT i,
             /* [out][in] */ CSGVAR *z) = 0;
         
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_IndexCount( 
             /* [retval][out] */ UINT *p) = 0;
         
-        virtual HRESULT STDMETHODCALLTYPE IndexAt( 
+        virtual HRESULT STDMETHODCALLTYPE GetIndex( 
             /* [in] */ UINT i,
             /* [retval][out] */ UINT *p) = 0;
         
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_OutlineCount( 
             /* [retval][out] */ UINT *p) = 0;
         
-        virtual HRESULT STDMETHODCALLTYPE OutlineAt( 
+        virtual HRESULT STDMETHODCALLTYPE GetOutline( 
             /* [in] */ UINT i,
             /* [retval][out] */ UINT *p) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE Update( 
             /* [in] */ ICSGMesh *mesh,
-            /* [in] */ CSGVAR extrusion) = 0;
+            /* [in] */ CSGVAR v,
+            /* [in] */ UINT flags) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE Cut( 
             /* [in] */ ICSGMesh *a,
@@ -278,7 +279,7 @@ EXTERN_C const IID IID_ICSGTesselator;
             ICSGTesselator * This,
             /* [retval][out] */ UINT *p);
         
-        HRESULT ( STDMETHODCALLTYPE *VertexAt )( 
+        HRESULT ( STDMETHODCALLTYPE *GetVertex )( 
             ICSGTesselator * This,
             /* [in] */ UINT i,
             /* [out][in] */ CSGVAR *z);
@@ -287,7 +288,7 @@ EXTERN_C const IID IID_ICSGTesselator;
             ICSGTesselator * This,
             /* [retval][out] */ UINT *p);
         
-        HRESULT ( STDMETHODCALLTYPE *IndexAt )( 
+        HRESULT ( STDMETHODCALLTYPE *GetIndex )( 
             ICSGTesselator * This,
             /* [in] */ UINT i,
             /* [retval][out] */ UINT *p);
@@ -296,7 +297,7 @@ EXTERN_C const IID IID_ICSGTesselator;
             ICSGTesselator * This,
             /* [retval][out] */ UINT *p);
         
-        HRESULT ( STDMETHODCALLTYPE *OutlineAt )( 
+        HRESULT ( STDMETHODCALLTYPE *GetOutline )( 
             ICSGTesselator * This,
             /* [in] */ UINT i,
             /* [retval][out] */ UINT *p);
@@ -304,7 +305,8 @@ EXTERN_C const IID IID_ICSGTesselator;
         HRESULT ( STDMETHODCALLTYPE *Update )( 
             ICSGTesselator * This,
             /* [in] */ ICSGMesh *mesh,
-            /* [in] */ CSGVAR extrusion);
+            /* [in] */ CSGVAR v,
+            /* [in] */ UINT flags);
         
         HRESULT ( STDMETHODCALLTYPE *Cut )( 
             ICSGTesselator * This,
@@ -367,23 +369,23 @@ EXTERN_C const IID IID_ICSGTesselator;
 #define ICSGTesselator_get_VertexCount(This,p)	\
     ( (This)->lpVtbl -> get_VertexCount(This,p) ) 
 
-#define ICSGTesselator_VertexAt(This,i,z)	\
-    ( (This)->lpVtbl -> VertexAt(This,i,z) ) 
+#define ICSGTesselator_GetVertex(This,i,z)	\
+    ( (This)->lpVtbl -> GetVertex(This,i,z) ) 
 
 #define ICSGTesselator_get_IndexCount(This,p)	\
     ( (This)->lpVtbl -> get_IndexCount(This,p) ) 
 
-#define ICSGTesselator_IndexAt(This,i,p)	\
-    ( (This)->lpVtbl -> IndexAt(This,i,p) ) 
+#define ICSGTesselator_GetIndex(This,i,p)	\
+    ( (This)->lpVtbl -> GetIndex(This,i,p) ) 
 
 #define ICSGTesselator_get_OutlineCount(This,p)	\
     ( (This)->lpVtbl -> get_OutlineCount(This,p) ) 
 
-#define ICSGTesselator_OutlineAt(This,i,p)	\
-    ( (This)->lpVtbl -> OutlineAt(This,i,p) ) 
+#define ICSGTesselator_GetOutline(This,i,p)	\
+    ( (This)->lpVtbl -> GetOutline(This,i,p) ) 
 
-#define ICSGTesselator_Update(This,mesh,extrusion)	\
-    ( (This)->lpVtbl -> Update(This,mesh,extrusion) ) 
+#define ICSGTesselator_Update(This,mesh,v,flags)	\
+    ( (This)->lpVtbl -> Update(This,mesh,v,flags) ) 
 
 #define ICSGTesselator_Cut(This,a,plane)	\
     ( (This)->lpVtbl -> Cut(This,a,plane) ) 
@@ -679,6 +681,25 @@ EXTERN_C const IID IID_ICSGVector;
 #endif 	/* __ICSGVector_INTERFACE_DEFINED__ */
 
 
+/* interface __MIDL_itf_csg_0000_0002 */
+/* [local] */ 
+
+typedef 
+enum CSG_MESH_CHECK
+    {
+        CSG_MESH_CHECK_ALL	= 0,
+        CSG_MESH_CHECK_DUP_POINTS	= 1,
+        CSG_MESH_CHECK_BAD_INDEX	= 2,
+        CSG_MESH_CHECK_UNUSED_POINT	= 4,
+        CSG_MESH_CHECK_OPENINGS	= 8,
+        CSG_MESH_CHECK_PLANES	= 16
+    } 	CSG_MESH_CHECK;
+
+
+
+extern RPC_IF_HANDLE __MIDL_itf_csg_0000_0002_v0_0_c_ifspec;
+extern RPC_IF_HANDLE __MIDL_itf_csg_0000_0002_v0_0_s_ifspec;
+
 #ifndef __ICSGMesh_INTERFACE_DEFINED__
 #define __ICSGMesh_INTERFACE_DEFINED__
 
@@ -712,21 +733,29 @@ EXTERN_C const IID IID_ICSGMesh;
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_VertexCount( 
             /* [retval][out] */ UINT *p) = 0;
         
-        virtual HRESULT STDMETHODCALLTYPE VertexAt( 
+        virtual HRESULT STDMETHODCALLTYPE GetVertex( 
             /* [in] */ UINT i,
             /* [out][in] */ CSGVAR *p) = 0;
+        
+        virtual HRESULT STDMETHODCALLTYPE SetVertex( 
+            /* [in] */ UINT i,
+            /* [in] */ CSGVAR p) = 0;
         
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_IndexCount( 
             /* [retval][out] */ UINT *p) = 0;
         
-        virtual HRESULT STDMETHODCALLTYPE IndexAt( 
+        virtual HRESULT STDMETHODCALLTYPE GetIndex( 
             /* [in] */ UINT i,
             /* [retval][out] */ UINT *p) = 0;
+        
+        virtual HRESULT STDMETHODCALLTYPE SetIndex( 
+            /* [in] */ UINT i,
+            /* [in] */ UINT p) = 0;
         
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_PlaneCount( 
             /* [retval][out] */ UINT *p) = 0;
         
-        virtual HRESULT STDMETHODCALLTYPE PlaneAt( 
+        virtual HRESULT STDMETHODCALLTYPE GetPlane( 
             /* [in] */ UINT i,
             /* [out][in] */ CSGVAR *p) = 0;
         
@@ -739,6 +768,10 @@ EXTERN_C const IID IID_ICSGMesh;
         virtual HRESULT STDMETHODCALLTYPE CreateBox( 
             /* [in] */ CSGVAR a,
             /* [in] */ CSGVAR b) = 0;
+        
+        virtual HRESULT STDMETHODCALLTYPE Check( 
+            /* [in] */ CSG_MESH_CHECK check,
+            /* [out] */ CSG_MESH_CHECK *p) = 0;
         
     };
     
@@ -784,25 +817,35 @@ EXTERN_C const IID IID_ICSGMesh;
             ICSGMesh * This,
             /* [retval][out] */ UINT *p);
         
-        HRESULT ( STDMETHODCALLTYPE *VertexAt )( 
+        HRESULT ( STDMETHODCALLTYPE *GetVertex )( 
             ICSGMesh * This,
             /* [in] */ UINT i,
             /* [out][in] */ CSGVAR *p);
+        
+        HRESULT ( STDMETHODCALLTYPE *SetVertex )( 
+            ICSGMesh * This,
+            /* [in] */ UINT i,
+            /* [in] */ CSGVAR p);
         
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_IndexCount )( 
             ICSGMesh * This,
             /* [retval][out] */ UINT *p);
         
-        HRESULT ( STDMETHODCALLTYPE *IndexAt )( 
+        HRESULT ( STDMETHODCALLTYPE *GetIndex )( 
             ICSGMesh * This,
             /* [in] */ UINT i,
             /* [retval][out] */ UINT *p);
+        
+        HRESULT ( STDMETHODCALLTYPE *SetIndex )( 
+            ICSGMesh * This,
+            /* [in] */ UINT i,
+            /* [in] */ UINT p);
         
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_PlaneCount )( 
             ICSGMesh * This,
             /* [retval][out] */ UINT *p);
         
-        HRESULT ( STDMETHODCALLTYPE *PlaneAt )( 
+        HRESULT ( STDMETHODCALLTYPE *GetPlane )( 
             ICSGMesh * This,
             /* [in] */ UINT i,
             /* [out][in] */ CSGVAR *p);
@@ -819,6 +862,11 @@ EXTERN_C const IID IID_ICSGMesh;
             ICSGMesh * This,
             /* [in] */ CSGVAR a,
             /* [in] */ CSGVAR b);
+        
+        HRESULT ( STDMETHODCALLTYPE *Check )( 
+            ICSGMesh * This,
+            /* [in] */ CSG_MESH_CHECK check,
+            /* [out] */ CSG_MESH_CHECK *p);
         
         END_INTERFACE
     } ICSGMeshVtbl;
@@ -858,20 +906,26 @@ EXTERN_C const IID IID_ICSGMesh;
 #define ICSGMesh_get_VertexCount(This,p)	\
     ( (This)->lpVtbl -> get_VertexCount(This,p) ) 
 
-#define ICSGMesh_VertexAt(This,i,p)	\
-    ( (This)->lpVtbl -> VertexAt(This,i,p) ) 
+#define ICSGMesh_GetVertex(This,i,p)	\
+    ( (This)->lpVtbl -> GetVertex(This,i,p) ) 
+
+#define ICSGMesh_SetVertex(This,i,p)	\
+    ( (This)->lpVtbl -> SetVertex(This,i,p) ) 
 
 #define ICSGMesh_get_IndexCount(This,p)	\
     ( (This)->lpVtbl -> get_IndexCount(This,p) ) 
 
-#define ICSGMesh_IndexAt(This,i,p)	\
-    ( (This)->lpVtbl -> IndexAt(This,i,p) ) 
+#define ICSGMesh_GetIndex(This,i,p)	\
+    ( (This)->lpVtbl -> GetIndex(This,i,p) ) 
+
+#define ICSGMesh_SetIndex(This,i,p)	\
+    ( (This)->lpVtbl -> SetIndex(This,i,p) ) 
 
 #define ICSGMesh_get_PlaneCount(This,p)	\
     ( (This)->lpVtbl -> get_PlaneCount(This,p) ) 
 
-#define ICSGMesh_PlaneAt(This,i,p)	\
-    ( (This)->lpVtbl -> PlaneAt(This,i,p) ) 
+#define ICSGMesh_GetPlane(This,i,p)	\
+    ( (This)->lpVtbl -> GetPlane(This,i,p) ) 
 
 #define ICSGMesh_WriteToStream(This,str)	\
     ( (This)->lpVtbl -> WriteToStream(This,str) ) 
@@ -881,6 +935,9 @@ EXTERN_C const IID IID_ICSGMesh;
 
 #define ICSGMesh_CreateBox(This,a,b)	\
     ( (This)->lpVtbl -> CreateBox(This,a,b) ) 
+
+#define ICSGMesh_Check(This,check,p)	\
+    ( (This)->lpVtbl -> Check(This,check,p) ) 
 
 #endif /* COBJMACROS */
 

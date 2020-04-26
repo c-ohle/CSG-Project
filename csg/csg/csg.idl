@@ -60,12 +60,12 @@ interface ICSGTesselator : IUnknown
   HRESULT EndContour();
   HRESULT EndPolygon();
   [propget] HRESULT VertexCount([out, retval] UINT* p);
-  HRESULT VertexAt([in] UINT i, [in, out] CSGVAR* z);
+  HRESULT GetVertex([in] UINT i, [in, out] CSGVAR* z);
   [propget] HRESULT IndexCount([out, retval] UINT* p);
-  HRESULT IndexAt([in] UINT i, [out, retval] UINT* p);
+  HRESULT GetIndex([in] UINT i, [out, retval] UINT* p);
   [propget] HRESULT OutlineCount([out, retval] UINT* p);
-  HRESULT OutlineAt([in] UINT i, [out, retval] UINT* p);
-  HRESULT Update([in] ICSGMesh* mesh, [in] CSGVAR extrusion);
+  HRESULT GetOutline([in] UINT i, [out, retval] UINT* p);
+  HRESULT Update([in] ICSGMesh* mesh, [in] CSGVAR v, [in] UINT flags);
   HRESULT Cut([in] ICSGMesh* a, [in] CSGVAR plane);
   HRESULT Join([in] ICSGMesh* a, [in] ICSGMesh* b, [in] CSG_JOIN op);
 };
@@ -119,6 +119,16 @@ interface ICSGVector : IUnknown
   HRESULT SinCos([in] UINT i, [in] DOUBLE angel, [in] UINT prec);
 };
 
+typedef enum CSG_MESH_CHECK
+{
+  CSG_MESH_CHECK_ALL = 0,
+  CSG_MESH_CHECK_DUP_POINTS = 1,
+  CSG_MESH_CHECK_BAD_INDEX = 2,
+  CSG_MESH_CHECK_UNUSED_POINT = 4,
+  CSG_MESH_CHECK_OPENINGS = 8,
+  CSG_MESH_CHECK_PLANES = 16,
+} CSG_MESH_CHECK;
+
 [object, uuid(BE338702-B776-4178-AA13-963B4EB53EDF), pointer_default(unique)]
 interface ICSGMesh : IUnknown
 {
@@ -127,14 +137,17 @@ interface ICSGMesh : IUnknown
   HRESULT Transform([in] CSGVAR m);
   HRESULT CopyBuffer([in] UINT ib, [in] UINT ab, [in, out] CSGVAR* p);
   [propget] HRESULT VertexCount([out, retval] UINT* p);
-  HRESULT VertexAt([in] UINT i, [in, out] CSGVAR* p);
+  HRESULT GetVertex([in] UINT i, [in, out] CSGVAR* p);
+  HRESULT SetVertex([in] UINT i, [in] CSGVAR p);
   [propget] HRESULT IndexCount([out, retval] UINT* p);
-  HRESULT IndexAt([in] UINT i, [out, retval] UINT* p);
+  HRESULT GetIndex([in] UINT i, [out, retval] UINT* p);
+  HRESULT SetIndex([in] UINT i, [in] UINT p);
   [propget] HRESULT PlaneCount([out, retval] UINT* p);
-  HRESULT PlaneAt([in] UINT i, [in, out] CSGVAR* p);
+  HRESULT GetPlane([in] UINT i, [in, out] CSGVAR* p);
   HRESULT WriteToStream(IStream* str);
   HRESULT ReadFromStream(IStream* str);
   HRESULT CreateBox([in] CSGVAR a, [in] CSGVAR b);
+  HRESULT Check([in] CSG_MESH_CHECK check, [out] CSG_MESH_CHECK* p);
 };
 
 typedef enum CSG_UNIT

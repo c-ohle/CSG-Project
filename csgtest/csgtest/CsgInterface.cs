@@ -13,7 +13,6 @@ namespace csgtest
     //public static readonly IFactory Factory = (IFactory)new CFactory(); //or registered
     public static ITesselator Tesselator => tess ?? (tess = Factory.CreateTessalator(Unit.Rational));
     [ThreadStatic] static ITesselator tess;
-
     [ComImport, Guid("54ca8e82-bdb3-41db-8ed5-3b890279c431")]
     public class CFactory { }
 
@@ -48,17 +47,20 @@ namespace csgtest
       void EndContour();
       void EndPolygon();
       int VertexCount { get; }
-      void VertexAt(int i, ref Variant p);
+      void GetVertex(int i, ref Variant p);
       int IndexCount { get; }
-      int IndexAt(int i);
+      int GetIndex(int i);
       int OutlineCount { get; }
-      int OutlineAt(int i);
-      void Update(IMesh mesh, Variant z);
+      int GetOutline(int i);
+      void Update(IMesh mesh, Variant z, int flags = 0);
       void Cut(IMesh a, Variant plane);
       void Join(IMesh a, IMesh b, JoinOp op);
     }
 
     public enum JoinOp { Union = 0, Difference = 1, Intersection = 2 }
+
+    [Flags]
+    public enum MeshCheck { DupPoints = 1, BadIndex = 2, UnusedPoint = 4, Openings = 8, Planes = 16 }
 
     [ComImport, Guid("BE338702-B776-4178-AA13-963B4EB53EDF"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     public interface IMesh
@@ -68,14 +70,17 @@ namespace csgtest
       void Transform(Variant m);
       void CopyBuffer(int ib, int ab, ref Variant p);
       int VertexCount { get; }
-      void VertexAt(int i, ref Variant p);
+      void GetVertex(int i, ref Variant p);
+      void SetVertex(int i, Variant p);
       int IndexCount { get; }
-      int IndexAt(int i);
+      int GetIndex(int i);
+      void SetIndex(int i, int p);
       int PlaneCount { get; }
-      void PlaneAt(int i, ref Variant p);
+      void GetPlane(int i, ref Variant p);
       void WriteToStream(COM.IStream str);
       void ReadFromStream(COM.IStream str);
       void CreateBox(Variant a, Variant b);
+      MeshCheck Check(MeshCheck m = 0);
     }
 
     public enum Op1 { Copy = 0, Neg = 1, TransPM = 2, Inv3x4 = 3, Dot2 = 4, Dot3 = 5, Norm3 = 6, Num = 7, Den = 8, Lsb = 9, Msb = 10, Trunc = 11, Floor = 12, Ceil = 13, Round = 14, Rnd10 = 15, Com = 16 }
@@ -94,7 +99,7 @@ namespace csgtest
       void SetValue(int i, Variant v);
       void Execute1(Op1 op, int i, IVector pa, int ia);
       void Execute2(Op2 op, int i, IVector pa, int ia, IVector pb, int ib);
-      void SinCos(int i, double a, int prec);
+      void SinCos(int i, double a, int prec); // 0:R4; 1:R8; 10..52: rational on unit circle; -1..-28: decimal digits
     }
 
     public enum VarType { Int = 1, Float = 2, Double = 3, Decimal = 4, Rational = 5, Bstr = 6 }
@@ -337,22 +342,22 @@ namespace csgtest
     {
       var p = (x, y); tess.AddVertex(new Variant(&p.x, 2));
     }
-    public static Vector3 GetVertex(this ITesselator tess, int i) { Vector3 p; Variant v = &p; tess.VertexAt(i, ref v); return p; }
-    public static (float x, float y) GetVertexF2(this ITesselator tess, int i) { (float x, float y) p = default; var v = new Variant(&p.x, 2); tess.VertexAt(i, ref v); return p; }
-    public static (decimal x, decimal y) GetVertexD2(this ITesselator tess, int i) { (decimal x, decimal y) p = default; var v = new Variant(&p.x, 2); tess.VertexAt(i, ref v); return p; }
-    public static Vector3 GetVertex(this IMesh mesh, int i) { Vector3 p; Variant v = &p; mesh.VertexAt(i, ref v); return p; }
+    public static Vector3 GetVertex(this ITesselator tess, int i) { Vector3 p; Variant v = &p; tess.GetVertex(i, ref v); return p; }
+    public static (float x, float y) GetVertexF2(this ITesselator tess, int i) { (float x, float y) p = default; var v = new Variant(&p.x, 2); tess.GetVertex(i, ref v); return p; }
+    public static (decimal x, decimal y) GetVertexD2(this ITesselator tess, int i) { (decimal x, decimal y) p = default; var v = new Variant(&p.x, 2); tess.GetVertex(i, ref v); return p; }
+    public static Vector3 GetVertex(this IMesh mesh, int i) { Vector3 p; Variant v = &p; mesh.GetVertex(i, ref v); return p; }
     public static Rational.Vector3 GetVertexR3(this IMesh mesh, int i)
     {
-      var p = new Rational.Vector3(0); var v = (Variant)p; mesh.VertexAt(i, ref v); return p;
+      var p = new Rational.Vector3(0); var v = (Variant)p; mesh.GetVertex(i, ref v); return p;
     }
     public static Rational.Vector4 GetPlaneR4(this IMesh mesh, int i)
     {
-      var p = new Rational.Vector4(0); var v = (Variant)p; mesh.PlaneAt(i, ref v); return p;
+      var p = new Rational.Vector4(0); var v = (Variant)p; mesh.GetPlane(i, ref v); return p;
     }
     public static IMesh Clone(this IMesh p) { var d = Factory.CreateMesh(); p.CopyTo(d); return d; }
     public static void InitPlanes(this IMesh mesh) => Tesselator.Cut(mesh, new Variant());
     public static IEnumerable<Rational.Vector3> Vertices(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexR3(i); }
-    public static IEnumerable<int> Indices(this IMesh mesh) { for (int i = 0, n = mesh.IndexCount; i < n; i++) yield return mesh.IndexAt(i); }
+    public static IEnumerable<int> Indices(this IMesh mesh) { for (int i = 0, n = mesh.IndexCount; i < n; i++) yield return mesh.GetIndex(i); }
     #endregion
   }
 

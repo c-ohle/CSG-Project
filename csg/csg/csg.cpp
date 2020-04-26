@@ -21,7 +21,6 @@ STDAPI DllGetClassObject(_In_ REFCLSID rclsid, _In_ REFIID riid, _Outptr_ LPVOID
 _Use_decl_annotations_
 STDAPI DllRegisterServer(void)
 {
-	// Registriert Objekt, Typelib und alle Schnittstellen in Typelib.
 	HRESULT hr = _AtlModule.DllRegisterServer();
 	return hr;
 }
@@ -37,7 +36,6 @@ STDAPI DllInstall(BOOL bInstall, _In_opt_  LPCWSTR pszCmdLine)
 {
 	HRESULT hr = E_FAIL;
 	static const wchar_t szUserSwitch[] = L"user";
-
 	if (pszCmdLine != nullptr)
 	{
 		if (_wcsnicmp(pszCmdLine, szUserSwitch, _countof(szUserSwitch)) == 0)
@@ -45,7 +43,6 @@ STDAPI DllInstall(BOOL bInstall, _In_opt_  LPCWSTR pszCmdLine)
 			ATL::AtlSetPerUserRegistration(true);
 		}
 	}
-
 	if (bInstall)
 	{
 		hr = DllRegisterServer();
@@ -58,7 +55,6 @@ STDAPI DllInstall(BOOL bInstall, _In_opt_  LPCWSTR pszCmdLine)
 	{
 		hr = DllUnregisterServer();
 	}
-
 	return hr;
 }
 

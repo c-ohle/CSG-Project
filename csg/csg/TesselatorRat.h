@@ -4,11 +4,9 @@
 #include "vector.h"
 #include "rational.h"
 
-#define CSG_EXTENSION 1
-
 class CTesselatorRat : public ICSGTesselator
 {
-  struct ts { int next, ic, line, fl, _t1, _t2; Rational x, y, z, a, f, x1, x2; };
+  struct ts { int next, ic, line, fl, t1, t2; Rational x, y, z, a, f, x1, x2; };
   struct ab
   {
     int a, b; __forceinline ab(int a, int b) { this->a = a; this->b = b; }
@@ -25,14 +23,10 @@ class CTesselatorRat : public ICSGTesselator
   const Rational kill = 128;
   const int hash = 199;
   CSG_TESS mode = (CSG_TESS)(CSG_TESS_FILL | CSG_TESS_POSITIVE);
-  int np = 0; carray<ts> pp;
+  int np = 0; carray<ts> pp; int snp;
   int ns = 0, nl = 0, fi = 0; sarray<int> ss, ll;
   int mi = 0; sarray<int> dict;
   int ni = 0; sarray<ab> ii, kk;
-  //template<class T> __forceinline static void realloc(T*& p, size_t n)
-  //{
-  //  p = (T*)::realloc(p, n * sizeof(T)); //_aligned_realloc(p, n * sizeof(T), 16)
-  //}
   void resize(int c = 0)
   {
     auto i = pp.n; pp.setsize(max(c, (int)pp.n << 1));
@@ -71,9 +65,9 @@ class CTesselatorRat : public ICSGTesselator
     }
     dict[hash + i] = dict[h]; dict[h] = i + 1; return i;
   }
-  static int ccw(ts* a, ts* b, ts* c)
+  static int ccw(const ts& a, const ts& b, const ts& c)
   {
-    return 0 ^ (b->x - a->x) * (c->y - a->y) - (b->y - a->y) * (c->x - a->x);
+    return 0 ^ (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
   }
   void fill()
   {
@@ -101,10 +95,10 @@ class CTesselatorRat : public ICSGTesselator
         if (c->ic == 0)
         {
           c->ic = 1;
-          c->a = 0 | (b->x - a->x) / (b->y - a->y);
-          c->f = 0 | a->x - a->y * c->a;
+          c->x1 = 0 | (b->x - a->x) / (b->y - a->y);
+          c->x2 = 0 | a->x - a->y * c->x1;
         }
-        auto x = 0 | c->f + pt->y * c->a; //auto x = a.x + (pt.y - a.y) * (b.x - a.x) / (b.y - a.y);
+        auto x = 0 | c->x2 + pt->y * c->x1; //auto x = a.x + (pt.y - a.y) * (b.x - a.x) / (b.y - a.y);
         auto s = pt->x.CompareTo(x);
         if (s < 0 && (l1.k == -1 || x < l1.x)) l1 = fs(k, x, c->fl, s);
         if (s > 0 && (l2.k == -1 || x > l2.x)) l2 = fs(k, x, c->fl, s);
@@ -126,7 +120,7 @@ class CTesselatorRat : public ICSGTesselator
         for (int t1 = ii[i].a, t2, t3, n, l = -1;/* t != 0*/; t1 = t2, l = t, t = n)
         {
           t2 = dict[t]; t3 = (n = dict[t + 1]) != 0 ? dict[n] : ii[i].b;
-          if (ccw(&pp[t1], &pp[t2], &pp[t3]) != -1) continue; //possible: fans after sequence of left turns  
+          if (ccw(pp[t1], pp[t2], pp[t3]) != -1) continue; //possible: fans after sequence of left turns  
           if (ns + 3 >= (int)ss.n) ss.setsize(ss.n << 1);
           ss[ns++] = t1; ss[ns++] = t3; ss[ns++] = t2;
           dict[l == -1 ? i : l + 1] = n; break;
@@ -155,18 +149,18 @@ class CTesselatorRat : public ICSGTesselator
               {
                 auto v = ii[dict[j]];
                 auto d =
-                  ccw(&pp[ll[nl - 1]], &pp[u.a], &pp[u.b]) -
-                  ccw(&pp[ll[nl - 1]], &pp[u.a], &pp[v.b]);
+                  ccw(pp[ll[nl - 1]], pp[u.a], pp[u.b]) -
+                  ccw(pp[ll[nl - 1]], pp[u.a], pp[v.b]);
                 if (d > 0) continue;
-                if (d == 0 && ccw(&pp[u.a], &pp[u.b], &pp[v.b]) <= 0) continue;
+                if (d == 0 && ccw(pp[u.a], pp[u.b], pp[v.b]) <= 0) continue;
                 auto q = dict[t]; dict[t] = dict[j]; dict[j] = q; u = v;
               }
             }
           }
           if (nl != ab)
           {
-            if (pp[u.a].next == (1 << 20) && ccw(&pp[ll[nl - 1]], &pp[u.a], &pp[u.b]) == 0) goto skip;
-            if (u.b == i && pp[ll[ab]].next == (1 << 20) && ccw(&pp[u.a], &pp[ll[ab]], &pp[ll[ab + 1]]) == 0)
+            if (pp[u.a].next == (1 << 20) && ccw(pp[ll[nl - 1]], pp[u.a], pp[u.b]) == 0) goto skip;
+            if (u.b == i && pp[ll[ab]].next == (1 << 20) && ccw(pp[u.a], pp[ll[ab]], pp[ll[ab + 1]]) == 0)
             {
               nl--; for (int j = ab; j < nl; j++) ll[j] = ll[j + 1];
             }
@@ -217,11 +211,6 @@ class CTesselatorRat : public ICSGTesselator
     auto vb = ~(c - b);
     auto f = (vb ^ (ab - bc)) / (va ^ vb);
     auto v = ab + va * f;
-    //auto t1 = (v - d).Dot();
-    //auto t2 = (v - a).Dot();
-    //if (t1 >= t2) return true;
-    //if(abs(t1 - t2) < 1e-5) return true;
-    //return false;
     return (v - d).Dot() >= (v - a).Dot();
 #endif
   }
@@ -248,7 +237,7 @@ class CTesselatorRat : public ICSGTesselator
     }
     for (int i = 0, s = 0, t; i < ns; i++)
     {
-      if (kk[i].b == 1) continue; auto k = kk[i].a; if (k == -1) continue; //tests++;
+      if (kk[i].b == 1) continue; auto k = kk[i].a; if (k == -1) continue;
       int u1, u2, v2, i1 = ss[i], i2 = ss[u1 = mod(i, 1)], i3 = ss[u2 = mod(i, 2)], k3 = ss[v2 = mod(k, 2)];
       if (circum(i1, i2, i3, k3)) { kk[i].b = kk[k].b = 1; continue; } //ok
       ss[i] = k3; ss[k] = i3; int j = i, v1 = mod(k, 1);
@@ -256,8 +245,7 @@ class CTesselatorRat : public ICSGTesselator
       if ((t = kk[v1].a) != -1) { kk[t].b = 0; if (t < j) j = t; }
       if ((t = kk[i].a = kk[v2].a) != -1) { kk[t].a = i; kk[t].b = 0; if (t < j) j = t; }
       if ((t = kk[k].a = kk[u2].a) != -1) { kk[t].a = k; kk[t].b = 0; if (t < j) j = t; }
-      kk[kk[u2].a = v2].a = u2; if (j < i) i = j - 1;
-      if (s++ == ns) break;
+      kk[kk[u2].a = v2].a = u2; if (j < i) i = j - 1; if (s++ == ns) break;
     }
   }
   static int cmp1(void* pc, const void* pa, const void* pb)
@@ -281,6 +269,15 @@ class CTesselatorRat : public ICSGTesselator
   {
     auto& c = *(CTesselatorRat*)pc; auto& a = *(int*)pa; auto& b = *(int*)pb;
     return (c.pp[c.pp[a].fl < 0 ? c.ii[a].a : c.ii[a].b].y).CompareTo(c.pp[c.pp[b].fl < 0 ? c.ii[b].a : c.ii[b].b].y);
+  }
+  bool simplepoly()
+  {
+    if (np != snp) return false;
+    for (UINT i = 0; i < (UINT)np - 1; i++)
+      for (UINT k = i + 1; k < (UINT)np; k++)
+        if (pp.p[i].a.Equals(pp.p[k].a) && pp.p[i].f.Equals(pp.p[k].f))
+          return false;
+    return true;
   }
   UINT refcount = 1;
   HRESULT __stdcall QueryInterface(REFIID riid, void** p)
@@ -310,16 +307,15 @@ class CTesselatorRat : public ICSGTesselator
   HRESULT __stdcall get_Mode(CSG_TESS* p);
   HRESULT __stdcall put_Mode(CSG_TESS v);
   HRESULT __stdcall get_VertexCount(UINT* p);
-  HRESULT __stdcall VertexAt(UINT i, CSGVAR* v);
+  HRESULT __stdcall GetVertex(UINT i, CSGVAR* v);
   HRESULT __stdcall get_IndexCount(UINT* p);
-  HRESULT __stdcall IndexAt(UINT i, UINT* p);
+  HRESULT __stdcall GetIndex(UINT i, UINT* p);
   HRESULT __stdcall get_OutlineCount(UINT* p);
-  HRESULT __stdcall OutlineAt(UINT i, UINT* p);
-  HRESULT __stdcall Update(ICSGMesh* mesh, CSGVAR z);
+  HRESULT __stdcall GetOutline(UINT i, UINT* p);
+  HRESULT __stdcall Update(ICSGMesh* mesh, CSGVAR z, UINT flags);
   HRESULT __stdcall Cut(ICSGMesh* a, CSGVAR plane);
   HRESULT __stdcall Join(ICSGMesh* a, ICSGMesh* b, CSG_JOIN op);
-
-#if(CSG_EXTENSION)
+  //CSG extension
   struct _csg
   {
     sarray<int> ff, ii, dd, tt, tab; UINT nb = 0;
@@ -397,6 +393,5 @@ class CTesselatorRat : public ICSGTesselator
   void filloutlines();
   void outline(int* ii, int ni);
   int join(int ni, int fl);
-#endif
 };
 

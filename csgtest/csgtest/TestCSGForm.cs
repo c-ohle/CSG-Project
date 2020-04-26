@@ -127,7 +127,7 @@ namespace csgtest
       for (int i = 0; i < imesh.IndexCount; i += 3)
       {
         var triangle = new XElement(ns + "triangle"); triangles.Add(triangle);
-        for (int t = 0; t < 3; t++) triangle.SetAttributeValue(t == 0 ? "v1" : t == 1 ? "v2" : "v3", imesh.IndexAt(i + t));
+        for (int t = 0; t < 3; t++) triangle.SetAttributeValue(t == 0 ? "v1" : t == 1 ? "v2" : "v3", imesh.GetIndex(i + t));
       }
       for (int i = 0; i < imesh.VertexCount; i++)
       {

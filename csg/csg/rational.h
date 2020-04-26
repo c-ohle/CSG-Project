@@ -69,9 +69,10 @@ struct Rational
         {
           if (ss[ab = ns - x + j] != c) continue;
           if (!equals(pp, p2 - 1, pp[0] + 1)) continue;
+          //int i = 0; for (; i <= (int)pp[0] && pp[i] == p2[i - 1]; i++); if (i <= (int)pp[0]) continue;
           for (int i = ns++; i > (int)ab; i--) ss[i] = ss[i - 1]; ss[ab] = '\''; return SysAllocStringLen(ss, ns);
         }
-        copy(pp, p2 - 1, p2[-1] + 1);
+        copy(pp, p2 - 1, p2[-1] + 1);// for (int i = 0; i <= (int)p2[-1]; i++) pp[i] = p2[i - 1];
       }
       ss[ns++] = c; auto t = p1; p1 = p2; p2 = t;
     }
@@ -103,6 +104,8 @@ struct Rational
     auto n1 = pa[-1] + pa[pa[-1]];
     auto n2 = pb[-1] + pb[pb[-1]]; if (n1 != n2) return false;
     return equals(pa, pb, n2 + 1);
+    //for (UINT i = 0; i <= n2; i++) if (pa[i] != pb[i]) return false;
+    //return true;
   }
   int CompareTo(const Rational& b) const
   {
@@ -114,7 +117,7 @@ struct Rational
     mul(t, s + s[-1] + 1, v = u + u[-1] + 1);
     return cmp(u, v) * sa;
   }
-  int GetHashCode() const
+  UINT GetHashCode() const
   {
     if (den & 1) return num ^ den;
     auto p = getptr(); auto n = p[-1] + p[p[-1]];
@@ -199,7 +202,7 @@ struct Rational
   Rational operator /(const Rational& b) const
   {
     const Rational& a = *this;
-    auto sb = b.sign(); if (!sb) sb = 1 / sb; // throw() -> EXCEPTION_INT_DIVIDE_BY_ZERO
+    auto sb = b.sign(); if (!sb) sb = 1 / sb; //EXCEPTION_INT_DIVIDE_BY_ZERO
     auto sa = a.sign(); if (sa == 0) return a;
     auto ct = buffer + 2; UINT tt[8];
     const UINT* s = a.push(tt), * t = b.push(tt + 4); UINT* r = ct + ct[-1] + 2;
@@ -233,7 +236,7 @@ struct Rational
   Rational eval(int x) const
   {
     if (!sign()) return Rational(x < 0 ? -1 : x == 1 ? 1 : 0);
-    auto ct = buffer + 2; UINT tt[8]; auto s = (UINT*)push(tt);
+    auto ct = buffer + 2; UINT tt[8]; auto s = (UINT*)push(tt); //_ASSERT(ct[-2] == 0);
     if (s != tt + 2 && x >= 0) { auto ps = ct[-1] + 1; for (UINT i = 0, n = s[-1] + s[s[-1]] + 2; i < n; i++) ct[ps + i] = s[(int)i - 1]; s = ct + ps + 1; }
     UINT* t = s + (s[-1] + 1), * r = t + (t[-1] + 1); const INT64 one = 0x100000001;
     switch (x)
@@ -243,13 +246,13 @@ struct Rational
     case 0: { *(INT64*)(s + s[-1]) = one; return Rational(ct, s, num < 0); } //num
     case 1: { *(INT64*)(t + t[-1]) = one; return Rational(ct, t, false); } //den
     }
-    div(s, t, r); 
+    div(s, t, r); //round 
     if (*(INT64*)(s - 1) != 1)
     {
-      if (x == 4) { shr(t, 1); auto e = cmp(s, t); if (e > 0) add(r, (UINT*)&one + 1, r); } //ceil
-      else if ((num < 0) ^ (x == 3)) add(r, (UINT*)&one + 1, r); //round
+      if (x == 4) { shr(t, 1); auto e = cmp(s, t); if (e > 0) add(r, (UINT*)&one + 1, r); }
+      else if ((num < 0) ^ (x == 3)) add(r, (UINT*)&one + 1, r);
     }
-    *(INT64*)(r + r[-1]) = one; return Rational(ct, r, num < 0); //floor
+    *(INT64*)(r + r[-1]) = one; return Rational(ct, r, num < 0);
   }
   Rational round(int digits) const
   {
@@ -593,11 +596,10 @@ private:
     return true;
   }
 public:
-  int write(IStream* str)
+  int write(IStream* str) const
   {
-    UINT ct = (den & 1) | (num < 0 ? 2 : 0);
-    CHR(str->Write(&ct, 1, 0));
-    if (ct & 1)
+    CHR(writecount(str, (den & 1) | (num < 0 ? 2 : 0)));
+    if (den & 1)
     {
       CHR(writecount(str, abs(num)));
       CHR(writecount(str, den >> 1));
@@ -614,7 +616,8 @@ public:
   }
   int read(IStream* str)
   {
-    UINT ct = 0; CHR(str->Read(&ct, 1, 0)); if (!(den & 1)) *this = 0;
+    UINT ct; CHR(readcount(str, ct)); if (ct > 7) return ct;
+    if (!(den & 1)) *this = 0;
     if (ct & 1)
     {
       CHR(readcount(str, *(UINT*)&num)); if (ct & 2) num = -num;
@@ -630,6 +633,35 @@ public:
       *(UINT64*)&den = (size_t)p; if (ct & 2) num |= 0x80000000;
       CHR(str->Read(p, n1 << 2, 0));
       CHR(str->Read(p + n1 + 1, n2 << 2, 0));
+    }
+    return 0;
+  }
+  static int write(IStream* str, const Rational* pp, UINT np)
+  {
+    UINT ts = min(np, 1024), * ht = (UINT*)_alloca(ts * sizeof(UINT)); memset(ht, 0, ts * sizeof(UINT));
+    for (UINT i = 0, k; i < np; i++)
+    {
+      const auto& p = pp[i];
+      if (!(p.den & 1))
+      {
+        UINT& hc = ht[p.GetHashCode() % ts];
+        if (!hc) hc = i + 1;
+        else
+        {
+          for (k = hc - 1; k < i && !p.Equals(pp[k]); k++);
+          if (k < i) { CHR(writecount(str, 8 + k)); continue; }
+        }
+      }
+      CHR(p.write(str));
+    }
+    return 0;
+  }
+  static int read(IStream* str, Rational* pp, UINT np)
+  {
+    for (UINT i = 0; i < np; i++)
+    {
+      auto hr = pp[i].read(str); CHR(hr);
+      if (hr >= 8) pp[i] = pp[hr - 8];
     }
     return 0;
   }
@@ -665,3 +697,6 @@ public:
 
 __forceinline Rational& operator |(const Rational::mach& a, Rational& b) { return Rational::mach::fetch(a, b); }
 __forceinline int operator ^(const Rational::mach& a, const Rational& b) { return Rational::mach::fetchsign(a, b); }
+
+
+

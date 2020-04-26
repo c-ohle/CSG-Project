@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "TesselatorDbl.h"
-#include "Factory.h"
 #include "TesselatorRat.h"
+#include "Factory.h"
 #include "Mesh.h"
 
 thread_local UINT Rational::buffer[];
@@ -74,7 +74,7 @@ void conv(double* rr, UINT nr, const CSGVAR& v)
     case CSG_TYPE_FLOAT: rr[i] = ((const float*)s)[i]; continue;
     case CSG_TYPE_DOUBLE: rr[i] = ((const double*)s)[i]; continue;
     case CSG_TYPE_DECIMAL: VarR8FromDec(&((const DECIMAL*)s)[i], &rr[i]); continue;
-    case CSG_TYPE_RATIONAL: rr[i] = (double)(&static_cast<const CVector*>(((const ICSGVector*)s))->val)[i]; continue;
+    case CSG_TYPE_RATIONAL: rr[i] = (double)(&static_cast<const CVector*>(((const ICSGVector*)s))->val)[v.length + i]; continue;
     }
   for (; count < nr; count++) rr[count] = 0;
 }
@@ -89,7 +89,7 @@ void conv(CSGVAR& v, const double* rr, UINT nr)
     case CSG_TYPE_FLOAT: ((float*)s)[i] = (float)rr[i]; continue;
     case CSG_TYPE_DOUBLE: ((double*)s)[i] = rr[i]; continue;
     case CSG_TYPE_DECIMAL: VarDecFromR8(rr[i], &((DECIMAL*)s)[i]); continue;
-    case CSG_TYPE_RATIONAL: (&static_cast<CVector*>(((ICSGVector*)s))->val)[i] = rr[i]; continue;
+    case CSG_TYPE_RATIONAL: (&static_cast<CVector*>(((ICSGVector*)s))->val)[v.length + i] = rr[i]; continue;
     }
 }
 

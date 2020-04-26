@@ -52,21 +52,23 @@ struct Vector2R
   {
     auto x = cos(a); if (abs(x) == 1) return Vector2R(x < 0 ? -1 : +1, 0);
     auto y = sin(a); if (abs(y) == 1) return Vector2R(0, y < 0 ? -1 : +1);
-    if (prec > 0)
+    switch (prec)
     {
-      DECIMAL xx; VarDecFromR8(x, &xx); VarDecRound(&xx, prec, &xx);
-      DECIMAL yy; VarDecFromR8(y, &yy); VarDecRound(&yy, prec, &yy);
-      return Vector2R(xx, yy);
-    }
-    if (prec < 0)
-    {
-      if (prec == -1) 
-        return Vector2R((float)x, (float)y);
-      auto dm = y / (1 - x); *(UINT64*)&dm &= 0xffffffffffffffff << (52 + prec);
+    case 0: return Vector2R((float)x, (float)y);
+    case 1: return Vector2R(x, y);
+    default:
+      if (prec < 0)
+      {
+        double f = (1u << -prec);
+        return Vector2R(round(x * f) / f, round(y * f) / f);
+        //DECIMAL xx; VarDecFromR8(x, &xx); VarDecRound(&xx, -prec, &xx);
+        //DECIMAL yy; VarDecFromR8(y, &yy); VarDecRound(&yy, -prec, &yy);
+        //return Vector2R(xx, yy);
+      }
+      auto dm = y / (1 - x); *(UINT64*)&dm &= 0xffffffffffffffff << (52 - prec);
       auto m1 = (Rational)dm; auto m2 = m1 * m1; auto m3 = m2 + 1;
       return Vector2R((m2 - 1) / m3, (Rational)2 * m1 / m3);
     }
-    return Vector2R(x, y);
   }
 };
 
@@ -90,6 +92,9 @@ struct Vector3R
   Vector3R operator -(const Vector3R& b) const { return Vector3R(x - b.x, y - b.y, z - b.z); }
   Vector3R operator *(const Rational& b) const { return Vector3R(x + b, y + b, z + b); }
   Vector3R operator ^(const Vector3R& b) const { return Vector3R(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x); }
+  void operator +=(const Vector3R& b) { x = x + b.x; y = y + b.y; z = z + b.z; }
+  void operator -=(const Vector3R& b) { x = x - b.x; y = y - b.y; z = z - b.z; }
+  void operator *=(const Rational& b) { x = x * b; y = y * b; z = z * b; }
   int LongAxis() const
   {
     auto sx = x.sign();
@@ -195,6 +200,23 @@ struct Matrix3x4R
       p.z = 0 | x * m.m[0][2] + y * m.m[1][2] + p.z * m.m[2][2] + m.m[3][2];
     }
   }
+  //static void Transform(Vector4R* pp, UINT np, const Matrix3x4R& m)
+  //{ 
+  //  for (UINT i = 0; i < np; i++)
+  //  {
+  //    Rational::mach ma = 0; ma.fetch();
+  //    auto& p = pp[i]; Vector3R v = *(Vector3R*)&p, t;
+  //    t.x = (v.x * m.m[0][0] + v.y * m.m[1][0] + v.z * m.m[2][0]) * p.w + m.m[3][0];
+  //    t.y = (v.x * m.m[0][1] + v.y * m.m[1][1] + v.z * m.m[2][1]) * p.w + m.m[3][1];
+  //    t.z = (v.x * m.m[0][2] + v.y * m.m[1][2] + v.z * m.m[2][2]) * p.w + m.m[3][2];
+  //    p.x = v.x * m.m[0][0] + v.y * m.m[1][0] + v.z * m.m[2][0];
+  //    p.y = v.x * m.m[0][1] + v.y * m.m[1][1] + v.z * m.m[2][1];
+  //    p.z = v.x * m.m[0][2] + v.y * m.m[1][2] + v.z * m.m[2][2];
+  //    *(Vector3R*)&p = ma | (*(Vector3R*)&p).Normalize();
+  //    p.w = ma | -(t.x * p.x + t.y * p.y + t.z * p.z);
+  //    ma.dispose();
+  //  }
+  //}
   static void Multiply(Matrix3x4R& c, const Matrix3x4R& a, const Matrix3x4R& b)
   {
     for (UINT i = 0; i < 3; i++)
@@ -350,4 +372,28 @@ struct CVector : public ICSGVector
     auto* vp = &val + i; if (i + 1 > length) return E_INVALIDARG;
     ((Vector2R*)vp)[0] = 0 | Vector2R::SinCos(a, flags); return 0;
   }
+#if(0) 
+  HRESULT __stdcall Compute(UINT i, const BYTE* code)
+  {
+    rr.p[i] = calc(code); return 0;
+  }
+  Rational calc(const BYTE*& code)
+  {
+    switch (*code++)
+    {
+    default: return rr.p[code[-1]];
+    case 0xf0: return calc(code) + calc(code);
+    case 0xf1: return calc(code) - calc(code);
+    case 0xf2: return calc(code) * calc(code);
+    case 0xf3: return calc(code) / calc(code);
+    case 0xf4: return -calc(code);
+    case 0xf5: return calc(code).CompareTo(calc(code));
+    case 0xf6: return calc(code).sign();
+    case 0xf7: return (int)(char)*code++;
+    case 0xfd: return 0 ^ calc(code);
+    case 0xfe: return 0 | calc(code);
+    }
+    return 0;
+  }
+#endif
 };

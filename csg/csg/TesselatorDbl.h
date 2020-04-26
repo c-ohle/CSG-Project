@@ -100,12 +100,12 @@ class CTesselatorDbl : public ICSGTesselator
   HRESULT __stdcall get_Mode(CSG_TESS* p);
   HRESULT __stdcall put_Mode(CSG_TESS v);
   HRESULT __stdcall get_VertexCount(UINT* p);
-  HRESULT __stdcall VertexAt(UINT i, CSGVAR* v);
+  HRESULT __stdcall GetVertex(UINT i, CSGVAR* v);
   HRESULT __stdcall get_IndexCount(UINT* p);
-  HRESULT __stdcall IndexAt(UINT i, UINT* p);
+  HRESULT __stdcall GetIndex(UINT i, UINT* p);
   HRESULT __stdcall get_OutlineCount(UINT* p);
-  HRESULT __stdcall OutlineAt(UINT i, UINT* p);
-  HRESULT __stdcall Update(ICSGMesh* mesh, CSGVAR z);
+  HRESULT __stdcall GetOutline(UINT i, UINT* p);
+  HRESULT __stdcall Update(ICSGMesh* mesh, CSGVAR z, UINT flags);
   HRESULT __stdcall Cut(ICSGMesh* a, CSGVAR plane) { return E_NOTIMPL; }
   HRESULT __stdcall Join(ICSGMesh* a, ICSGMesh* b, CSG_JOIN op) { return E_NOTIMPL; }
 };

@@ -8,7 +8,7 @@
 
 #define _ATL_APARTMENT_THREADED
 #define _ATL_NO_AUTOMATIC_NAMESPACE
-#define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS	.
+#define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS	
 #define ATL_NO_ASSERT_ON_DESTROY_NONEXISTENT_WINDOW
 
 #include "resource.h"
@@ -87,8 +87,6 @@ struct sarray
   ~sarray() { ::free(p); }
   __forceinline T& operator[](UINT i)
   {
-    //if (i >= n)
-    //  i = i;
     _ASSERT(i < n); return p[i];
   }
   void setsize(UINT l)
@@ -97,6 +95,11 @@ struct sarray
     auto a = p ? _msize(p) / sizeof(T) : 0;
     if (l > a) p = (T*)::realloc(p, l * sizeof(T));
     n = l;
+  }
+  void freeextra()
+  {
+    auto a = p ? _msize(p) / sizeof(T) : 0;
+    if (a > n) p = n ? (T*)::realloc(p, n * sizeof(T)) : 0;
   }
   void copyto(sarray& b) const
   {
@@ -111,6 +114,10 @@ struct sarray
     if (n < c) setsize(((c >> s) + 1) << s);
     return p;
   }
+  void clear()
+  {
+    memset(p, 0, n * sizeof(T));
+  }
 };
 
 template<class T>
@@ -118,14 +125,22 @@ struct carray
 {
   UINT n = 0; T* p = 0;
   ~carray() { setsize(0); ::free(p); }
-  __forceinline T& operator[](UINT i) { _ASSERT(i < n); return p[i]; }
+  __forceinline T& operator[](UINT i)
+  {
+    _ASSERT(i < n); return p[i];
+  }
   void setsize(UINT l)
   {
-    while (n > l) ((WP*)&p[--n])->WP::~WP(); //p[--n].T::~T();
+    while (n > l) ((WP*)&p[--n])->WP::~WP();
     if (l == n) return;
     auto a = p ? _msize(p) / sizeof(T) : 0;
     if (l > a) p = (T*)::realloc(p, l * sizeof(T));
     while (n < l) ((WP*)&p[n++])->WP::WP();
+  }
+  void freeextra()
+  {
+    auto a = p ? _msize(p) / sizeof(T) : 0;
+    if (a > n) p = n ? (T*)::realloc(p, n * sizeof(T)) : 0;
   }
   struct WP { T t; };
   void copyto(carray& b) const
@@ -142,6 +157,14 @@ struct carray
     return p;
   }
 };
+
+__forceinline bool decode(const UINT* p) { return p[0] > p[1]; }
+static void encode(UINT* p, bool v)
+{
+  if (p[0] > p[1] == v) return;
+  int t = p[0], x = p[1] > p[2] == v ? 1 : 2;
+  p[0] = p[x]; p[x] = p[x ^ 3]; p[x ^ 3] = t;
+}
 
 #define CHR(F) { int __hr; if((__hr = (F)) < 0) return __hr; }
 

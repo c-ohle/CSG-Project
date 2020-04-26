@@ -221,7 +221,7 @@ HRESULT CTesselatorDbl::get_VertexCount(UINT* p)
 {
   *p = np; return 0;
 }
-HRESULT CTesselatorDbl::VertexAt(UINT i, CSGVAR* v)
+HRESULT CTesselatorDbl::GetVertex(UINT i, CSGVAR* v)
 {
   if (i >= (UINT)np) return -1;
   conv(*v, &pp[i].x, 3); return 0;
@@ -230,7 +230,7 @@ HRESULT CTesselatorDbl::get_IndexCount(UINT* p)
 {
   *p = ns; return 0;
 }
-HRESULT CTesselatorDbl::IndexAt(UINT i, UINT* p)
+HRESULT CTesselatorDbl::GetIndex(UINT i, UINT* p)
 {
   if (i >= (UINT)ns) return -1;
   *p = ss[i];  return 0;
@@ -239,7 +239,7 @@ HRESULT CTesselatorDbl::get_OutlineCount(UINT* p)
 {
   *p = nl; return 0;
 }
-HRESULT CTesselatorDbl::OutlineAt(UINT i, UINT* p)
+HRESULT CTesselatorDbl::GetOutline(UINT i, UINT* p)
 {
   if (i >= (UINT)nl) return -1;
   *p = ll[i]; return 0;
