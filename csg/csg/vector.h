@@ -288,8 +288,12 @@ struct CVector : public ICSGVector
   HRESULT __stdcall GetHashCode(UINT i, UINT n, UINT* v)
   {
     if (i + n > length) return E_INVALIDARG;
-    UINT h = val.GetHashCode();
-    while (--n) { UINT t = (&val)[++i].GetHashCode(); h = ((h << 7) | (t >> 25)) ^ t; }
+    UINT h = (&val)[i].GetHashCode();
+    while (--n) 
+    {
+      UINT t = (&val)[++i].GetHashCode(); 
+      h = ((h << 7) | (t >> 25)) ^ t; 
+    }
     *v = h; return 0;
   }
   HRESULT __stdcall CompareTo(UINT i, ICSGVector* pb, UINT ib, INT* p)

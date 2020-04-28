@@ -51,8 +51,8 @@ struct CMesh : public ICSGMesh
     case 1:
     {
       if (p->count != 1 || p->vt != CSG_TYPE_INT) return E_INVALIDARG;
-      //memcpy((int*)p->p, ii.p + ab, min(p->length, ii.n - ab) * sizeof(int));
-      for (UINT i = 0, n = min(p->length, ii.n - ab); i < n; i++) ((UINT*)p->p)[i] = ii[ab + i];
+      memcpy((int*)p->p, ii.p + ab, min(p->length, ii.n - ab) * sizeof(int));
+      //for (UINT i = 0, n = min(p->length, ii.n - ab); i < n; i++) ((UINT*)p->p)[i] = ii[ab + i];
       return 0;
     }
     case 2:
