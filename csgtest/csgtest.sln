@@ -11,6 +11,9 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "csg", "..\csg\csg\csg.vcxproj", "{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "csg3mf", "..\csg3mf\csg3mf.csproj", "{E8B746EB-F3F9-4D63-82BB-04AC5D634ED4}"
+	ProjectSection(ProjectDependencies) = postProject
+		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF} = {EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

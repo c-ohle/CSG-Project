@@ -39,17 +39,17 @@ namespace csg3mf
         var n = a.Length + 1;
         if (nodes.Count > n) nodes.RemoveRange(a.Length, nodes.Count - n);
         else while (nodes.Count < n) nodes.Add(new Node());
-        nodes[0].Transform = 1;
+        nodes[0].trans = 1;
         for (int i = 0; i < a.Length; i++)
         {
           var p = nodes[i + 1]; p.Parent = nodes[0];
           p.Texture = null; p.Color = 0xff808080;
-          p.Transform = 1; p.Mesh = a[i]; p.update();
+          p.Transform = CSG.Rational.Matrix.Identity(); p.Mesh = a[i]; p.update();
         }
         setcamera(); Invalidate(); Refresh();
       }
       internal int flags; internal float3x4 camera;
-      float nearplane = 0.1f, farplane = 1000, vscale;
+      float nearplane = 0.1f, farplane = 10000, vscale;
       internal List<Node> nodes = new List<Node>();
       protected override void OnHandleCreated(EventArgs e)
       {
@@ -58,7 +58,7 @@ namespace csg3mf
       internal void setcamera()
       {
         vscale = 0.0004f / DpiScale;
-        camera = !LookAt(new float3(6, 6, 4), new float3(0, 0, 0), new float3(0, 0, 1));
+        camera = !LookAt(new float3(-6, -6, 4), new float3(0, 0, 0), new float3(0, 0, 1));
       }
       bool setcwma(in float3x4 m)
       {
@@ -67,12 +67,7 @@ namespace csg3mf
       }
       protected override void OnRender(IDisplay dc)
       {
-        dc.DepthStencil = DepthStencil.ZWrite;
-        dc.Rasterizer = Rasterizer.CullFront;
-        dc.BlendState = BlendState.Opaque;
-        dc.VertexShader = VertexShader.Lighting;
-        dc.PixelShader = PixelShader.Color3D;
-        dc.Topology = Topology.TriangleListAdj;
+        dc.State = 0x1001015c; //dc.DepthStencil = DepthStencil.ZWrite; dc.Rasterizer = Rasterizer.CullFront; dc.BlendState = BlendState.Opaque; dc.VertexShader = VertexShader.Lighting; dc.PixelShader = PixelShader.Color3D; dc.Topology = Topology.TriangleListAdj;
         var size = dc.Viewport; var shadows = (flags & (1 << 10)) != 0;
         var vp = size * (vscale * nearplane);
         dc.SetProjection(!camera * float4x4.PerspectiveOffCenter(vp.x, -vp.x, -vp.y, vp.y, nearplane, farplane));
@@ -82,10 +77,10 @@ namespace csg3mf
         for (int i = 1; i < nodes.Count; i++)
         {
           var p = nodes[i]; if (p.vertexbuffer == null) continue;
-          dc.Select(p, 1); dc.SetTransform(p.getmatrix()); dc.Color = p.Color;
+          dc.Select(p, 1); dc.SetTransform(p.gettrans()); dc.Color = p.Color;
           if (p.texture != null) { dc.Texture = p.texture; dc.PixelShader = PixelShader.Texture; }
           else dc.PixelShader = PixelShader.Color3D;
-          dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
+          dc.DrawMesh(p.vertexbuffer, p.indexbuffer, p.StartIndex, p.IndexCount);
         }
         dc.Select();
         if (shadows)
@@ -98,8 +93,8 @@ namespace csg3mf
           dc.DepthStencil = DepthStencil.TwoSide;
           for (int i = 1; i < nodes.Count; i++)
           {
-            var p = nodes[i]; if (p.vertexbuffer == null) continue;
-            dc.SetTransform(p.getmatrix()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
+            var p = nodes[i]; if (p.vertexbuffer == null || p.StartIndex != 0) continue;
+            dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
           }
           dc.State = t1;
           dc.Ambient = 0;
@@ -108,10 +103,10 @@ namespace csg3mf
           for (int i = 1; i < nodes.Count; i++)
           {
             var p = nodes[i]; if (p.vertexbuffer == null) continue;
-            dc.SetTransform(p.getmatrix()); dc.Color = p.Color;
+            dc.SetTransform(p.gettrans()); dc.Color = p.Color;
             if (p.texture != null) { dc.Texture = p.texture; dc.PixelShader = PixelShader.Texture; }
             else dc.PixelShader = PixelShader.Color3D;
-            dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
+            dc.DrawMesh(p.vertexbuffer, p.indexbuffer, p.StartIndex, p.IndexCount);
           }
           dc.State = t1;
           dc.Clear(CLEAR.STENCIL);
@@ -126,7 +121,7 @@ namespace csg3mf
           {
             dc.SetTransform(1);
             float3box box; var pbox = (float3*)&box;
-            boxempty(pbox); for (int i = 1; i < nodes.Count; i++) nodes[i].getbox(nodes[i].getmatrix(), pbox);
+            boxempty(pbox); for (int i = 1; i < nodes.Count; i++) nodes[i].getbox(nodes[i].gettrans(), pbox);
             if ((flags & 0x01) != 0) //Box
             {
               dc.Color = 0xffffffff; long f1 = 0x4c8948990, f2 = 0xdecddabd9;
@@ -148,8 +143,8 @@ namespace csg3mf
             dc.Rasterizer = Rasterizer.Wireframe;
             for (int i = 1; i < nodes.Count; i++)
             {
-              var p = nodes[i]; if (p.vertexbuffer == null) continue;
-              dc.SetTransform(p.getmatrix()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
+              var p = nodes[i]; if (p.vertexbuffer == null || p.StartIndex != 0) continue;
+              dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
             }
             dc.State = t1;
           }
@@ -162,8 +157,8 @@ namespace csg3mf
             dc.Light = camera[3];
             for (int i = 1; i < nodes.Count; i++)
             {
-              var p = nodes[i]; if (p.vertexbuffer == null) continue;
-              dc.SetTransform(p.getmatrix()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
+              var p = nodes[i]; if (p.vertexbuffer == null || p.StartIndex != 0) continue;
+              dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
             }
             dc.State = t1;
           }
@@ -219,7 +214,7 @@ namespace csg3mf
       Action<int, object> camera_free(ISelector pc)
       {
         float3box box; var pbox = (float3*)&box;
-        boxempty(pbox); for (int i = 1; i < nodes.Count; i++) nodes[i].getbox(nodes[i].getmatrix(), pbox);
+        boxempty(pbox); for (int i = 1; i < nodes.Count; i++) nodes[i].getbox(nodes[i].gettrans(), pbox);
         var pm = (box.min + box.max) * 0.5f; var tm = (float3x4)pm;
         var cm = camera; var p1 = (float2)Cursor.Position; bool moves = false;
         return (id, p) =>
@@ -248,7 +243,7 @@ namespace csg3mf
         box._32 = size.y * scale;
         var min = (float3*)&box + 0; boxempty(min);
         var max = (float3*)&box + 1;
-        foreach (var p in nodes) p.getbox(p.getmatrix() * !cwm, min, (float2*)(min + 2));
+        foreach (var p in nodes) p.getbox(p.gettrans() * !cwm, min, (float2*)(min + 2));
         if (min->x == float.MaxValue) return;
         float nx = (max->x - min->x) * 0.5f;
         float ny = (max->y - min->y) * 0.5f;
@@ -277,7 +272,7 @@ namespace csg3mf
         {
           var size = dc.Viewport;// * DpiScale;
           var proj = float4x4.PerspectiveFov(20 * (float)(Math.PI / 180), size.x / size.y, 0.1f, 1000);
-          center(ref camera, ref proj, nodes.SelectMany(n => { var m = n.getmatrix(); return n.vertexbuffer.GetPoints().Select(p => p * m); }));
+          center(ref camera, ref proj, nodes.SelectMany(n => { var m = n.gettrans(); return n.vertexbuffer.GetPoints().Select(p => p * m); }));
           dc.SetProjection(!camera * proj);
           var lightdir = normalize(new float3(0.4f, 0.3f, -1)) & camera; lightdir.z = Math.Abs(lightdir.z);
           dc.Light = shadows ? lightdir * 0.3f : lightdir; dc.Select();
@@ -285,10 +280,10 @@ namespace csg3mf
           dc.State = /*rh ? 0x1001015c : */0x1002015c;
           foreach (var p in nodes)
           {
-            dc.SetTransform(p.getmatrix()); dc.Color = p.Color;
+            dc.SetTransform(p.gettrans()); dc.Color = p.Color;
             if (p.texture != null) { dc.Texture = p.texture; dc.PixelShader = PixelShader.Texture; }
             else dc.PixelShader = PixelShader.Color3D;
-            dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
+            dc.DrawMesh(p.vertexbuffer, p.indexbuffer, p.StartIndex, p.IndexCount);
           }
           if (shadows)
           {
@@ -298,17 +293,17 @@ namespace csg3mf
             dc.PixelShader = PixelShader.Null;
             dc.Rasterizer = Rasterizer.CullNone;
             dc.DepthStencil = DepthStencil.TwoSide;
-            foreach (var p in nodes) { dc.SetTransform(p.getmatrix()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer); }
+            foreach (var p in nodes) { if (p.StartIndex != 0) continue; dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer); }
             dc.State = t1;
             dc.Ambient = 0;
             dc.Light = lightdir * 0.7f;
             dc.BlendState = BlendState.AlphaAdd;
             foreach (var p in nodes)
             {
-              dc.SetTransform(p.getmatrix()); dc.Color = p.Color;
+              dc.SetTransform(p.gettrans()); dc.Color = p.Color;
               if (p.texture != null) { dc.Texture = p.texture; dc.PixelShader = PixelShader.Texture; }
               else dc.PixelShader = PixelShader.Color3D;
-              dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
+              dc.DrawMesh(p.vertexbuffer, p.indexbuffer, p.StartIndex, p.IndexCount);
             }
           }
         });
@@ -470,12 +465,11 @@ namespace csg3mf
       splitter.Panel1.Controls.Add(e);
       if (this.edit != null) this.edit.Dispose(); this.edit = e;
       Neuron.Debugger = (p, v) => this.edit.Show(v);
-
       foreach (var p in view.nodes) p.update();
       view.setcamera(); view.Invalidate();
       if (view.IsHandleCreated) view.OnCenter(null);
       this.path = path; UpdateTitle(); if (path != null) mru(path, path);
-     }
+    }
     int OnNew(object test)
     {
       if (test == null) Open(null);
@@ -505,8 +499,7 @@ namespace csg3mf
       bmp.RotateFlip(RotateFlipType.RotateNoneFlipX); //bmp.Save("C:\\Users\\cohle\\Desktop\\test.png", System.Drawing.Imaging.ImageFormat.Png); goto raus;
       Node.Export3MF(view.nodes, s, bmp, edit.EditText);
       if (path != s) { path = s; UpdateTitle(); mru(path, path); }
-      edit.IsModified = false;
-      //Cursor.Current = Cursors.Default;
+      edit.IsModified = false; Cursor.Current = Cursors.Default;
       return 1;
     }
     int OnLastFiles(object test)

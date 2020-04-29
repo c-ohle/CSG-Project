@@ -139,7 +139,7 @@ enum CSG_TYPE
         CSG_TYPE_DOUBLE	= 3,
         CSG_TYPE_DECIMAL	= 4,
         CSG_TYPE_RATIONAL	= 5,
-        CSG_TYPE_BSTR	= 6
+        CSG_TYPE_STRING	= 6
     } 	CSG_TYPE;
 
 typedef struct CSGVAR

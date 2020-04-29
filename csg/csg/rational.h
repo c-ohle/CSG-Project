@@ -78,7 +78,7 @@ struct Rational
     }
     return SysAllocStringLen(ss, ns);
   }
-  static Rational Parse(WCHAR* p, int n)
+  static Rational Parse(const WCHAR* p, int n)
   {
     Rational a = 0, b = a, e = 1, f = 10; //3.42'56
     for (int i = n - 1, c; i >= 0; i--)
@@ -88,7 +88,7 @@ struct Rational
       if (c == '.' || c == ',') { b = e; continue; }
       if (c == '\'') { a = a * e / (e - 1); continue; }
       if (c == '/') return Parse(p, i) / a;
-      if ((c | 0x20) == 'e') { _ASSERT(!a.getptr()); return Parse(p, i) * pow(10, a.num); }
+      if ((c | 0x20) == 'e') { _ASSERT(a.den == 3); return Parse(p, i) * pow(10, a.num); } // < e +/-INT_MAX 
     }
     if (b.sign() != 0) a = a / b;
     return a;
@@ -334,8 +334,8 @@ private:
     {
       maxct = ct[-1];
       TRACE(L"maxct %i\n", maxct);
-    }
   }
+}
 #else
   __forceinline void checkct(UINT* ct) {}
 #endif

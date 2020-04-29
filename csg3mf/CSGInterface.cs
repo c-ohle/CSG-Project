@@ -4,15 +4,13 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace csg3mf
 {
   public unsafe static class CSG
   {
     public static readonly IFactory Factory = COM.CreateInstance<IFactory>(IntPtr.Size == 8 ? (COM.DEBUG ? "csg64d.dll" : "csg64.dll") : (COM.DEBUG ? "csg32d.dll" : "csg32.dll"), typeof(CFactory).GUID);
-    //public static readonly IFactory Factory = (IFactory)new CFactory(); //or registered
+    //public static readonly IFactory Factory = (IFactory)new CFactory(); //alternative from registry
     public static ITesselator Tesselator => tess ?? (tess = Factory.CreateTessalator(Unit.Rational));
     [ThreadStatic] static ITesselator tess;
     [ComImport, Guid("54ca8e82-bdb3-41db-8ed5-3b890279c431")]
@@ -104,7 +102,7 @@ namespace csg3mf
       void SinCos(int i, double a, int prec); // 0:R4; 1:R8; 10..52: rational on unit circle; -1..-28: decimal digits
     }
 
-    public enum VarType { Int = 1, Float = 2, Double = 3, Decimal = 4, Rational = 5, Bstr = 6 }
+    public enum VarType { Int = 1, Float = 2, Double = 3, Decimal = 4, Rational = 5, String = 6 }
 
     [StructLayout(LayoutKind.Explicit, Size = 16)]
     public struct Variant
@@ -115,6 +113,7 @@ namespace csg3mf
       public Variant(float* p, int n) { vp = p; vt = (ushort)((int)VarType.Float | (n << 8)); }
       public Variant(double* p, int n) { vp = p; vt = (ushort)((int)VarType.Double | (n << 8)); }
       public Variant(decimal* p, int n) { vp = p; vt = (ushort)((int)VarType.Decimal | (n << 8)); }
+      public Variant(char** p, int n) { vp = p; vt = (ushort)((int)VarType.String | (n << 8)); }
       public Variant(int* p, int n, int c) { Variant v; v.vp = p; v.vt = (ushort)((int)VarType.Int | (n << 8)); ((int*)&v)[1] = c; this = v; }
       public Variant(float* p, int n, int c) { Variant v; v.vp = p; v.vt = (ushort)((int)VarType.Float | (n << 8)); ((int*)&v)[1] = c; this = v; }
       public Variant(double* p, int n, int c) { Variant v; v.vp = p; v.vt = (ushort)((int)VarType.Double | (n << 8)); ((int*)&v)[1] = c; this = v; }
@@ -123,7 +122,7 @@ namespace csg3mf
       public static implicit operator Variant(float p) { Variant v; ((float*)&v)[2] = p; v.vt = (ushort)VarType.Float; return v; }
       public static implicit operator Variant(double p) { Variant v; ((double*)&v)[1] = p; v.vt = (ushort)VarType.Double; return v; }
       public static implicit operator Variant(decimal p) { Variant v; ((decimal*)&v)[0] = p; v.vt = (ushort)VarType.Decimal; return v; }
-      public static implicit operator Variant(string s) { Variant v; v.vt = (ushort)VarType.Bstr; var p = Marshal.StringToBSTR(s); v.vp = p.ToPointer(); Marshal.FreeBSTR(p); return v; }
+      public static implicit operator Variant(string s) { Variant v; v.vt = (ushort)VarType.String; var p = Marshal.StringToBSTR(s); v.vp = p.ToPointer(); Marshal.FreeBSTR(p); return v; }
       //public static implicit operator Variant(Vector3* p) => new Variant(&p->x, 3);
     }
 
@@ -235,13 +234,13 @@ namespace csg3mf
         public static Vector3 operator *(Vector3 a, Rational b) => new Vector3(a.m * b, a.y * b, a.z * b);
         public static Vector3 operator /(Vector3 a, Rational b) => new Vector3(a.m / b, a.y / b, a.z / b);
         public static Vector3 operator ^(Vector3 a, Vector3 b) => new Vector3(a.y * b.z - a.z * b.y, a.z * b.m - a.m * b.z, a.m * b.y - a.y * b.m);
-        public Vector3 Transform(Matrix3x4 m) { var p = new Vector3(0); p.m.p.Execute1(Op1.TransPM, p.m.i, m.m.p, m.m.i); return p; }
+        public Vector3 Transform(Matrix m) { var p = new Vector3(0); p.m.p.Copy(p.m.i, this.m.p, this.m.i, 3); p.m.p.Execute1(Op1.TransPM, p.m.i, m.m.p, m.m.i); return p; }
         public Rational LengthSq { get { var p = ctor(1); p.p.Execute1(Op1.Dot3, p.i, m.p, m.i); return p; } }
         public Vector3 Normalize() { var p = new Vector3(0); p.m.p.Execute1(Op1.Norm3, p.m.i, m.p, m.i); return p; }
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         internal readonly Rational m; internal Vector3(int _) => m = ctor(3);
       }
-      public readonly struct Vector4 : IEquatable<Vector4>
+      public readonly struct Plane : IEquatable<Plane>
       {
         public Rational x { get => new Rational(m.p, m.i + 0); set => m.p.Execute1(Op1.Copy, m.i + 0, value.p, value.i); }
         public Rational y { get => new Rational(m.p, m.i + 1); set => m.p.Execute1(Op1.Copy, m.i + 1, value.p, value.i); }
@@ -250,56 +249,55 @@ namespace csg3mf
         public override string ToString() => $"{m.ToString(17)}; {y.ToString(17)}; {z.ToString(17)}; {w.ToString(17)}";
         public override int GetHashCode() => m.p.GetHashCode(m.i, 4);
         public override bool Equals(object p) => p is Vector3 b && Equals(b);
-        public bool Equals(Vector4 b) => m.p.Equals(m.i, b.m.p, b.m.i, 4);
-        public Vector4(Rational x, Rational y, Rational z, Rational w) { m = ctor(4); this.x = x; this.y = y; this.z = z; this.w = w; }
-        public Vector4(Vector3 p, Rational w) { m = ctor(4); m.p.Copy(m.i, p.m.p, p.m.i, 3); this.w = w; }
-        public static bool operator ==(in Vector4 a, in Vector4 b) => a.Equals(b);
-        public static bool operator !=(in Vector4 a, in Vector4 b) => !a.Equals(b);
-        public static implicit operator Variant(Vector4 p) => new Variant(p.m.p, 4, p.m.i);
-        public static explicit operator Vector3(Vector4 p) => new Vector3(p.m, p.y, p.z);
-        public static Vector4 PlaneFromPoints(Vector3 a, Vector3 b, Vector3 c)
+        public bool Equals(Plane b) => m.p.Equals(m.i, b.m.p, b.m.i, 4);
+        public Plane(Rational x, Rational y, Rational z, Rational w) { m = ctor(4); this.x = x; this.y = y; this.z = z; this.w = w; }
+        public Plane(Vector3 p, Rational w) { m = ctor(4); m.p.Copy(m.i, p.m.p, p.m.i, 3); this.w = w; }
+        public static bool operator ==(in Plane a, in Plane b) => a.Equals(b);
+        public static bool operator !=(in Plane a, in Plane b) => !a.Equals(b);
+        public static implicit operator Variant(Plane p) => new Variant(p.m.p, 4, p.m.i);
+        public static explicit operator Vector3(Plane p) => new Vector3(p.m, p.y, p.z);
+        public static Plane FromPoints(Vector3 a, Vector3 b, Vector3 c)
         {
-          var e = new Vector4(0); for (int i = 0; i < 3; i++) e.m.p.Execute1(Op1.Copy, e.m.i + i, a.m.p, a.m.i + i);
+          var e = new Plane(0); for (int i = 0; i < 3; i++) e.m.p.Execute1(Op1.Copy, e.m.i + i, a.m.p, a.m.i + i);
           e.m.p.Execute2(Op2.PlaneP3, e.m.i, b.m.p, b.m.i, c.m.p, c.m.i); return e;
         }
-        public static Vector4 PlaneFromPointNormal(Vector3 p, Vector3 n)
+        public static Plane FromPointNormal(Vector3 p, Vector3 n)
         {
-          var e = new Vector4(0);
+          var e = new Plane(0);
           e.m.p.Execute2(Op2.PlanePN, e.m.i, p.m.p, p.m.i, n.m.p, n.m.i); return e;
         }
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        readonly Rational m; internal Vector4(int _) => m = ctor(4);
+        readonly Rational m; internal Plane(int _) => m = ctor(4);
       }
-      public struct Matrix3x4 : IEquatable<Matrix3x4>
+      public struct Matrix : IEquatable<Matrix>
       {
         public override int GetHashCode() => m.p.GetHashCode(m.i, 12);
-        public override bool Equals(object p) => p is Matrix3x4 b && Equals(b);
-        public bool Equals(Matrix3x4 b) => m.p.Equals(m.i, b.m.p, b.m.i, 12);
-        public static implicit operator Variant(Matrix3x4 m) => new Variant(m.m.p, 12, m.m.i);
-        public static Matrix3x4 Identity()
+        public override bool Equals(object p) => p is Matrix b && Equals(b);
+        public bool Equals(Matrix b) => m.p.Equals(m.i, b.m.p, b.m.i, 12);
+        public static implicit operator Variant(Matrix m) => new Variant(m.m.p, 12, m.m.i);
+        public static Matrix Identity()
         {
-          var m = new Matrix3x4(0); var v = stackalloc int[12] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 };
-          m.m.p.SetValue(m.m.i, new Variant(v, 12)); return m;
+          var m = new Matrix(0); m.SetIdentity(); return m;
         }
-        public static Matrix3x4 Translation(Rational x, Rational y, Rational z)
+        public static Matrix Translation(Rational x, Rational y, Rational z)
         {
-          var m = new Matrix3x4(0); var v = stackalloc int[9] { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+          var m = new Matrix(0); var v = stackalloc int[9] { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
           m.m.p.SetValue(m.m.i, new Variant(v, 9)); m[9] = x; m[10] = y; m[11] = z; return m;
         }
-        public static Matrix3x4 Scaling(Rational x, Rational y, Rational z)
+        public static Matrix Scaling(Rational s) => Scaling(s, s, s);
+        public static Matrix Scaling(Rational x, Rational y, Rational z)
         {
-          var m = new Matrix3x4(0); var v = stackalloc int[12];
-          m.m.p.SetValue(m.m.i, new Variant(v, 9)); m[0] = x; m[4] = y; m[8] = z; return m;
+          var m = new Matrix(0); m[0] = x; m[4] = y; m[8] = z; return m;
         }
-        public static Matrix3x4 RotationX(Vector2 sc)
+        public static Matrix RotationX(Vector2 sc)
         {
           var m = Identity(); m[4] = m[8] = sc.x; m[7] = -(m[5] = sc.y); return m;
         }
-        public static Matrix3x4 RotationY(Vector2 sc)
+        public static Matrix RotationY(Vector2 sc)
         {
           var m = Identity(); m[0] = m[8] = sc.x; m[2] = -(m[6] = sc.y); return m;
         }
-        public static Matrix3x4 RotationZ(Vector2 sc)
+        public static Matrix RotationZ(Vector2 sc)
         {
           var m = Identity(); m[0] = m[4] = sc.x; m[3] = -(m[1] = sc.y); return m;
         }
@@ -312,20 +310,28 @@ namespace csg3mf
           get => new Rational(m.p, m.i + i);
           set => m.p.Execute1(Op1.Copy, m.i + i, value.p, value.i);
         }
-        public Rational[] Items { get { var m = this; return Enumerable.Range(0, 12).Select(i => m[i]).ToArray(); } }
-        public static Matrix3x4 operator *(Matrix3x4 a, Matrix3x4 b)
+        public Variant this[uint i]
         {
-          var m = new Matrix3x4(0);
+          set => m.p.SetValue(m.i + (int)i, value);
+        }
+        public Rational[] Items { get { var m = this; return Enumerable.Range(0, 12).Select(i => m[i]).ToArray(); } }
+        public static Matrix operator *(Matrix a, Matrix b)
+        {
+          var m = new Matrix(0);
           m.m.p.Execute2(Op2.Mul3x4, m.m.i, a.m.p, a.m.i, b.m.p, b.m.i); return m;
         }
-        public static Matrix3x4 operator !(Matrix3x4 a)
+        public static Matrix operator !(Matrix a)
         {
-          var m = new Matrix3x4(0);
+          var m = new Matrix(0);
           m.m.p.Execute1(Op1.Inv3x4, m.m.i, a.m.p, a.m.i); return m;
         }
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        internal readonly Rational m; Matrix3x4(int _) => m = ctor(12);
+        internal readonly Rational m; Matrix(int _) => m = ctor(12);
         private Vector3 copy(int i) { var v = new Vector3(0); v.m.p.Copy(v.m.i, m.p, m.i + i, 3); return v; }
+        internal void GetValues(Variant v) => m.p.GetValue(m.i, ref v);
+        internal void SetValues(Variant v) => m.p.SetValue(m.i, v);
+        internal void SetIdentity() { var v = stackalloc int[12] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 }; m.p.SetValue(m.i, new Variant(v, 12)); }
+        public static explicit operator Viewer.D3DView.float3x4(Matrix m) { Viewer.D3DView.float3x4 t; m.GetValues(new Variant((float*)&t, 12)); return t; }  
       }
     }
 
@@ -352,14 +358,19 @@ namespace csg3mf
     {
       var p = new Rational.Vector3(0); var v = (Variant)p; mesh.GetVertex(i, ref v); return p;
     }
-    public static Rational.Vector4 GetPlaneR4(this IMesh mesh, int i)
+    public static Viewer.D3DView.float3 GetVertexF3(this IMesh mesh, int i)
     {
-      var p = new Rational.Vector4(0); var v = (Variant)p; mesh.GetPlane(i, ref v); return p;
+      Viewer.D3DView.float3 p; var v = new Variant((float*)&p, 3); mesh.GetVertex(i, ref v); return p;
+    }
+    public static Rational.Plane GetPlaneR4(this IMesh mesh, int i)
+    {
+      var p = new Rational.Plane(0); var v = (Variant)p; mesh.GetPlane(i, ref v); return p;
     }
     public static IMesh Clone(this IMesh p) { var d = Factory.CreateMesh(); p.CopyTo(d); return d; }
     public static void InitPlanes(this IMesh mesh) => Tesselator.Cut(mesh, new Variant());
     public static IEnumerable<Rational.Vector3> Vertices(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexR3(i); }
-    public static IEnumerable<int> Indices(this IMesh mesh) { for (int i = 0, n = mesh.IndexCount; i < n; i++) yield return mesh.GetIndex(i); } 
+    public static IEnumerable<Viewer.D3DView.float3> VerticesF3(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexF3(i); }
+    public static IEnumerable<int> Indices(this IMesh mesh) { for (int i = 0, n = mesh.IndexCount; i < n; i++) yield return mesh.GetIndex(i); }
     public static void Display(params IMesh[] a) => disp?.Invoke(a); internal static Action<IMesh[]> disp; //debug helper
     #endregion
   }

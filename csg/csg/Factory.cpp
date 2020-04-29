@@ -45,7 +45,7 @@ void conv(Rational* rr, UINT nr, const CSGVAR& v)
     case CSG_TYPE_DOUBLE: rr[i] = ((const double*)s)[i]; continue;
     case CSG_TYPE_DECIMAL: rr[i] = ((const DECIMAL*)s)[i]; continue;
     case CSG_TYPE_RATIONAL: rr[i] = (&static_cast<const CVector*>(((const ICSGVector*)s))->val)[v.length + i]; continue;
-    case CSG_TYPE_BSTR: rr[i] = Rational::Parse(((BSTR*)s)[i], SysStringLen(((BSTR*)s)[i])); continue;
+    case CSG_TYPE_STRING: rr[i] = Rational::Parse(((LPCWSTR*)s)[i], lstrlen(((LPCWSTR*)s)[i])); continue;
     }
   for (; count < nr; count++) rr[count] = 0;
 }

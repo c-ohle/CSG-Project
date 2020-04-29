@@ -808,7 +808,7 @@ namespace csg3mf.Viewer
     }
     void IDisplay.DrawMesh(VertexBuffer vertices, IndexBuffer indices, int i, int n)
     {
-      int nv = n != -1 ? n << 1 : indices.count << 1; i <<= 1;
+      int nv = n != 0 ? n << 1 : indices.count << 1; i <<= 1;
       if (inpick) { pick(vertices.buffer, indices.buffer, nv, ref i, 0); return; }
       SetVertexBuffer(vertices.buffer); SetIndexBuffer(indices.buffer); apply();
       context.DrawIndexed(nv, i, 0);
@@ -1125,7 +1125,7 @@ namespace csg3mf.Viewer
       void Clear(CLEAR fl);
       vertex* BeginVertices(int nv);
       void EndVertices(int nv, Topology topo);
-      void DrawMesh(VertexBuffer vertices, IndexBuffer indices, int i = 0, int n = -1);
+      void DrawMesh(VertexBuffer vertices, IndexBuffer indices, int i = 0, int n = 0);
       bool IsPicking { get; }
       void Select(object data = null, int id = 0);
       Action<int, object> Tool { get; }

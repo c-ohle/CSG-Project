@@ -72,7 +72,7 @@ struct CMesh : public ICSGMesh
   HRESULT __stdcall GetVertex(UINT i, CSGVAR* p)
   {
     if ((UINT)i >= (UINT)pp.n) return E_INVALIDARG;
-    conv(*p, &pp.p[i].x, 3); resetee(); return 0;
+    conv(*p, &pp.p[i].x, 3); return 0;
   }
   HRESULT __stdcall SetVertex(UINT i, CSGVAR p)
   {
@@ -91,7 +91,7 @@ struct CMesh : public ICSGMesh
   HRESULT __stdcall SetIndex(UINT i, UINT p)
   {
     if (i >= (UINT)ii.n) return E_INVALIDARG;
-    ii.p[i] = p;  return 0;
+    ii.p[i] = p; resetee(); return 0;
   }
   HRESULT __stdcall get_PlaneCount(UINT* p)
   {

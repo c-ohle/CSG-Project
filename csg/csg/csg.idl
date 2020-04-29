@@ -36,7 +36,7 @@ typedef enum CSG_TYPE
   CSG_TYPE_DOUBLE = 3,
   CSG_TYPE_DECIMAL = 4,
   CSG_TYPE_RATIONAL = 5,
-  CSG_TYPE_BSTR = 6,
+  CSG_TYPE_STRING = 6,
 } CSG_TYPE;
 
 typedef struct CSGVAR
@@ -74,7 +74,7 @@ typedef enum CSG_OP1
 {
   CSG_OP1_COPY = 0,
   CSG_OP1_NEG = 1,
-  CSG_OP1_TRANSPM = 2,
+  CSG_OP1_TRANSPM = 2, //consider OP2
   CSG_OP1_INV3X4 = 3,
   CSG_OP1_DOT2 = 4,
   CSG_OP1_DOT3 = 5,

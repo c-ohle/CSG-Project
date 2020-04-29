@@ -289,10 +289,10 @@ struct CVector : public ICSGVector
   {
     if (i + n > length) return E_INVALIDARG;
     UINT h = (&val)[i].GetHashCode();
-    while (--n) 
+    while (--n)
     {
-      UINT t = (&val)[++i].GetHashCode(); 
-      h = ((h << 7) | (t >> 25)) ^ t; 
+      UINT t = (&val)[++i].GetHashCode();
+      h = ((h << 7) | (t >> 25)) ^ t;
     }
     *v = h; return 0;
   }
@@ -319,8 +319,8 @@ struct CVector : public ICSGVector
   }
   HRESULT __stdcall GetValue(UINT i, CSGVAR* p)
   {
-    if (i >= length) return E_INVALIDARG;
-    conv(*p, &(&val)[i], 1); return 0;
+    if (i + max(p->count, 1) > length) return E_INVALIDARG;
+    conv(*p, &val + i, length); return 0;
   }
   HRESULT __stdcall SetValue(UINT i, CSGVAR v)
   {
