@@ -70,35 +70,35 @@ namespace csg3mf
       StackPtr = (byte*)vv;
     }
 
-    static void unscale(List<Node> nodes, Node parent)
-    {
-      for (int i = 0; i < nodes.Count; i++)
-      {
-        var p = nodes[i]; if (p.Parent != parent) continue;
-        var lsq = p.Transform.mx.LengthSq;
-        if (lsq != 1)
-        {
-          var s = (Rational)(decimal)Math.Sqrt((double)lsq);
-          p.Transform = Rational.Matrix.Scaling(1 / s) * p.Transform;
-          if (p.StartIndex == 0) p.Mesh?.Transform(s);
-          for (int t = 0; t < nodes.Count; t++)
-            if (nodes[t].Parent == p)
-              nodes[t].Transform = nodes[t].Transform * Rational.Matrix.Scaling(s);
-        }
-        unscale(nodes, p);
-      }
-    }
-    internal static float3box getboxest(IEnumerable<Node> nodes, Node root = null)
-    {
-      float3box box; boxempty((float3*)&box);
-      foreach (var p in nodes)
-      {
-        if (p.Mesh == null) continue;
-        var m = (float3x4)p.Transform; for (var t = p.Parent; t != root; t = t.Parent) m *= (float3x4)t.Transform;
-        foreach (var v in p.Mesh.VerticesF3()) boxadd(&v, &m, &box.min);
-      }
-      return box;
-    }
+    //static void unscale(List<Node> nodes, Node parent)
+    //{
+    //  for (int i = 0; i < nodes.Count; i++)
+    //  {
+    //    var p = nodes[i]; if (p.Parent != parent) continue;
+    //    var lsq = p.Transform.mx.LengthSq;
+    //    if (lsq != 1)
+    //    {
+    //      var s = (Rational)(decimal)Math.Sqrt((double)lsq);
+    //      p.Transform = Rational.Matrix.Scaling(1 / s) * p.Transform;
+    //      if (p.StartIndex == 0) p.Mesh?.Transform(s);
+    //      for (int t = 0; t < nodes.Count; t++)
+    //        if (nodes[t].Parent == p)
+    //          nodes[t].Transform = nodes[t].Transform * Rational.Matrix.Scaling(s);
+    //    }
+    //    unscale(nodes, p);
+    //  }
+    //}
+    //internal static float3box getboxest(IEnumerable<Node> nodes, Node root = null)
+    //{
+    //  float3box box; boxempty((float3*)&box);
+    //  foreach (var p in nodes)
+    //  {
+    //    if (p.Mesh == null) continue;
+    //    var m = (float3x4)p.Transform; for (var t = p.Parent; t != root; t = t.Parent) m *= (float3x4)t.Transform;
+    //    foreach (var v in p.Mesh.VerticesF3()) boxadd(&v, &m, &box.min);
+    //  }
+    //  return box;
+    //}
 
     internal static List<Node> Import3MF(string path, out string script)
     {
@@ -113,12 +113,11 @@ namespace csg3mf
         var build = model.Element(ns + "build");
         var nodes = new List<Node>();
         var root = new Node(); nodes.Add(root);
-        root.Transform[0u] = root.Transform[4u] = root.Transform[8u] = scale;//root.Transform = Rational.Matrix.Scaling(scale); 
+        root.Transform[0u] = root.Transform[4u] = root.Transform[8u] = scale; //root.Transform = Rational.Matrix.Scaling(scale); 
         foreach (var p in build.Elements(ns + "item").Select(item => convert(item))) { p.Parent = root; nodes.Add(p); }
         /////////////
         if (nodes.Count > 1 && dot(((float3x4)nodes[1].Transform)[0]) > 10) //curiosity bug fix
           foreach (var p in nodes) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
-        //var box = getboxest(nodes.Skip(1), nodes[0]);
         /////////////
         var uri = new Uri("/Metadata/csg.cs", UriKind.Relative);
         if (!package.PartExists(uri)) { script = null; return nodes; }
@@ -169,14 +168,11 @@ namespace csg3mf
           var mm = kk.Select(p => p.Attribute("pid")?.Value).Distinct().ToArray();
           var ii = (int*)StackPtr;
           for (int i = 0, k = 0; i < kk.Length; i++) { var p = kk[i]; ii[k++] = (int)p.Attribute("v1"); ii[k++] = (int)p.Attribute("v2"); ii[k++] = (int)p.Attribute("v3"); }
-          var rmesh = Factory.CreateMesh();
-          rmesh.Update(ver.Count(), new Variant(ii, 1, kk.Length * 3));
+          var rmesh = Factory.CreateMesh(); rmesh.Update(ver.Count(), new Variant(ii, 1, kk.Length * 3));
           var sv = (char**)StackPtr; int l = 0;
           foreach (var p in ver) fixed (char* sx = (string)p.Attribute("x"), sy = (string)p.Attribute("y"), sz = (string)p.Attribute("z"))
             { sv[0] = sx; sv[1] = sy; sv[2] = sz; rmesh.SetVertex(l++, new Variant(sv, 3)); }
-#if (DEBUG)
-          //var xx = rmesh.Check(); if (xx != 0) Debug.WriteLine("mesh.Check: " + xx);
-#endif
+          //var check = rmesh.Check(); if (check != 0) Debug.WriteLine("mesh.Check: " + check);
           var tt = (float2[])null; var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
           for (int i = 0, ab = 0, bis = 1; i < mm.Length; i++, ab = bis)
           {
@@ -206,9 +202,14 @@ namespace csg3mf
             dm.Texcoords = tt;
             var texid = (string)texture2dgroup.Attribute("texid");
             var texture2d = res.Elements(ms + "texture2d").Where(t => (string)t.Attribute("id") == texid).First();
-            var texpath = (string)texture2d.Attribute("path");
-            var texpart = package.GetPart(new Uri(texpath, UriKind.Relative));
-            using (var str = texpart.GetStream()) { var a = new byte[str.Length]; str.Read(a, 0, a.Length); dm.Texture = a; }
+            var bin = texture2d.Annotation<byte[]>();
+            if (bin == null)
+            {
+              var texpath = (string)texture2d.Attribute("path");
+              var texpart = package.GetPart(new Uri(texpath, UriKind.Relative));
+              using (var str = texpart.GetStream()) { bin = new byte[str.Length]; str.Read(bin, 0, bin.Length); texture2d.AddAnnotation(bin); }
+            }
+            dm.Texture = bin;
           }
           return node;
         };

@@ -49,7 +49,7 @@ namespace csg3mf
         setcamera(); Invalidate(); Refresh();
       }
       internal int flags; internal float3x4 camera;
-      float nearplane = 0.1f, farplane = 10000, vscale;
+      float z1 = 0.1f, z2 = 1000, vscale, minwz;
       internal List<Node> nodes = new List<Node>();
       protected override void OnHandleCreated(EventArgs e)
       {
@@ -69,8 +69,8 @@ namespace csg3mf
       {
         dc.State = 0x1001015c; //dc.DepthStencil = DepthStencil.ZWrite; dc.Rasterizer = Rasterizer.CullFront; dc.BlendState = BlendState.Opaque; dc.VertexShader = VertexShader.Lighting; dc.PixelShader = PixelShader.Color3D; dc.Topology = Topology.TriangleListAdj;
         var size = dc.Viewport; var shadows = (flags & (1 << 10)) != 0;
-        var vp = size * (vscale * nearplane);
-        dc.SetProjection(!camera * float4x4.PerspectiveOffCenter(vp.x, -vp.x, -vp.y, vp.y, nearplane, farplane));
+        var vp = size * (vscale * z1);
+        dc.SetProjection(!camera * float4x4.PerspectiveOffCenter(vp.x, -vp.x, -vp.y, vp.y, z1, z2));
         dc.Ambient = 0x00404040;
         var lightdir = normalize(new float3(0.4f, 0.3f, -1)) & camera; lightdir.z = Math.Abs(lightdir.z);
         dc.Light = shadows ? lightdir * 0.3f : lightdir;
@@ -85,21 +85,14 @@ namespace csg3mf
         dc.Select();
         if (shadows)
         {
-          var t1 = dc.State; dc.Light = lightdir; dc.LightZero = -5;
-          dc.VertexShader = VertexShader.World;
-          dc.GeometryShader = GeometryShader.Shadows;
-          dc.PixelShader = PixelShader.Null;
-          dc.Rasterizer = Rasterizer.CullNone;
-          dc.DepthStencil = DepthStencil.TwoSide;
+          var t1 = dc.State; dc.Light = lightdir; dc.LightZero = this.minwz;
+          dc.State = 0x2100050c; // dc.VertexShader = VertexShader.World; dc.GeometryShader = GeometryShader.Shadows; dc.PixelShader = PixelShader.Null; dc.Rasterizer = Rasterizer.CullNone; dc.DepthStencil = DepthStencil.TwoSide;
           for (int i = 1; i < nodes.Count; i++)
           {
             var p = nodes[i]; if (p.vertexbuffer == null || p.StartIndex != 0) continue;
             dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
           }
-          dc.State = t1;
-          dc.Ambient = 0;
-          dc.Light = lightdir * 0.7f;
-          dc.BlendState = BlendState.AlphaAdd;
+          dc.State = t1; dc.Ambient = 0; dc.Light = lightdir * 0.7f; dc.BlendState = BlendState.AlphaAdd;
           for (int i = 1; i < nodes.Count; i++)
           {
             var p = nodes[i]; if (p.vertexbuffer == null) continue;
@@ -108,75 +101,61 @@ namespace csg3mf
             else dc.PixelShader = PixelShader.Color3D;
             dc.DrawMesh(p.vertexbuffer, p.indexbuffer, p.StartIndex, p.IndexCount);
           }
-          dc.State = t1;
+          dc.State = t1; dc.Light = lightdir;
           dc.Clear(CLEAR.STENCIL);
         }
-        dc.VertexShader = VertexShader.Default;
-        dc.PixelShader = PixelShader.Color;
-        dc.Rasterizer = Rasterizer.CullNone;
         if (true)
         {
-          var t1 = dc.State;
           if ((flags & 0x03) != 0)
           {
-            dc.SetTransform(1);
-            float3box box; var pbox = (float3*)&box;
-            boxempty(pbox); for (int i = 1; i < nodes.Count; i++) nodes[i].getbox(nodes[i].gettrans(), pbox);
+            dc.SetTransform(1); dc.State = 0x0000011c; //dc.VertexShader = VertexShader.Default; dc.PixelShader = PixelShader.Color; dc.Rasterizer = Rasterizer.CullNone;
+            float3box box; var pb = (float3*)&box; boxempty(pb);
+            for (int i = 1; i < nodes.Count; i++) { var p = nodes[i]; if (p.vertexbuffer != null) p.getbox(p.gettrans(), pb); }
             if ((flags & 0x01) != 0) //Box
             {
               dc.Color = 0xffffffff; long f1 = 0x4c8948990, f2 = 0xdecddabd9;
               for (int t = 0; t < 12; t++, f1 >>= 3, f2 >>= 3)
-                dc.DrawLine(boxcor(pbox, (int)(f1 & 7)), boxcor(pbox, (int)(f2 & 7)));
+                dc.DrawLine(boxcor(pb, (int)(f1 & 7)), boxcor(pb, (int)(f2 & 7)));
             }
             if ((flags & 0x02) != 0) //Pivot
             {
+              float f = length(box.max - box.min) * 0.5f, t1 = 0.25f * f, t2 = 0.1f * f, t3 = 0.02f * f;
               dc.SetTransform(1); float3 p1 = new float3(), p2;
-              dc.Color = 0xffff0000; dc.DrawLine(p1, p2 = new float3(box.max.x + 0.25f, 0, 0)); dc.DrawArrow(p2, new float3(0.1f, 0, 0), 0.02f);
-              dc.Color = 0xff00ff00; dc.DrawLine(p1, p2 = new float3(0, box.max.y + 0.25f, 0)); dc.DrawArrow(p2, new float3(0, 0.1f, 0), 0.02f);
-              dc.Color = 0xff0000ff; dc.DrawLine(p1, p2 = new float3(0, 0, box.max.z + 0.25f)); dc.DrawArrow(p2, new float3(0, 0, 0.1f), 0.02f);
+              dc.Color = 0xffff0000; dc.DrawLine(p1, p2 = new float3(box.max.x + t1, 0, 0)); dc.DrawArrow(p2, new float3(t2, 0, 0), t3);
+              dc.Color = 0xff00ff00; dc.DrawLine(p1, p2 = new float3(0, box.max.y + t1, 0)); dc.DrawArrow(p2, new float3(0, t2, 0), t3);
+              dc.Color = 0xff0000ff; dc.DrawLine(p1, p2 = new float3(0, 0, box.max.z + t1)); dc.DrawArrow(p2, new float3(0, 0, t2), t3);
             }
-            dc.State = t1;
           }
           if ((flags & 0x08) != 0) //Wireframe
           {
-            dc.Color = 0x40000000; dc.BlendState = BlendState.Alpha;
-            dc.Rasterizer = Rasterizer.Wireframe;
+            dc.Color = 0x40000000; dc.State = 0x0003111c; //dc.Rasterizer = Rasterizer.Wireframe; dc.BlendState = BlendState.Alpha; dc.VertexShader = VertexShader.Default; dc.PixelShader = PixelShader.Color;
             for (int i = 1; i < nodes.Count; i++)
             {
               var p = nodes[i]; if (p.vertexbuffer == null || p.StartIndex != 0) continue;
               dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
             }
-            dc.State = t1;
           }
           if ((flags & 0x10) != 0) //Outline
           {
             dc.Color = 0xff000000;
-            dc.GeometryShader = GeometryShader.Outline3D;
-            dc.PixelShader = PixelShader.Color3D;
-            dc.VertexShader = VertexShader.World;
+            dc.State = 0x2200015c; //dc.GeometryShader = GeometryShader.Outline3D; dc.VertexShader = VertexShader.World; dc.PixelShader = PixelShader.Color3D;
             dc.Light = camera[3];
             for (int i = 1; i < nodes.Count; i++)
             {
               var p = nodes[i]; if (p.vertexbuffer == null || p.StartIndex != 0) continue;
               dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
             }
-            dc.State = t1;
           }
         }
         dc.SetProjection(float4x4.OrthoCenter(0, size.x, size.y, 0, 0, 1));
         dc.SetTransform(1);
-        dc.PixelShader = PixelShader.Color;
-        dc.DepthStencil = DepthStencil.Default;
-        dc.Rasterizer = Rasterizer.CullNone;
-        dc.Select();
-
+        dc.State = 0x0000001c; //dc.PixelShader = PixelShader.Color; dc.DepthStencil = DepthStencil.Default; dc.Rasterizer = Rasterizer.CullNone; 
         dc.Color = 0xff000000;
         float x = dc.Viewport.x - 8, y = 8 + dc.Font.Ascent, dy = dc.Font.Height; string s;
-        //s = "";// string.Join(", ", Buffer.cache.Values.Select(p => p.Target).GroupBy(p => p != null ? p.GetType().Name : "(null)").Select(p => string.Format("{1} {0}", p.Key, p.Count())));
-        //dc.DrawText(x - dc.Measure(s), y, s); y += dy;
         s = Adapter; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
         s = $"{GetFPS()} fps"; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
         s = $"{DpiScale * 96} dpi"; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
+        s = (CSG.Factory.Version & 0x100) != 0 ? "Debug" : "Release"; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
       }
       protected override int OnDispatch(int id, ISelector pc)
       {
@@ -232,39 +211,45 @@ namespace csg3mf
       {
         if (nodes.Count <= 1) return 0;
         if (test != null) return 1;
-        var m = camera;
-        center(nodes, (float2)ClientSize / DpiScale - new float2(32, 32), vscale, ref m);
-        setcwma(m); return 1;
+        var r = center(nodes, (float2)ClientSize / DpiScale - new float2(32, 32), vscale, camera);
+        z1 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z1)) - 1);
+        z2 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z2)) + 2); minwz = r.wb.min.z;
+        setcwma(r.cm); return 1;
       }
-      static void center(IEnumerable<Node> nodes, float2 size, float scale, ref float3x4 cwm)
+      static (float3x4 cm, float z1, float z2, float3box wb) center(IEnumerable<Node> nodes, float2 size, float scale, in float3x4 cwm)
       {
-        float3x4 box;
+        float3x4 box; float3box wb; boxempty((float3*)&wb);
         box._31 = size.x * scale;
         box._32 = size.y * scale;
         var min = (float3*)&box + 0; boxempty(min);
-        var max = (float3*)&box + 1;
-        foreach (var p in nodes) p.getbox(p.gettrans() * !cwm, min, (float2*)(min + 2));
-        if (min->x == float.MaxValue) return;
+        var max = (float3*)&box + 1; var icw = !cwm;
+        foreach (var p in nodes)
+        {
+          if (p.vertexbuffer == null) continue;
+          var wm = p.gettrans();
+          p.getbox(wm, &wb.min);
+          p.getbox(wm * icw, min, (float2*)(min + 2));
+        }
+        if (min->x == float.MaxValue) return default;
         float nx = (max->x - min->x) * 0.5f;
         float ny = (max->y - min->y) * 0.5f;
         float fm = -Math.Max(nx / box._31, ny / box._32);
-        cwm = new float3(min->x + nx, min->y + ny, fm) + cwm; // var near = min->Z - fm;
-        var far = max->z - fm; //farplane = Math.Max(1000, Math.Min(10000, far * 10));
+        return (new float3(min->x + nx, min->y + ny, fm) + cwm, min->z - fm, max->z - fm, wb);
       }
-      static void center(ref float3x4 cm, ref float4x4 proj, IEnumerable<float3> points)
+      static (float3x4 cm, float z1, float z2, float3box wb) center(in float3x4 cm, in float4x4 proj, IEnumerable<float3> points)
       {
-        float aspekt = proj._22 / proj._11, a = proj._22;
+        float aspekt = proj._22 / proj._11, a = proj._22; float3box wb; boxempty((float3*)&wb);
         float ax = a / aspekt, _ax = 1 / ax, ay = a, _ay = 1 / ay; var vmat = !cm;
         var mi = new float3(float.MaxValue, float.MaxValue, float.MaxValue); var ma = -mi;
         var m1 = (float4x4)(float3x4)1; var m2 = m1;
         m1._31 = +_ax; m1._32 = +_ay; m1 = vmat * m1;
         m2._31 = -_ax; m2._32 = -_ay; m2 = vmat * m2;
-        foreach (var p in points) { mi = min(mi, p * m1); ma = max(ma, p * m2); }
-        if (mi.x == float.MaxValue) return;
+        foreach (var p in points) { mi = min(mi, p * m1); ma = max(ma, p * m2); boxadd(&p, &wb.min); }
+        if (mi.x == float.MaxValue) return default;
         float mx = 0.5f * (ax * ma.x - ax * mi.x) / ax, nx = ma.x - mi.x - mx;
         float my = 0.5f * (ay * ma.y - ay * mi.y) / ay, ny = ma.y - mi.y - my;
         float fm = Math.Min(ny * -ay, nx * -ax); // near = bmi.Min.Z - fm; far = bma.Max.Z - fm;
-        cm = new float3(mi.x + nx, mi.y + ny, fm) + cm;
+        return (new float3(mi.x + nx, mi.y + ny, fm) + cm, mi.z - fm, ma.z - fm, wb);
       }
       internal static System.Drawing.Bitmap preview(int dx, int dy, float3x4 camera, bool shadows, IEnumerable<Node> nodes)
       {
@@ -272,9 +257,10 @@ namespace csg3mf
         {
           var size = dc.Viewport;// * DpiScale;
           var proj = float4x4.PerspectiveFov(20 * (float)(Math.PI / 180), size.x / size.y, 0.1f, 1000);
-          center(ref camera, ref proj, nodes.SelectMany(n => { var m = n.gettrans(); return n.vertexbuffer.GetPoints().Select(p => p * m); }));
-          dc.SetProjection(!camera * proj);
-          var lightdir = normalize(new float3(0.4f, 0.3f, -1)) & camera; lightdir.z = Math.Abs(lightdir.z);
+          var r = center(camera, proj, nodes.SelectMany(n => { var m = n.gettrans(); return n.vertexbuffer.GetPoints().Select(p => p * m); }));
+          proj = float4x4.PerspectiveFov(20 * (float)(Math.PI / 180), size.x / size.y, r.z2 * 0.5f, r.z2 * 2);
+          dc.SetProjection(!r.cm * proj);
+          var lightdir = normalize(new float3(0.4f, 0.3f, -1)) & r.cm; lightdir.z = Math.Abs(lightdir.z);
           dc.Light = shadows ? lightdir * 0.3f : lightdir; dc.Select();
           dc.Ambient = 0x00404040; //var rh = true;
           dc.State = /*rh ? 0x1001015c : */0x1002015c;
@@ -287,12 +273,8 @@ namespace csg3mf
           }
           if (shadows)
           {
-            var t1 = dc.State; dc.Light = lightdir; dc.LightZero = -5;
-            dc.VertexShader = VertexShader.World;
-            dc.GeometryShader = GeometryShader.Shadows;
-            dc.PixelShader = PixelShader.Null;
-            dc.Rasterizer = Rasterizer.CullNone;
-            dc.DepthStencil = DepthStencil.TwoSide;
+            var t1 = dc.State; dc.Light = lightdir; dc.LightZero = r.wb.min.z;
+            dc.State = 0x2100050c; // dc.VertexShader = VertexShader.World; dc.GeometryShader = GeometryShader.Shadows; dc.PixelShader = PixelShader.Null; dc.Rasterizer = Rasterizer.CullNone; dc.DepthStencil = DepthStencil.TwoSide;
             foreach (var p in nodes) { if (p.StartIndex != 0) continue; dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer); }
             dc.State = t1;
             dc.Ambient = 0;

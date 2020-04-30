@@ -4,12 +4,13 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
+using System.Xml.Linq;
 
 namespace csg3mf
 {
   public unsafe static class CSG
   {
-    public static readonly IFactory Factory = COM.CreateInstance<IFactory>(IntPtr.Size == 8 ? (COM.DEBUG ? "csg64d.dll" : "csg64.dll") : (COM.DEBUG ? "csg32d.dll" : "csg32.dll"), typeof(CFactory).GUID);
+    public static readonly IFactory Factory = COM.CreateInstance<IFactory>(IntPtr.Size == 8 ? (COM.NDEBUG ? "csg64d.dll" : "csg64.dll") : (COM.NDEBUG ? "csg32d.dll" : "csg32.dll"), typeof(CFactory).GUID);
     //public static readonly IFactory Factory = (IFactory)new CFactory(); //alternative from registry
     public static ITesselator Tesselator => tess ?? (tess = Factory.CreateTessalator(Unit.Rational));
     [ThreadStatic] static ITesselator tess;
@@ -331,7 +332,7 @@ namespace csg3mf
         internal void GetValues(Variant v) => m.p.GetValue(m.i, ref v);
         internal void SetValues(Variant v) => m.p.SetValue(m.i, v);
         internal void SetIdentity() { var v = stackalloc int[12] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 }; m.p.SetValue(m.i, new Variant(v, 12)); }
-        public static explicit operator Viewer.D3DView.float3x4(Matrix m) { Viewer.D3DView.float3x4 t; m.GetValues(new Variant((float*)&t, 12)); return t; }  
+        public static explicit operator Viewer.D3DView.float3x4(Matrix m) { Viewer.D3DView.float3x4 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
       }
     }
 
@@ -399,10 +400,18 @@ namespace csg3mf
       void Seek(long i, int org = 0, long* r = null);
       void SetSize(long n);
     }
-#if (DEBUG)
-    internal const bool DEBUG = true;
-#else
+#if (!DEBUG)
     internal const bool DEBUG = false;
+    internal const bool NDEBUG = false;
+#else
+    internal const bool DEBUG = true;
+    internal static readonly bool NDEBUG = ndebug();
+    static bool ndebug()
+    {
+      if (!Debugger.IsAttached) return false;
+      var e = XElement.Load("..\\csg3mf\\csg3mf.csproj.user");
+      return e.Descendants(e.Name.Namespace + "EnableUnmanagedDebugging").First().Value == "true";
+    }
 #endif
   }
 
