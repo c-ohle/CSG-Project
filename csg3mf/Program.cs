@@ -39,12 +39,17 @@ namespace csg3mf
         var n = a.Length + 1;
         if (nodes.Count > n) nodes.RemoveRange(a.Length, nodes.Count - n);
         else while (nodes.Count < n) nodes.Add(new Node());
-        nodes[0].trans = 1;
+        nodes[0].transform = 1;
         for (int i = 0; i < a.Length; i++)
         {
           var p = nodes[i + 1]; p.Parent = nodes[0];
-          p.Texture = null; p.Color = 0xff808080;
-          p.Transform = CSG.Rational.Matrix.Identity(); p.Mesh = a[i]; p.update();
+          p.Transform.SetIdentity();
+          p.Mesh = a[i]; p.Texcoords = null;
+          if (p.Materials == null || p.Materials.Length != 1) p.Materials = new Node.Material[1];
+          ref var ma = ref p.Materials[0];
+          ma.Color = 0xff808080; ma.Texture = null;
+          ma.StartIndex = 0; ma.IndexCount = p.Mesh.IndexCount;
+          p.update();
         }
         setcamera(); Invalidate(); Refresh();
       }
@@ -77,10 +82,14 @@ namespace csg3mf
         for (int i = 1; i < nodes.Count; i++)
         {
           var p = nodes[i]; if (p.vertexbuffer == null) continue;
-          dc.Select(p, 1); dc.SetTransform(p.gettrans()); dc.Color = p.Color;
-          if (p.texture != null) { dc.Texture = p.texture; dc.PixelShader = PixelShader.Texture; }
-          else dc.PixelShader = PixelShader.Color3D;
-          dc.DrawMesh(p.vertexbuffer, p.indexbuffer, p.StartIndex, p.IndexCount);
+          dc.Select(p, 1); dc.SetTransform(p.gettrans()); 
+          for(int k = 0; k < p.Materials.Length;k++)
+          {
+            ref var m = ref p.Materials[k]; dc.Color = m.Color;
+            if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
+            else dc.PixelShader = PixelShader.Color3D;
+            dc.DrawMesh(p.vertexbuffer, p.indexbuffer, m.StartIndex, m.IndexCount);
+          }
         }
         dc.Select();
         if (shadows)
@@ -89,17 +98,21 @@ namespace csg3mf
           dc.State = 0x2100050c; // dc.VertexShader = VertexShader.World; dc.GeometryShader = GeometryShader.Shadows; dc.PixelShader = PixelShader.Null; dc.Rasterizer = Rasterizer.CullNone; dc.DepthStencil = DepthStencil.TwoSide;
           for (int i = 1; i < nodes.Count; i++)
           {
-            var p = nodes[i]; if (p.vertexbuffer == null || p.StartIndex != 0) continue;
+            var p = nodes[i]; if (p.vertexbuffer == null) continue;
             dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
           }
           dc.State = t1; dc.Ambient = 0; dc.Light = lightdir * 0.7f; dc.BlendState = BlendState.AlphaAdd;
           for (int i = 1; i < nodes.Count; i++)
           {
             var p = nodes[i]; if (p.vertexbuffer == null) continue;
-            dc.SetTransform(p.gettrans()); dc.Color = p.Color;
-            if (p.texture != null) { dc.Texture = p.texture; dc.PixelShader = PixelShader.Texture; }
-            else dc.PixelShader = PixelShader.Color3D;
-            dc.DrawMesh(p.vertexbuffer, p.indexbuffer, p.StartIndex, p.IndexCount);
+            dc.SetTransform(p.gettrans());
+            for (int k = 0; k < p.Materials.Length; k++)
+            {
+              ref var m = ref p.Materials[k]; dc.Color = m.Color;
+              if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
+              else dc.PixelShader = PixelShader.Color3D;
+              dc.DrawMesh(p.vertexbuffer, p.indexbuffer, m.StartIndex, m.IndexCount);
+            }
           }
           dc.State = t1; dc.Light = lightdir;
           dc.Clear(CLEAR.STENCIL);
@@ -131,7 +144,7 @@ namespace csg3mf
             dc.Color = 0x40000000; dc.State = 0x0003111c; //dc.Rasterizer = Rasterizer.Wireframe; dc.BlendState = BlendState.Alpha; dc.VertexShader = VertexShader.Default; dc.PixelShader = PixelShader.Color;
             for (int i = 1; i < nodes.Count; i++)
             {
-              var p = nodes[i]; if (p.vertexbuffer == null || p.StartIndex != 0) continue;
+              var p = nodes[i]; if (p.vertexbuffer == null) continue;
               dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
             }
           }
@@ -142,7 +155,7 @@ namespace csg3mf
             dc.Light = camera[3];
             for (int i = 1; i < nodes.Count; i++)
             {
-              var p = nodes[i]; if (p.vertexbuffer == null || p.StartIndex != 0) continue;
+              var p = nodes[i]; if (p.vertexbuffer == null) continue;
               dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
             }
           }
@@ -266,26 +279,31 @@ namespace csg3mf
           dc.State = /*rh ? 0x1001015c : */0x1002015c;
           foreach (var p in nodes)
           {
-            dc.SetTransform(p.gettrans()); dc.Color = p.Color;
-            if (p.texture != null) { dc.Texture = p.texture; dc.PixelShader = PixelShader.Texture; }
-            else dc.PixelShader = PixelShader.Color3D;
-            dc.DrawMesh(p.vertexbuffer, p.indexbuffer, p.StartIndex, p.IndexCount);
+            dc.SetTransform(p.gettrans());
+            for (int k = 0; k < p.Materials.Length; k++)
+            {
+              ref var m = ref p.Materials[k]; dc.Color = m.Color;
+              if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
+              else dc.PixelShader = PixelShader.Color3D;
+              dc.DrawMesh(p.vertexbuffer, p.indexbuffer, m.StartIndex, m.IndexCount);
+            }
           }
           if (shadows)
           {
             var t1 = dc.State; dc.Light = lightdir; dc.LightZero = r.wb.min.z;
             dc.State = 0x2100050c; // dc.VertexShader = VertexShader.World; dc.GeometryShader = GeometryShader.Shadows; dc.PixelShader = PixelShader.Null; dc.Rasterizer = Rasterizer.CullNone; dc.DepthStencil = DepthStencil.TwoSide;
-            foreach (var p in nodes) { if (p.StartIndex != 0) continue; dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer); }
-            dc.State = t1;
-            dc.Ambient = 0;
-            dc.Light = lightdir * 0.7f;
-            dc.BlendState = BlendState.AlphaAdd;
+            foreach (var p in nodes) { dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer); }
+            dc.State = t1; dc.Ambient = 0; dc.Light = lightdir * 0.7f; dc.BlendState = BlendState.AlphaAdd;
             foreach (var p in nodes)
             {
-              dc.SetTransform(p.gettrans()); dc.Color = p.Color;
-              if (p.texture != null) { dc.Texture = p.texture; dc.PixelShader = PixelShader.Texture; }
-              else dc.PixelShader = PixelShader.Color3D;
-              dc.DrawMesh(p.vertexbuffer, p.indexbuffer, p.StartIndex, p.IndexCount);
+              dc.SetTransform(p.gettrans());
+              for (int k = 0; k < p.Materials.Length; k++)
+              {
+                ref var m = ref p.Materials[k]; dc.Color = m.Color;
+                if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
+                else dc.PixelShader = PixelShader.Color3D;
+                dc.DrawMesh(p.vertexbuffer, p.indexbuffer, m.StartIndex, m.IndexCount);
+              }
             }
           }
         });

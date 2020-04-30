@@ -61,6 +61,7 @@ void conv(CSGVAR& v, const Rational* rr, UINT nr)
     case CSG_TYPE_DOUBLE: ((double*)s)[i] = (double)rr[i]; continue;
     case CSG_TYPE_DECIMAL: ((DECIMAL*)s)[i] = (DECIMAL)rr[i]; continue;
     case CSG_TYPE_RATIONAL: (&static_cast<CVector*>(((ICSGVector*)s))->val)[v.length + i] = rr[i]; continue;
+    case CSG_TYPE_STRING: { auto t = rr[i].ToString(64, 0x1000); lstrcpyW((LPWSTR)s, t); s = ((LPWSTR)s) + t[-1] + 1; } continue;
     }
 }
 void conv(double* rr, UINT nr, const CSGVAR& v)

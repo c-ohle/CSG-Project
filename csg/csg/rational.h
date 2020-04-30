@@ -42,7 +42,7 @@ struct Rational
   {
     return ToString(63, 0x3);
   }
-  BSTR ToString(int digits, int flags = 0x3) const //1: reps; 2: '…'; 4: CurrentCulture.NumberFormat
+  BSTR ToString(int digits, int flags = 0x3) const //1: reps; 2: '…'; 4: CurrentCulture.NumberFormat, 0x1000: ptr
   {
     UINT tt[4]; const UINT* num = push(tt) - 1, * den = &num[num[0] + 2];
     auto nn = (num[0] > den[-1] ? num[0] : den[-1]) + 2;
@@ -70,12 +70,13 @@ struct Rational
           if (ss[ab = ns - x + j] != c) continue;
           if (!equals(pp, p2 - 1, pp[0] + 1)) continue;
           //int i = 0; for (; i <= (int)pp[0] && pp[i] == p2[i - 1]; i++); if (i <= (int)pp[0]) continue;
-          for (int i = ns++; i > (int)ab; i--) ss[i] = ss[i - 1]; ss[ab] = '\''; return SysAllocStringLen(ss, ns);
+          for (int i = ns++; i > (int)ab; i--) ss[i] = ss[i - 1]; ss[ab] = '\''; goto ex;// return SysAllocStringLen(ss, ns);
         }
         copy(pp, p2 - 1, p2[-1] + 1);// for (int i = 0; i <= (int)p2[-1]; i++) pp[i] = p2[i - 1];
       }
       ss[ns++] = c; auto t = p1; p1 = p2; p2 = t;
     }
+  ex: if (flags & 0x1000) { ss[ss[-1] = ns] = 0; return ss; }
     return SysAllocStringLen(ss, ns);
   }
   static Rational Parse(const WCHAR* p, int n)

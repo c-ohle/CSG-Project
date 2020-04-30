@@ -2554,6 +2554,11 @@ namespace csg3mf
         };
       }
     }
+    internal static bool Equals(byte[] a, byte[] b)
+    {
+      if (a == b) return true; if (a.Length != b.Length) return false;
+      fixed (byte* pa = a, pb = b) return memcmp(pa, pb, (void*)a.Length) == 0;
+    }
   }
 }
 
