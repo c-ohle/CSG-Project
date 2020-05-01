@@ -1444,7 +1444,7 @@ namespace csg3mf
       if (e != null) MessageBox.Show(this, e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
       var cap = Native.SetCapture(IntPtr.Zero); DebugStop stop = null;
       try {  for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); } }
-      catch (DebugStop p) { state = 0; stop = p; }
+      catch (DebugStop p) { state = 0; stop = p; }  
       if (e != null && state == 1) state = 2;// F10 -> F11 step into exception blocks
       Native.SetCapture(cap);
       Neuron.state = state;
@@ -2426,6 +2426,8 @@ namespace csg3mf
   {
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
+    internal static extern IntPtr LoadIcon(IntPtr h, IntPtr id);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr SetParent(IntPtr h, IntPtr p);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]

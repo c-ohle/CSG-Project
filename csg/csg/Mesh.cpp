@@ -496,7 +496,7 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
   if ((op & 0x40) == 0 && (ni = join(ni, 0)) == -1)
   {
     if (op == 0x10) { Join(pa, pb, (CSG_JOIN)(0x20 | 0x40)); return Join(pa, pb, (CSG_JOIN)0x80); }
-    return -1; //degenerated input mesh
+    return 0x8C066001; //degenerated input mesh
   }
   UINT nx = 0; for (UINT i = 0; i < csg.ne; i++) if (ff[i] != 1) nx++;
   a.ee.setsize(nx); for (UINT i = 0, k = 0; i < csg.ne; i++) if (ff[i] != 1) a.ee[k++] = csg.ee[i];
@@ -630,7 +630,7 @@ int CTesselatorRat::join(int ni, int fl)
       }
     }
     if (swap == 0)
-      return -1;
+      return 0x8C066002;
     swap = 0;
   }
   return ni;

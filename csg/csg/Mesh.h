@@ -85,7 +85,7 @@ struct CMesh : public ICSGMesh
   }
   HRESULT __stdcall GetIndex(UINT i, UINT* p)
   {
-    if ((UINT)i >= (UINT)ii.n) return -1;
+    if ((UINT)i >= (UINT)ii.n) return E_INVALIDARG;
     *p = ii[i];  return 0;
   }
   HRESULT __stdcall SetIndex(UINT i, UINT p)
@@ -99,7 +99,7 @@ struct CMesh : public ICSGMesh
   }
   HRESULT __stdcall GetPlane(UINT i, CSGVAR p)
   {
-    if ((UINT)i >= (UINT)ee.n) return -1;
+    if ((UINT)i >= (UINT)ee.n) return E_INVALIDARG;
     conv(p, &ee.p[i].x, 4); return 0;
   }
   HRESULT __stdcall Update(CSGVAR vertices, CSGVAR indices)

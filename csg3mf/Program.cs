@@ -10,8 +10,10 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using csg3mf.Properties;
 using csg3mf.Viewer;
 using static csg3mf.Viewer.D3DView;
 
@@ -312,6 +314,7 @@ namespace csg3mf
 
     internal MainFram()
     {
+      Icon = Icon.FromHandle(Native.LoadIcon(Marshal.GetHINSTANCE(GetType().Module), (IntPtr)32512));
       StartPosition = FormStartPosition.WindowsDefaultBounds;
       MainMenuStrip = new MenuStrip(); MenuItem.CommandRoot = OnCommand;
       MainMenuStrip.Items.AddRange(new ToolStripItem[]
@@ -357,7 +360,7 @@ namespace csg3mf
           new MenuItem(5011, "&Run Release", Keys.F5|Keys.Control ),
           new ToolStripSeparator(),
           new MenuItem(5010, "Run &Debug", Keys.F5 ),
-          new MenuItem(5016, "Step &Over", Keys.F10 ),
+          new MenuItem(5016, "Ste&p", Keys.F10 ),
           new MenuItem(5015, "Step &Into", Keys.F11 ),
           new MenuItem(5017, "Step Ou&t", Keys.F11|Keys.Shift ),
           new ToolStripSeparator(),
@@ -423,7 +426,7 @@ namespace csg3mf
       if (path == null) OnNew(null);
     }
     SplitContainer splitter; View view;
-    string path; Neuron neuron; NeuronEditor edit;
+    string path; NeuronEditor edit;
     int OnCommand(int id, object test)
     {
       var re = edit.OnCommand(id, test);
@@ -461,7 +464,9 @@ namespace csg3mf
       string script = null;
       if (path != null && path.EndsWith(".3mf", true, null)) view.nodes = Node.Import3MF(path, out script);
       else view.nodes = new List<Node> { new Node() };
-      neuron = new Neuron(); NeuronEditor.InitNeuron(neuron, script ?? "using static csg3mf.CSG;\n");
+      //var neuron = view.nodes[0];
+      var neuron = new Neuron(); 
+      NeuronEditor.InitNeuron(neuron, script ?? "using static csg3mf.CSG;\n");
       var e = new NeuronEditor { Dock = DockStyle.Fill, Tag = neuron };
       splitter.Panel1.Controls.Add(e);
       if (this.edit != null) this.edit.Dispose(); this.edit = e;

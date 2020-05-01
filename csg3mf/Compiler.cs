@@ -4061,7 +4061,7 @@ namespace csg3mf
         case TypeCode.Single: return sizeof(float);
         case TypeCode.Double: return sizeof(double);
         case TypeCode.Decimal: return sizeof(decimal);
-        //case TypeCode.DateTime: return sizeof(DateTime);
+          //case TypeCode.DateTime: return sizeof(DateTime);
       }
       return Marshal.SizeOf(t);
     }
@@ -4106,7 +4106,7 @@ namespace csg3mf
       var me = t.GetMethod("GetParametersNoCopy", BindingFlags.NonPublic | BindingFlags.Instance);
       var pa = Expression.Parameter(typeof(MethodBase));
       return Expression.Lambda<Func<MethodBase, ParameterInfo[]>>(Expression.Call(Expression.Convert(pa, me.DeclaringType), me), pa).Compile();
-    }  
+    }
     static string xname(Type type)
     {
       if (type.IsByRef) return string.Format("{0} {1}", "ref", shortname(type.GetElementType()));
@@ -4431,17 +4431,17 @@ namespace csg3mf
     }
   }
 
-  class Neuron
+  public class Neuron
   {
     private object[] data;
-    public virtual object Invoke(int id, object p)
+    public unsafe virtual object Invoke(int id, object p)
     {
       switch (id)
       {
         case 0: return data; //IsDynamic
         case 1: data = p as object[]; break; //to overwrite notify 
         case 2: return ToString(); //to overwrite ScriptEditor Title
-        case 3: Invoke("."); break; //to overwrite onstart
+        case 3: if(this.AutoStop) sp = null; Invoke("."); break; //to overwrite onstart
         case 4: Invoke("Dispose"); break; //to overwrite onstop
         case 5: break; //onactivate
         case 6: break; //ondeactivate
@@ -4463,13 +4463,13 @@ namespace csg3mf
     {
       if (GetMethod(name) is Action<Neuron> m) m(this);
     }
-    internal protected bool AutoStop = true;
+    internal bool AutoStop = true;
     #region Debug support
     public static Action<Neuron, Exception> Debugger; //todo: make private, possible with new exception handling
     [ThreadStatic]
     static internal int state, dbgpos;
     [ThreadStatic]
-    static unsafe int* sp;
+    static internal unsafe int* sp;
     unsafe void dbgstp(int i)
     {
       var t = ((int[])data[1])[(dbgpos = i) >> 5];

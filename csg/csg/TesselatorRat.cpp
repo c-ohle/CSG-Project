@@ -229,7 +229,7 @@ HRESULT CTesselatorRat::get_VertexCount(UINT* p)
 }
 HRESULT CTesselatorRat::GetVertex(UINT i, CSGVAR* v)
 {
-  if (i >= (UINT)np) return -1;
+  if (i >= (UINT)np) return E_INVALIDARG;
   conv(*v, &pp[i].x, 3); return 0;
 }
 HRESULT CTesselatorRat::get_IndexCount(UINT* p)
@@ -238,7 +238,7 @@ HRESULT CTesselatorRat::get_IndexCount(UINT* p)
 }
 HRESULT CTesselatorRat::GetIndex(UINT i, UINT* p)
 {
-  if (i >= (UINT)ns) return -1;
+  if (i >= (UINT)ns) return E_INVALIDARG;
   *p = ss[i];  return 0;
 }
 HRESULT CTesselatorRat::get_OutlineCount(UINT* p)
@@ -247,6 +247,6 @@ HRESULT CTesselatorRat::get_OutlineCount(UINT* p)
 }
 HRESULT CTesselatorRat::GetOutline(UINT i, UINT* p)
 {
-  if (i >= (UINT)nl) return -1;
+  if (i >= (UINT)nl) return E_INVALIDARG;
   *p = ll[i]; return 0;
 }

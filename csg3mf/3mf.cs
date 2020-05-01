@@ -15,21 +15,21 @@ using static csg3mf.Viewer.D3DView;
 
 namespace csg3mf
 {
-  internal unsafe class Node
+  public unsafe class Node //: Neuron
   {
     internal Node() { Transform = Rational.Matrix.Identity(); }
-    internal string Name;
     internal Node Parent;
-    internal Rational.Matrix Transform;
-    internal IMesh Mesh;
-    internal float2[] Texcoords;
-    internal Material[] Materials;
-    internal struct Material
+    public string Name;
+    public Rational.Matrix Transform;
+    public IMesh Mesh;
+    public float2[] Texcoords;
+    public Material[] Materials;
+    public struct Material
     {
-      internal int StartIndex, IndexCount;
-      internal uint Color;
-      internal byte[] Texture;
-      internal Texture texture;
+      public int StartIndex, IndexCount;
+      public uint Color;
+      public byte[] Texture;
+      public Texture texture;
     }
     internal float3x4 transform;
     internal VertexBuffer vertexbuffer;
@@ -349,6 +349,5 @@ namespace csg3mf
       }
       File.WriteAllBytes(path, memstr.ToArray());
     }
-
   }
 }
