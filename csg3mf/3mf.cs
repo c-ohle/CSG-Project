@@ -31,11 +31,9 @@ namespace csg3mf
       internal byte[] Texture;
       internal Texture texture;
     }
-
     internal float3x4 transform;
     internal VertexBuffer vertexbuffer;
     internal IndexBuffer indexbuffer;
-
     internal float3x4 gettrans(Node rel = null)
     {
       var m = transform;
@@ -64,8 +62,8 @@ namespace csg3mf
       transform = (float3x4)Transform; if (Mesh == null) return;
       var nv = Mesh.VertexCount; var vv = (double3*)StackPtr; StackPtr += nv * sizeof(double3);
       var ni = Mesh.IndexCount; var ii = (int*)StackPtr; StackPtr += ni * sizeof(int);
-      var vp = new Variant(&vv->x, 3, nv); Mesh.CopyBuffer(0, 0, ref vp);
-      var ip = new Variant(ii, 1, ni); Mesh.CopyBuffer(1, 0, ref ip);
+      Mesh.CopyBuffer(0, 0, new Variant(&vv->x, 3, nv));
+      Mesh.CopyBuffer(1, 0, new Variant(ii, 1, ni));
       for (int i = 0; i < ni; i++) ((ushort*)ii)[i] = (ushort)ii[i];
       for (int i = 0; i < Materials.Length; i++)
       {
@@ -106,6 +104,7 @@ namespace csg3mf
     //  }
     //  return box;
     //}
+    static int strcpy(char* p, string s) { int n = s.Length; for (int i = 0; i < n; i++) p[i] = s[i]; return n; }
 
     internal static List<Node> Import3MF(string path, out string script)
     {
@@ -139,13 +138,7 @@ namespace csg3mf
           var node = new Node();
           node.Name = (string)obj.Attribute("name");
           var tra = (string)e.Attribute("transform");
-          if (tra != null)
-          {
-            var np = tra.Length; var pp = (char*)StackPtr; fixed (char* p = tra) Native.memcpy(pp, p, (void*)((np + 1) * sizeof(char)));
-            var nl = 0; var ll = (char**)(pp + np + 1); ll[0] = null;
-            for (int i = 0; i < np; i++) { if (pp[i] <= ' ') { pp[i] = (char)0; if (ll[nl] != null) ll[++nl] = null; } else if (ll[nl] == null) ll[nl] = pp + i; }
-            node.Transform.SetValues(new Variant(ll, nl + 1));
-          }
+          if (tra != null) fixed (char* p = tra) node.Transform.SetValues(new Variant(p, 12));
           var cmp = obj.Element(ns + "components");
           if (cmp != null) foreach (var p in cmp.Elements(ns + "component").Select(item => convert(item))) { p.Parent = node; nodes.Add(p); }
           if (mesh == null) return node;
@@ -165,19 +158,29 @@ namespace csg3mf
             if (sco[0] == '#') color = uint.Parse(sco.Substring(1), System.Globalization.NumberStyles.HexNumber);
             if (sco.Length == 9) color = (color >> 8) | (color << 24); else color |= 0xff000000;
           }
-          var ver = mesh.Element(ns + "vertices").Elements(ns + "vertex");
-          var tri = mesh.Element(ns + "triangles").Elements(ns + "triangle");
-          var kk = tri.OrderBy(p => p.Attribute("pid")?.Value).ToArray();
+          var vertices = mesh.Element(ns + "vertices").Elements(ns + "vertex");
+          var triangles = mesh.Element(ns + "triangles").Elements(ns + "triangle");
+          var kk = triangles.OrderBy(p => p.Attribute("pid")?.Value).ToArray();
           var mm = kk.Select(p => p.Attribute("pid")?.Value).Distinct().ToArray();
           var ii = (int*)StackPtr;
           for (int i = 0, k = 0; i < kk.Length; i++) { var p = kk[i]; ii[k++] = (int)p.Attribute("v1"); ii[k++] = (int)p.Attribute("v2"); ii[k++] = (int)p.Attribute("v3"); }
-          var me = Factory.CreateMesh(); me.Update(ver.Count(), new Variant(ii, 1, kk.Length * 3));
-          var sv = (char**)StackPtr; int l = 0;
-          foreach (var p in ver) fixed (char* sx = (string)p.Attribute("x"), sy = (string)p.Attribute("y"), sz = (string)p.Attribute("z"))
-            { sv[0] = sx; sv[1] = sy; sv[2] = sz; me.SetVertex(l++, new Variant(sv, 3)); }
-          //var check = rmesh.Check(); if (check != 0) Debug.WriteLine("mesh.Check: " + check);
-          node.Mesh = me;
-          node.Materials = new Material[mm.Length];
+          var me = Factory.CreateMesh(); me.Update(vertices.Count(), new Variant(ii, 1, kk.Length * 3));
+#if(true) 
+          int l = 0; var ss = (char*)StackPtr;
+          foreach (var p in vertices)
+          {
+            var n = strcpy(ss, p.Attribute("x").Value); ss[n++] = ' ';
+            n += strcpy(ss + n, p.Attribute("y").Value); ss[n++] = ' ';
+            n += strcpy(ss + n, p.Attribute("z").Value); ss[n++] = '\0';
+            me.SetVertex(l++, new Variant(ss, 3));
+          }
+#else // or
+          int l = 0;
+          foreach (var p in vertices)
+            fixed (char* t = $"{p.Attribute("x").Value} {p.Attribute("y").Value} {p.Attribute("z").Value}")
+              me.SetVertex(l++, new Variant(t, 3));
+#endif
+          node.Mesh = me; node.Materials = new Material[mm.Length];
           var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
           for (int i = 0, ab = 0, bis = 1; i < mm.Length; i++, ab = bis)
           {
@@ -260,14 +263,14 @@ namespace csg3mf
           //  vertex.SetAttributeValue("x", p.x.ToString(63, 0));
           //  vertex.SetAttributeValue("y", p.y.ToString(63, 0));
           //  vertex.SetAttributeValue("z", p.z.ToString(63, 0));
-          //} 
-          var ps = (char*)StackPtr; var v = new Variant((char**)ps, 3);
+          //}   
           for (int i = 0; i < rmesh.VertexCount; i++)
           {
-            var vertex = new XElement(ns + "vertex"); vertices.Add(vertex); rmesh.GetVertex(i, ref v); var ss = ps;  
-            for (int k = 0; k < 3; k++)
+            var vertex = new XElement(ns + "vertex"); vertices.Add(vertex);
+            var p = (char*)StackPtr; rmesh.GetVertex(i, new Variant(p, 3));
+            for (int k = 0, n; k < 3; k++)
             {
-              var s = new string(ss); ss += s.Length + 1;
+              for (n = 0; p[n] > ' '; n++) ; var s = new string(p, 0, n); p += n + 1;
               vertex.SetAttributeValue(k == 0 ? "x" : k == 1 ? "y" : "z", s);
             }
           }
@@ -314,11 +317,8 @@ namespace csg3mf
         var item = new XElement(ns + (dest.Name.LocalName == "build" ? "item" : "component"));
         var objectid = uid++; obj.SetAttributeValue("id", objectid);
         item.SetAttributeValue("objectid", objectid);
-        { 
-          var ss = (char*)StackPtr; var v = new Variant((char**)ss, 12); group.Transform.GetValues(v);
-          for (int i = 0, n = 0; ; i++) if (ss[i] == 0) { if (++n == 12) break; ss[i] = ' '; }
-          var s = new string(ss); item.SetAttributeValue("transform", s);
-        }
+        var ss = (char*)StackPtr; group.Transform.GetValues(new Variant(ss, 12));
+        item.SetAttributeValue("transform", new string(ss));
         dest.Add(item);
       };
       foreach (var group in nodes.Where(p => p.Parent == nodes[0])) add(group, build);

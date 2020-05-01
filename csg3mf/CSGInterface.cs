@@ -69,15 +69,15 @@ namespace csg3mf
       void Update(Variant vertices, Variant indices);
       void CopyTo(IMesh p);
       void Transform(Variant m);
-      void CopyBuffer(int ib, int ab, ref Variant p);
+      void CopyBuffer(int ib, int ab, Variant p);
       int VertexCount { get; }
-      void GetVertex(int i, ref Variant p);
+      void GetVertex(int i, Variant p);
       void SetVertex(int i, Variant p);
       int IndexCount { get; }
       int GetIndex(int i);
       void SetIndex(int i, int p);
       int PlaneCount { get; }
-      void GetPlane(int i, ref Variant p);
+      void GetPlane(int i, Variant p);
       void WriteToStream(COM.IStream str);
       void ReadFromStream(COM.IStream str);
       void CreateBox(Variant a, Variant b);
@@ -114,7 +114,8 @@ namespace csg3mf
       public Variant(float* p, int n) { vp = p; vt = (ushort)((int)VarType.Float | (n << 8)); }
       public Variant(double* p, int n) { vp = p; vt = (ushort)((int)VarType.Double | (n << 8)); }
       public Variant(decimal* p, int n) { vp = p; vt = (ushort)((int)VarType.Decimal | (n << 8)); }
-      public Variant(char** p, int n) { vp = p; vt = (ushort)((int)VarType.String | (n << 8)); }
+      public Variant(char* p, int n) { vp = p; vt = (ushort)((int)VarType.String | (n << 8)); }
+      public Variant(char* p, int n, int digits, int prec = 3) { Variant v; v.vp = p; *(int*)&v = ((int)VarType.String | (n << 8) | (prec << 16)); ((int*)&v)[1] = digits; this = v; }
       public Variant(int* p, int n, int c) { Variant v; v.vp = p; v.vt = (ushort)((int)VarType.Int | (n << 8)); ((int*)&v)[1] = c; this = v; }
       public Variant(float* p, int n, int c) { Variant v; v.vp = p; v.vt = (ushort)((int)VarType.Float | (n << 8)); ((int*)&v)[1] = c; this = v; }
       public Variant(double* p, int n, int c) { Variant v; v.vp = p; v.vt = (ushort)((int)VarType.Double | (n << 8)); ((int*)&v)[1] = c; this = v; }
@@ -124,7 +125,6 @@ namespace csg3mf
       public static implicit operator Variant(double p) { Variant v; ((double*)&v)[1] = p; v.vt = (ushort)VarType.Double; return v; }
       public static implicit operator Variant(decimal p) { Variant v; ((decimal*)&v)[0] = p; v.vt = (ushort)VarType.Decimal; return v; }
       public static implicit operator Variant(string s) { Variant v; v.vt = (ushort)VarType.String; var p = Marshal.StringToBSTR(s); v.vp = p.ToPointer(); Marshal.FreeBSTR(p); return v; }
-      //public static implicit operator Variant(Vector3* p) => new Variant(&p->x, 3);
     }
 
     public struct Rational : IEquatable<Rational>
@@ -155,10 +155,10 @@ namespace csg3mf
       public static implicit operator Rational(double v) => ctor(v);
       public static implicit operator Rational(decimal v) => ctor(v);
       public static implicit operator Rational(string v) => ctor(v);
-      public static explicit operator int(Rational v) { Variant t; *(int*)&t = 1; v.p.GetValue(v.i, ref t); return ((int*)&t)[2]; }
-      public static explicit operator float(Rational v) { Variant t; *(int*)&t = 2; v.p.GetValue(v.i, ref t); return ((float*)&t)[2]; }
-      public static explicit operator double(Rational v) { Variant t; *(int*)&t = 3; v.p.GetValue(v.i, ref t); return ((double*)&t)[1]; }
-      public static explicit operator decimal(Rational v) { Variant t; *(int*)&t = 4; v.p.GetValue(v.i, ref t); return ((decimal*)&t)[0]; }
+      public static explicit operator int(Rational v) { Variant t; *(int*)&t = (int)VarType.Int; v.p.GetValue(v.i, ref t); return ((int*)&t)[2]; }
+      public static explicit operator float(Rational v) { Variant t; *(int*)&t = (int)VarType.Float; v.p.GetValue(v.i, ref t); return ((float*)&t)[2]; }
+      public static explicit operator double(Rational v) { Variant t; *(int*)&t = (int)VarType.Double; v.p.GetValue(v.i, ref t); return ((double*)&t)[1]; }
+      public static explicit operator decimal(Rational v) { Variant t; *(int*)&t = (int)VarType.Decimal; v.p.GetValue(v.i, ref t); return ((decimal*)&t)[0]; }
       public static Rational operator -(Rational a) => op(Op1.Neg, a);
       public static Rational operator +(Rational a, Rational b) => op(Op2.Add, a, b);
       public static Rational operator -(Rational a, Rational b) => op(Op2.Sub, a, b);
@@ -357,15 +357,15 @@ namespace csg3mf
     //public static Vector3 GetVertex(this IMesh mesh, int i) { Vector3 p; Variant v = &p; mesh.GetVertex(i, ref v); return p; }
     public static Rational.Vector3 GetVertexR3(this IMesh mesh, int i)
     {
-      var p = new Rational.Vector3(0); var v = (Variant)p; mesh.GetVertex(i, ref v); return p;
+      var p = new Rational.Vector3(0); mesh.GetVertex(i, p); return p;
     }
     public static Viewer.D3DView.float3 GetVertexF3(this IMesh mesh, int i)
     {
-      Viewer.D3DView.float3 p; var v = new Variant((float*)&p, 3); mesh.GetVertex(i, ref v); return p;
+      Viewer.D3DView.float3 p; mesh.GetVertex(i, new Variant((float*)&p, 3)); return p;
     }
     public static Rational.Plane GetPlaneR4(this IMesh mesh, int i)
     {
-      var p = new Rational.Plane(0); var v = (Variant)p; mesh.GetPlane(i, ref v); return p;
+      var p = new Rational.Plane(0); mesh.GetPlane(i, p); return p;
     }
     public static IMesh Clone(this IMesh p) { var d = Factory.CreateMesh(); p.CopyTo(d); return d; }
     public static void InitPlanes(this IMesh mesh) => Tesselator.Cut(mesh, new Variant());

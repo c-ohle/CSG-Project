@@ -76,7 +76,7 @@ struct Rational
       }
       ss[ns++] = c; auto t = p1; p1 = p2; p2 = t;
     }
-  ex: if (flags & 0x1000) { ss[ss[-1] = ns] = 0; return ss; }
+  ex: if (flags & 0x1000) { ss[((UINT*)ss)[-1] = ns] = 0; return ss; }
     return SysAllocStringLen(ss, ns);
   }
   static Rational Parse(const WCHAR* p, int n)

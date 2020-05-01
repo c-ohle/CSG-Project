@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
@@ -2372,9 +2373,10 @@ namespace csg3mf
 
       foreach (var x in
         type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).
-        Where(p => p.CanRead && p.GetIndexParameters().Length == 0).
+        Where(p => p.CanRead && isbrowsable(p) && p.GetIndexParameters().Length == 0).
         Select(p => new Item { text = p.Name, obj = obj, info = p, icon = TypeHelper.image(p) }).Concat(
         type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).
+        Where(p => isbrowsable(p)).
         Select(p => new Item { text = p.Name, obj = obj, info = p, icon = TypeHelper.image(p) })).
         OrderBy(p => p.text)) yield return x;
 
@@ -2402,6 +2404,12 @@ namespace csg3mf
         //    Select(p => new Item { text = p.Name, obj = obj, info = p, icon = TypeHelper.image(p) }).
         //    OrderBy(p => p.text)) yield return pr;
       }
+    }
+    static bool isbrowsable(MemberInfo mi)
+    {
+      var p = mi.GetCustomAttribute<DebuggerBrowsableAttribute>();
+      if (p != null && p.State == DebuggerBrowsableState.Never) return false;
+      return true;
     }
     static unsafe IntPtr tointptr(UIntPtr p)
     {

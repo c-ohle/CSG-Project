@@ -45,9 +45,13 @@ void conv(Rational* rr, UINT nr, const CSGVAR& v)
     case CSG_TYPE_DOUBLE: rr[i] = ((const double*)s)[i]; continue;
     case CSG_TYPE_DECIMAL: rr[i] = ((const DECIMAL*)s)[i]; continue;
     case CSG_TYPE_RATIONAL: rr[i] = (&static_cast<const CVector*>(((const ICSGVector*)s))->val)[v.length + i]; continue;
-    case CSG_TYPE_STRING: rr[i] = Rational::Parse(((LPCWSTR*)s)[i], lstrlen(((LPCWSTR*)s)[i])); continue;
+    case CSG_TYPE_STRING:
+    {
+      auto p = (LPCWSTR)s; UINT n = 0;  for (; !(p[n] > ' ' && p[n + 1] <= ' '); n++) if (!p[n]) goto ex;
+      rr[i] = Rational::Parse(p, n + 1); s = p + n + 2; continue;
     }
-  for (; count < nr; count++) rr[count] = 0;
+    }
+ex: for (; count < nr; count++) rr[count] = 0;
 }
 void conv(CSGVAR& v, const Rational* rr, UINT nr)
 {
@@ -61,7 +65,11 @@ void conv(CSGVAR& v, const Rational* rr, UINT nr)
     case CSG_TYPE_DOUBLE: ((double*)s)[i] = (double)rr[i]; continue;
     case CSG_TYPE_DECIMAL: ((DECIMAL*)s)[i] = (DECIMAL)rr[i]; continue;
     case CSG_TYPE_RATIONAL: (&static_cast<CVector*>(((ICSGVector*)s))->val)[v.length + i] = rr[i]; continue;
-    case CSG_TYPE_STRING: { auto t = rr[i].ToString(64, 0x1000); lstrcpyW((LPWSTR)s, t); s = ((LPWSTR)s) + t[-1] + 1; } continue;
+    case CSG_TYPE_STRING:
+    {
+      auto t = rr[i].ToString(v.length ? v.length : 64, 0x1000 | v.dummy); lstrcpy((LPWSTR)s, t);
+      if (i + 1 < count) { s = ((LPWSTR)s) + ((UINT*)t)[-1] + 1; ((LPWSTR)s)[-1] = ' '; } continue;
+    }
     }
 }
 void conv(double* rr, UINT nr, const CSGVAR& v)

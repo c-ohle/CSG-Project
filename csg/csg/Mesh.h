@@ -37,29 +37,29 @@ struct CMesh : public ICSGMesh
     if (!count) delete this;
     return count;
   }
-  HRESULT __stdcall CopyBuffer(UINT ib, UINT ab, CSGVAR* p)
+  HRESULT __stdcall CopyBuffer(UINT ib, UINT ab, CSGVAR p)
   {
     switch (ib)
     {
     case 0:
     {
-      auto d = p->count * __sizeof((CSG_TYPE)p->vt);
-      for (UINT i = 0, n = min(p->length, pp.n - ab); i < n; i++, *(BYTE**)&p->p += d)
-        conv(*p, &pp.p[ab + i].x, 3);
+      auto d = p.count * __sizeof((CSG_TYPE)p.vt);
+      for (UINT i = 0, n = min(p.length, pp.n - ab); i < n; i++, *(BYTE**)&p.p += d)
+        conv(p, &pp.p[ab + i].x, 3);
       return 0;
     }
     case 1:
     {
-      if (p->count != 1 || p->vt != CSG_TYPE_INT) return E_INVALIDARG;
-      memcpy((int*)p->p, ii.p + ab, min(p->length, ii.n - ab) * sizeof(int));
-      //for (UINT i = 0, n = min(p->length, ii.n - ab); i < n; i++) ((UINT*)p->p)[i] = ii[ab + i];
+      if (p.count != 1 || p.vt != CSG_TYPE_INT) return E_INVALIDARG;
+      memcpy((int*)p.p, ii.p + ab, min(p.length, ii.n - ab) * sizeof(int));
+      //for (UINT i = 0, n = min(p.length, ii.n - ab); i < n; i++) ((UINT*)p.p)[i] = ii[ab + i];
       return 0;
     }
     case 2:
     {
-      auto d = p->count * __sizeof((CSG_TYPE)p->vt);
-      for (UINT i = 0, n = min(p->length, ee.n - ab); i < n; i++, *(BYTE**)&p->p += d)
-        conv(*p, &ee.p[ab + i].x, 4);
+      auto d = p.count * __sizeof((CSG_TYPE)p.vt);
+      for (UINT i = 0, n = min(p.length, ee.n - ab); i < n; i++, *(BYTE**)&p.p += d)
+        conv(p, &ee.p[ab + i].x, 4);
       return 0;
     }
     }
@@ -69,10 +69,10 @@ struct CMesh : public ICSGMesh
   {
     *p = pp.n; return 0;
   }
-  HRESULT __stdcall GetVertex(UINT i, CSGVAR* p)
+  HRESULT __stdcall GetVertex(UINT i, CSGVAR p)
   {
     if ((UINT)i >= (UINT)pp.n) return E_INVALIDARG;
-    conv(*p, &pp.p[i].x, 3); return 0;
+    conv(p, &pp.p[i].x, 3); return 0;
   }
   HRESULT __stdcall SetVertex(UINT i, CSGVAR p)
   {
@@ -97,10 +97,10 @@ struct CMesh : public ICSGMesh
   {
     *p = ee.n; return 0;
   }
-  HRESULT __stdcall GetPlane(UINT i, CSGVAR* p)
+  HRESULT __stdcall GetPlane(UINT i, CSGVAR p)
   {
     if ((UINT)i >= (UINT)ee.n) return -1;
-    conv(*p, &ee.p[i].x, 4); return 0;
+    conv(p, &ee.p[i].x, 4); return 0;
   }
   HRESULT __stdcall Update(CSGVAR vertices, CSGVAR indices)
   {

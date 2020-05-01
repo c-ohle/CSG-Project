@@ -728,14 +728,14 @@ EXTERN_C const IID IID_ICSGMesh;
         virtual HRESULT STDMETHODCALLTYPE CopyBuffer( 
             /* [in] */ UINT ib,
             /* [in] */ UINT ab,
-            /* [out][in] */ CSGVAR *p) = 0;
+            /* [in] */ CSGVAR p) = 0;
         
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_VertexCount( 
             /* [retval][out] */ UINT *p) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE GetVertex( 
             /* [in] */ UINT i,
-            /* [out][in] */ CSGVAR *p) = 0;
+            /* [in] */ CSGVAR p) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE SetVertex( 
             /* [in] */ UINT i,
@@ -757,7 +757,7 @@ EXTERN_C const IID IID_ICSGMesh;
         
         virtual HRESULT STDMETHODCALLTYPE GetPlane( 
             /* [in] */ UINT i,
-            /* [out][in] */ CSGVAR *p) = 0;
+            /* [in] */ CSGVAR p) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE WriteToStream( 
             IStream *str) = 0;
@@ -811,7 +811,7 @@ EXTERN_C const IID IID_ICSGMesh;
             ICSGMesh * This,
             /* [in] */ UINT ib,
             /* [in] */ UINT ab,
-            /* [out][in] */ CSGVAR *p);
+            /* [in] */ CSGVAR p);
         
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_VertexCount )( 
             ICSGMesh * This,
@@ -820,7 +820,7 @@ EXTERN_C const IID IID_ICSGMesh;
         HRESULT ( STDMETHODCALLTYPE *GetVertex )( 
             ICSGMesh * This,
             /* [in] */ UINT i,
-            /* [out][in] */ CSGVAR *p);
+            /* [in] */ CSGVAR p);
         
         HRESULT ( STDMETHODCALLTYPE *SetVertex )( 
             ICSGMesh * This,
@@ -848,7 +848,7 @@ EXTERN_C const IID IID_ICSGMesh;
         HRESULT ( STDMETHODCALLTYPE *GetPlane )( 
             ICSGMesh * This,
             /* [in] */ UINT i,
-            /* [out][in] */ CSGVAR *p);
+            /* [in] */ CSGVAR p);
         
         HRESULT ( STDMETHODCALLTYPE *WriteToStream )( 
             ICSGMesh * This,

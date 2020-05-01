@@ -22,6 +22,8 @@ namespace csg3mf
     [STAThread]
     static void Main()
     {
+      //var p1 = (CSG.Rational)Math.PI;
+      //var p2 = (decimal)p1; 
       Native.SetProcessDPIAware();
       Application.EnableVisualStyles();
       Application.SetCompatibleTextRenderingDefault(false);
@@ -82,8 +84,8 @@ namespace csg3mf
         for (int i = 1; i < nodes.Count; i++)
         {
           var p = nodes[i]; if (p.vertexbuffer == null) continue;
-          dc.Select(p, 1); dc.SetTransform(p.gettrans()); 
-          for(int k = 0; k < p.Materials.Length;k++)
+          dc.Select(p, 1); dc.SetTransform(p.gettrans());
+          for (int k = 0; k < p.Materials.Length; k++)
           {
             ref var m = ref p.Materials[k]; dc.Color = m.Color;
             if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
