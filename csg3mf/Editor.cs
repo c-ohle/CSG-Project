@@ -1038,8 +1038,6 @@ namespace csg3mf
       internal int line, a, b;
       internal bool hidden;
     }
-    #region GDI
-    static int _gdicolor(Color c) { return (c.R) | (c.G << 8) | (c.B << 16); }
     unsafe void _textout(IntPtr hdc, char* s, int X, int Y, int rX, int la, int ab, int len)
     {
       int x = 0, xa = 0, ia = 0, na = 0;
@@ -1050,14 +1048,13 @@ namespace csg3mf
       }
       if (na > 0) Native.TextOutW(hdc, X + xa, Y, s + ia, na);
     }
-    #endregion
   }
 
-  class NeuronEditor : CodeEditor, IMessageFilter
+  class NeuronEditor : CodeEditor
   {
     Neuron neuron; Compiler compiler;
     object[] data, dbgdata; Compiler.map[] spots; Compiler.map[] typemap; Compiler.map[] errors; String[] usings, usingsuse;
-    int overid, recolor, rebuild, maxerror, state, ibreak; IntPtr threadstack; Tuple<string, Type, object>[] persist;
+    int overid, recolor, rebuild, maxerror, state, ibreak; IntPtr threadstack;
     static NeuronEditor first; NeuronEditor next; bool ignorexceptions;
     internal static NeuronEditor GetEditor(Neuron neuron)
     {
@@ -1065,22 +1062,19 @@ namespace csg3mf
     }
     //object[] getdata() { return (object[])neuron.Invoke(0, null); }
     //void setdata(object[] a) { neuron.Invoke(1, a); }
-    static void setdata(Neuron neuron, object[] b) //system undo support
+    static void setdata(Neuron neuron, object[] b)
     {
-      Action undo = () =>
-      {
-        var a = (object[])neuron.Invoke(0, null); //getdata
-        if (isrunning(a)) neuron.Invoke(4, null); //onstop Invoke("Dispose");
-        neuron.Invoke(1, b); //setdata
-        var runs = isrunning(b);
-        var editor = GetEditor(neuron);
-        if (editor != null) { editor.data = b; editor.ReadOnly = runs; }
-        if (runs) neuron.Invoke(3, null); //onstart Invoke("."); 
-        //var s = editor.data != null ? decompress((byte[])((object[])editor.data[0])[0]) : string.Empty;
-        //if (s != editor.text) { editor.text = s; editor.Refresh(); }  
-        b = a;
-      };
-      undo(); neuron.Invoke(7, undo);
+      var a = (object[])neuron.Invoke(0, null); //getdata
+      if (isrunning(a)) neuron.Invoke(4, null); //onstop Invoke("Dispose");
+      neuron.Invoke(1, b); //setdata
+      var runs = isrunning(b);
+      var editor = GetEditor(neuron);
+      if (editor != null) { editor.data = b; editor.ReadOnly = runs; }
+      if (!runs) return;
+      try { neuron.Invoke(3, null); }
+      catch (DebugStop) { editor?.stop(); return; }
+      catch (Exception e) { MessageBox.Show(e.ToString()); }
+      if (neuron.AutoStop) editor?.onstop(null);
     }
     protected override void UpdateSyntaxColors()
     {
@@ -1291,7 +1285,6 @@ namespace csg3mf
       compiler.Reset();
       if (isdebug()) updspots();
       base.OnHandleCreated(e);
-      Neuron.Finalize += OnFinalize;
       next = first; first = this;
     }
     protected override void OnHandleDestroyed(EventArgs e)
@@ -1299,7 +1292,6 @@ namespace csg3mf
       if (first == this) first = next;
       else for (var p = first; ; p = p.next) if (p.next == this) { p.next = next; break; }
       next = null;
-      Neuron.Finalize -= OnFinalize;
       EndFlyer(); base.OnHandleDestroyed(e);
     }
     internal void OnFinalize(CancelEventArgs e)
@@ -1361,9 +1353,15 @@ namespace csg3mf
     }
     void askstop()
     {
-      if (state == 7) return;
+      if (state == 7 && !neuron.AutoStop) return;
       if (MessageBox.Show(this, "Stop execution to edit?", Parent.Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
       onstop(null); return;
+    }
+    internal unsafe void appexit(Form f)
+    {
+      if (state != 7) return;
+      Native.PostMessage(f.Handle, 0x0010, null, null); //WM_CLOSE 
+      throw new DebugStop();
     }
     internal static byte[] compress(string s)
     {
@@ -1414,37 +1412,13 @@ namespace csg3mf
       if (id == 8) { data = compiler.Compile(neuron.GetType(), text, 0); compiler.Reset(); }
       ((object[])data[0])[0] = compress(text); if (id != 8) setspots();
 
-      var ar = new Archive(); ar.WriteNeuron(data); //File.WriteAllBytes("d:\\dump.bin", ar.ToArray());
-      ar = new Archive(ar.ToArray()); data = ar.ReadNeuron();
-
-      if (persist != null) { setpersist(data, typemap, text, isdebug() ? 0 : 1, persist); persist = null; }
       ignorexceptions = false;
-      Neuron.state = state = id != 8 ? id : 0; setdata(neuron, data); IsModified = false;
+      Neuron.state = state = id != 8 ? id : 0; setdata(neuron, data); //IsModified = false;
       return 1;
     }
     internal static void InitNeuron(Neuron p, string code)
     {
       p.Invoke(1, new object[] { new object[] { compress(code) } });
-    }
-    internal static Tuple<string, Type, object>[] getpersist(object[] data, Compiler.map[] typemap, string text, int dx)
-    {
-      return typemap.Where(p => (p.v & 0x8f) == 0x86 && text[p.i] != '{').Select(p =>
-      {
-        var x1 = p.v >> 20; var x2 = (p.v >> 8) & 0x0fff; var pv = data[x1 - dx];
-        return Tuple.Create(text.Substring(p.i, p.n), (Type)p.p, x2 != 0x0fff ? ((Array)pv).GetValue(x2) : pv);
-      }).ToArray();
-    }
-    internal static void setpersist(object[] data, Compiler.map[] typemap, string text, int dx, Tuple<string, Type, object>[] persist)
-    {
-      foreach (var tp in typemap.Where(p => (p.v & 0x8f) == 0x86))
-      {
-        var v = persist.FirstOrDefault(p => p.Item1.Length == tp.n && string.Compare(p.Item1, 0, text, tp.i, tp.n) == 0);
-        if (v != null && v.Item2 == (Type)tp.p)
-        {
-          var x1 = (tp.v >> 20) - dx; var x2 = (tp.v >> 8) & 0x0fff;
-          if (x2 == 0x0fff) data[x1] = v.Item3; else ((Array)data[x1]).SetValue(__m128(v.Item3, data[x1].GetType().GetElementType()), x2);
-        }
-      }
     }
     void updspots()
     {
@@ -1458,19 +1432,6 @@ namespace csg3mf
       for (int i = 0; i < np; i++) if ((spots[i].v & 1) != 0) pp[(i >> 5)] |= (1 << (i & 31));
       data[1] = pp;
     }
-    IntPtr[] filter;
-    bool IMessageFilter.PreFilterMessage(ref Message m)
-    {
-      // Debug.WriteLine(m);
-      for (var p = m.HWnd; p != IntPtr.Zero; p = Native.GetParent(p))
-        if (Array.IndexOf(filter, p) != -1)
-        {
-          if (m.Msg == 0x000F) //WM_PAINT
-            Native.ValidateRect(m.HWnd, IntPtr.Zero);
-          return true;
-        }
-      return false;
-    }
     internal bool skip(Exception e)
     {
       return e != null && ignorexceptions && Neuron.state == 0 && (spots[Neuron.dbgpos].v & 1) == 0;
@@ -1481,15 +1442,13 @@ namespace csg3mf
       spots[ibreak = Neuron.dbgpos].v |= 2; threadstack = (IntPtr)Neuron.stack; Refresh();
       Select(spots[ibreak].i); ScrollVisible(); //stacktrace();
       if (e != null) MessageBox.Show(this, e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-      //filter = Application.OpenForms.Cast<Form>().Where(p => p != Parent).Select(p => p.Handle).ToArray();
-      //Application.AddMessageFilter(this);
-      var cap = Native.SetCapture(IntPtr.Zero);
-      for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); } //Thread.Sleep(1);
+      var cap = Native.SetCapture(IntPtr.Zero); DebugStop stop = null;
+      try {  for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); } }
+      catch (DebugStop p) { state = 0; stop = p; }
       if (e != null && state == 1) state = 2;// F10 -> F11 step into exception blocks
       Native.SetCapture(cap);
-      //Application.RemoveMessageFilter(this);
-      filter = null; Neuron.state = state;
-      spots[ibreak].v &= ~2; threadstack = IntPtr.Zero; Refresh(); Update();
+      Neuron.state = state;
+      spots[ibreak].v &= ~2; threadstack = IntPtr.Zero; Refresh(); Update(); if (stop != null) throw stop;
     }
     void build()
     {
@@ -1552,15 +1511,16 @@ namespace csg3mf
     int onstop(object test)
     {
       if (!isrunning() && !ReadOnly) return 0;
-      if (state == 7) return 0;
+      if (state == 7 && !neuron.AutoStop) return 0;
       if (test != null) return 1;
+      if (state == 7) throw new DebugStop();
       stop(); return 1;
     }
+    class DebugStop : Exception { }
     void stop()
     {
       var data = this.data;
       setdata(neuron, new object[] { new object[] { ((object[])data[0])[0] } });
-      persist = getpersist(data, typemap, text, isdebug(data) ? 0 : 1); //persist after Dispose()
     }
     int onbreakpoint(object test)
     {
@@ -1758,7 +1718,7 @@ namespace csg3mf
                 var ss = text.Substring(p.X, p.Y - p.X); //if (!ss.EndsWith("Attribute") && text[p.X - 1] == '[' ) ss += "Attribute";
                 for (int j = 0; j < 2; j++)
                 {
-                  var ts = string.Join("\n", Archive.Assemblys.SelectMany(a => a.GetTypes()).Where(a => !a.IsNested && a.Name == ss).Select(a => a.FullName));
+                  var ts = string.Join("\n", TypeHelper.Assemblys.SelectMany(a => a.GetTypes()).Where(a => !a.IsNested && a.Name == ss).Select(a => a.FullName));
                   if (ts.Length == 0) { ss += "Attribute"; continue; }
                   em = string.Format("{0}\n\nconsider using:\n{1}", em, ts); break;
                 }
@@ -2072,18 +2032,7 @@ namespace csg3mf
     }
     int onprotect(object test)
     {
-      if (!isrunning() || isdebug()) return 0;
-      if (test != null) return 1;
-      if (MessageBox.Show(
-        "Are you sure to protect the source code?\nThe source code disappears forever and cannot be restored!",
-        ParentForm.Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.OK) return 1;
-      ClearUndo(); ParentForm.Close();
-      //var a = (object[])((object[])data[0]).Clone(); a[0] = null;
-      //data[0] = Archive.CacheClass(a); setdata(data);
-      var a = (object[])data.Clone();
-      var b = (object[])((object[])a[0]).Clone(); b[0] = null;
-      a[0] = Archive.CacheClass(b); setdata(neuron, a);
-      return 1;
+      return 0;
     }
     int onremusings(object test)
     {
@@ -2477,64 +2426,66 @@ namespace csg3mf
   {
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool SetProcessDPIAware();
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr SetParent(IntPtr h, IntPtr p);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool WaitMessage();
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
-    [DllImport("gdi32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr SelectObject(IntPtr hDC, IntPtr h);
-    [DllImport("gdi32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern int SetTextColor(IntPtr hDC, int color);
-    [DllImport("gdi32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern int TextOutW(IntPtr hDC, int x, int y, char* s, int n);
-    [DllImport("gdi32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool DeleteObject(IntPtr hObject);
-    [DllImport("gdi32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr CreateSolidBrush(int color);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern int FillRect(IntPtr hDC, ref Rectangle r, IntPtr brush);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool InvertRect(IntPtr hDC, ref Rectangle lprc);
-    [DllImport("gdi32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern int SetBkMode(IntPtr hDC, int mode);
-    [DllImport("uxtheme", CharSet = CharSet.Unicode), SuppressUnmanagedCodeSecurity]
+    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode), SuppressUnmanagedCodeSecurity]
     internal static extern int SetWindowTheme(IntPtr hWnd, string appName, string partList);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr SetTimer(IntPtr hWnd, IntPtr nIDEvent, uint uElapse, IntPtr lpTimerFunc);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool KillTimer(IntPtr hWnd, IntPtr uIDEvent);
-    [DllImport("kernel32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("kernel32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hFile, int dwFlags);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool IsClipboardFormatAvailable(int format);
     //[DllImport("user32"), SuppressUnmanagedCodeSecurity]
     //internal static extern IntPtr SetClipboardData(uint uFormat, IntPtr hMem);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool EnableWindow(IntPtr h, bool p);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr SetCapture(IntPtr h);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool ValidateRect(IntPtr hWnd, IntPtr lpRect);
-    [DllImport("gdi32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool GdiAlphaBlend(IntPtr hdc, int x, int y, int dx, int dy, IntPtr sdc, int sx, int sy, int sdx, int sdy, int bf);
-    [DllImport("gdi32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern uint SetPixel(IntPtr hdc, int X, int Y, uint crColor);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     public static extern IntPtr ShowWindow(IntPtr h, int f);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool BringWindowToTop(IntPtr h);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr GetParent(IntPtr h);
-    [DllImport("user32"), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr WindowFromPoint(System.Drawing.Point p);
-    [DllImport("ntdll", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
+    internal static extern bool PostMessage(IntPtr hWnd, int m, void* w, void* l);
+    [DllImport("ntdll.dll", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr memcpy(void* d, void* s, void* n);
-    [DllImport("msvcrt", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+    [DllImport("msvcrt.dll", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr memset(void* p, int v, void* n);
-    [DllImport("msvcrt", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+    [DllImport("msvcrt.dll", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
     internal static extern int memcmp(void* a, void* b, void* n);
     [DllImport("comdlg32.dll"), SuppressUnmanagedCodeSecurity]
     static extern IntPtr FindTextW(FindReplace* p);

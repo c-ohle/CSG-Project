@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
@@ -96,43 +97,7 @@ namespace csg3mf
         bool ispublic = (modifier(ref b) & 1) != 0;
         if (b.Length == 0) { Error(1001, "Identifier expected", b[0].Start()); continue; }
         if (b.Take("class") || b.Take("struct")) { Error(0000, "Unsupported", b[-1]); continue; }
-
-        //if (b.Take("class") || b.Take("struct"))
-        //{
-        //  var flags = b[-1][0] == 's' ? 1 : 0; //var tx = b[-1][0] == 'c' ? "cl`" : "st`"; 
-        //  var name = b.Take(); blocks.RemoveAt(i--); if (!checkname(name, 0, 1)) continue;
-        //  if (!b.StartsWith('{')) { Error(1514, "{1} expected", b[-1].End(), '{'); continue; }
-        //  b = b.Trim(); var t1 = blocks.Count; MakeBlocks(b, true); var t2 = stack.Count; int abid = nextid; //???
-        //  for (int l = t1; l < blocks.Count; l++)
-        //  {
-        //    b = blocks[l]; modifier(ref b); var t = ParseType(ref b); if (t == null) { Error(1031, "Type expected", b[0]); continue; }
-        //    if (t == typeof(void)) { Error(0670, "Field cannot have void type", b[-1]); continue; }
-        //    var np = b.ParamCount(); if (np == 0) { Error(1001, "Identifier expected", b[-1].End()); continue; }
-        //    for (int k = 0; k < np; k++)
-        //    {
-        //      var na = b.Param(); if (na.Length != 1) { Error(1525, "Invalid expression term '{0}'", na); continue; }
-        //      var pn = na[0]; if (!pn.IsWord) { Error(1001, "Identifier expected", pn); continue; }
-        //      if (isonstack(pn, t2)) { Error(0102, "The type '{1}' already contains a definition for '{0}'", name, pn); continue; }
-        //      stack.Add(Map(pn, t, 0x83 | (nextid << 8), 0)); nextid++;
-        //    }
-        //  }
-        //  var ii = stack.Skip(t2).ToArray();
-        //  var tt = new Type[ii.Length]; for (int l = 0; l < ii.Length; l++) tt[l] = (Type)pmap[ii[l].a];
-        //  blocks.RemoveRange(t1, blocks.Count - t1); stack.RemoveRange(t2, stack.Count - t2);
-        //  var pt = Archive.MakeRtType(tt, flags);
-        //  for (int l = 0, v = 0; l < stack.Count; l++)
-        //  {
-        //    if (dbgstp == null) break; //make unique in debug
-        //    var x = stack[l].a; if ((vmap[x] & 0x8f) != 0x80) continue;
-        //    var t = (Type)pmap[x]; if (t != pt) continue;
-        //    pt = Archive.MakeRtType(tt, flags | (++v << 16)); l = -1;
-        //  }
-        //  for (int f = 0; f < ii.Length; f++) pmap[ii[f].a] = pt.GetField(f.ToString());
-        //  stack.Add(Map(name, pt, 0x80 | (nextid << 8), tt.Length)); nextid++; continue;
-        //}
-
         if (b.Take("const")) { __const(b, 0); blocks.RemoveAt(i--); continue; }
-
         var a = b.TakeType(); if (a.Length == 0) continue; if (b.Length < 1) continue; var tok = b[1][0];
         var isfunc = tok.Equals('(') || tok.Equals('{'); //if (!isfunc && !isstatic) continue;
         var type = ParseType(a); if (type == null) continue;
@@ -1169,7 +1134,7 @@ namespace csg3mf
               if (acc[1] == null) { Error(0200, "Property or indexer '{0}' cannot be assigned to -- it is read only", tok); return null; }
               if ((fl & 2) != 0 && acc[0] == null) { Error(0154, "The property or indexer '{0}' cannot be used in this context because it lacks the get accessor", tok); return null; }
               mb.Ldthis(); if ((fl & 2) != 0) { mb.Dup(); mb.Call(acc[0]); }
-              accessor = __Call(acc[1]); return Archive.TypeHelper.GetParametersNoCopy(acc[1])[1].ParameterType;
+              accessor = __Call(acc[1]); return TypeHelper.GetParametersNoCopy(acc[1])[1].ParameterType;
             }
             if (acc[0] == null) { Error(0154, "The property or indexer '{0}' cannot be used in this context because it lacks the get accessor", tok); return null; }
             if (wt != null) { mb.Ldthis(); mb.Call(acc[0]); }
@@ -1180,7 +1145,7 @@ namespace csg3mf
           {
             if (wt == null) return GetDelegateType(dm); //Dynamic.GetDelegateType(dm);
             if (!wt.IsSubclassOf(typeof(Delegate))) { Error(1503, "cannot convert from 'method group' to '{1}'", tok, wt); return null; }
-            var mi = wt.GetMethod("Invoke"); var aa = Archive.TypeHelper.GetParametersNoCopy(dm); var bb = Archive.TypeHelper.GetParametersNoCopy(mi);
+            var mi = wt.GetMethod("Invoke"); var aa = TypeHelper.GetParametersNoCopy(dm); var bb = TypeHelper.GetParametersNoCopy(mi);
             int x = -1; if (aa.Length - 1 == bb.Length) for (x = 0; x < bb.Length; x++)
               {
                 var t1 = aa[1 + x].ParameterType; var t2 = bb[x].ParameterType;
@@ -1191,7 +1156,7 @@ namespace csg3mf
           }
           if (!b.StartsWith('(')) { Error(1003, "Syntax error, '{1}' expected", b[0].Start(), '('); return null; }
           var c = b.Next(); if (wt == null) return dm.ReturnType; c = c.Trim();
-          var np = c.ParamCount(); var tt = Archive.TypeHelper.GetParametersNoCopy(dm);
+          var np = c.ParamCount(); var tt = TypeHelper.GetParametersNoCopy(dm);
           if (1 + np != tt.Length) { if (nsa == stack.Count) { b = org; pmap[org.Position] = null; continue; } Error(1501, "No overload for method '{0}' takes {1} arguments", tok, np); return null; }
           mb.Ldthis();
           for (int t = 1; t < tt.Length; t++)
@@ -1306,26 +1271,8 @@ namespace csg3mf
       {
         ci = GetMethodBase(t, null, null, tt, 0, s, aa) as ConstructorInfo;
         if (ci == null) return t;
-        //var cc = t.GetConstructors();
-        //for (int i = 0, mp = 0; i < cc.Length; i++)
-        //{
-        //  var l = __match(Archive.TypeHelper.GetParametersNoCopy(cc[i]), tt, ref mp);
-        //  if (l == 0) continue; ci = cc[i]; if (l == 2) break;
-        //}
-        //if (ci != xx) { }
-        //if (ci == null)
-        //{
-        //  if (cc.Length != 0) { Error(1502, "The best overloaded method match for '{1}' has some invalid arguments", s, cc[0]); return t; }
-        //  Error(1729, "'{1}' does not contain a constructor that takes {2} arguments", s, t, np); return t;
-        //}
       }
       ParseParams(t, 0, np, aa, tt, ci);
-      //var pp = Archive.TypeHelper.GetParametersNoCopy(ci);
-      //for (int i = 0; i < pp.Length; i++)
-      //{
-      //  var pt = pp[i].ParameterType; if (i >= np) { ldconst(pp[i].DefaultValue, pt, aa); continue; }
-      //  ParseStrong(aa.Param(), pt);
-      //}
       mb.Newobj(ci); return t;
     }
     Type __repaccess(Block b, int fl, object p, int i)
@@ -1420,7 +1367,7 @@ namespace csg3mf
         {
           var mi = (MethodInfo)ma[i];
           if (mi.ReturnType != r && !expl) continue;
-          var pp = Archive.TypeHelper.GetParametersNoCopy(mi);
+          var pp = TypeHelper.GetParametersNoCopy(mi);
           if (pp.Length != 1) continue; var pa = pp[0].ParameterType;
           if (pa == p && mi.ReturnType == r) return mi;
           if (!__canconv(p, pa)) continue;
@@ -1433,7 +1380,7 @@ namespace csg3mf
     }
     Type opmethcall(Block e, Type a, MethodInfo me, Type r)
     {
-      var b = Archive.TypeHelper.GetParametersNoCopy(me)[0].ParameterType;
+      var b = TypeHelper.GetParametersNoCopy(me)[0].ParameterType;
       if (a != b) Cast(e, a, b, false); mb.Callx(me);
       if (me.ReturnType != r) return Cast(e, me.ReturnType, r, true); return r;
     }
@@ -1598,7 +1545,7 @@ namespace csg3mf
           {
             if (wt == null) return typeof(Delegate);
             if (!wt.IsSubclassOf(typeof(Delegate))) { Error(1525, "Invalid expression term '{0}'", a); return null; }
-            var mi = wt.GetMethod("Invoke"); var bb = Archive.TypeHelper.GetParametersNoCopy(mi);
+            var mi = wt.GetMethod("Invoke"); var bb = TypeHelper.GetParametersNoCopy(mi);
             if (a.StartsWith('(')) a = a.Trim(); var np = a.ParamCount();
             if (np != bb.Length) { Error(1593, "Delegate '{1}' does not take {2} arguments", a, wt, np); return null; }
             var mo = mb; for (; mo != null && mo.reptype == null; mo = mo.parent) ; var rept = mo != null ? mo.reptype : null; //if (rept != null) { }
@@ -1656,7 +1603,7 @@ namespace csg3mf
                   var mi = __operator(op, vt, rt);
                   if (mi == null) mi = __operator(op, vt, vt); //dec += 3
                   if (mi == null /*|| mi.ReturnType != vt*/) { Error(0019, "Operator '{0}' cannot be applied to operands of type '{1}' and '{2}'", op, vt, rt); return null; }
-                  var pp = Archive.TypeHelper.GetParametersNoCopy(mi); ParseStrong(c, pp[1].ParameterType); mb.Call(mi);
+                  var pp = TypeHelper.GetParametersNoCopy(mi); ParseStrong(c, pp[1].ParameterType); mb.Call(mi);
                   if (mi.ReturnType != vt) Cast(c, mi.ReturnType, vt);
                 }
               }
@@ -1738,7 +1685,7 @@ namespace csg3mf
             }
             if (mi != null)
             {
-              if (wt != null) { var pp = Archive.TypeHelper.GetParametersNoCopy(mi); ParseStrong(a, pp[0].ParameterType); ParseStrong(c, pp[1].ParameterType); mb.Call(mi); }
+              if (wt != null) { var pp = TypeHelper.GetParametersNoCopy(mi); ParseStrong(a, pp[0].ParameterType); ParseStrong(c, pp[1].ParameterType); mb.Call(mi); }
               return mi.ReturnType;
             }
           }
@@ -1875,7 +1822,7 @@ namespace csg3mf
             if (!type.IsSubclassOf(typeof(Delegate))) { Error(1001, "Identifier expected", b[0]); return null; }
             var mi = type.GetMethod("Invoke"); if (wt == null) return mi.ReturnType;
             var bb = b; var c = b.Next().Trim(); var np = c.ParamCount();
-            var pp = Archive.TypeHelper.GetParametersNoCopy(mi); if (np != pp.Length) { Error(1593, "Delegate '{1}' does not take {2} arguments", bb[-1], type, np); return null; }
+            var pp = TypeHelper.GetParametersNoCopy(mi); if (np != pp.Length) { Error(1593, "Delegate '{1}' does not take {2} arguments", bb[-1], type, np); return null; }
             for (int i = 0; i < np; i++) ParseStrong(c.Param(), pp[i].ParameterType); mb.Callx(mi);
             type = mi.ReturnType; if (b.Length == 0 && wt == typeof(void) && type != typeof(void)) { mb.Pop(); return typeof(void); }
             continue;
@@ -1932,7 +1879,7 @@ namespace csg3mf
             if (wt != null)
             {
               var get = ii.GetGetMethod(); if (get == null) { Error(0000, "todo", c); return null; }
-              var gpp = Archive.TypeHelper.GetParametersNoCopy(get); if (gpp.Length != 1) { Error(0000, "todo", c); return null; }
+              var gpp = TypeHelper.GetParametersNoCopy(get); if (gpp.Length != 1) { Error(0000, "todo", c); return null; }
               var tit = gpp[0].ParameterType;
               if (get.ReturnType.IsValueType && (fl & 3) != 0 && b.Length != 0) { Error(1612, "Cannot modify the return value of '{1}' because it is not a variable", b, ii); return null; }
               if ((fl & 1) != 0 && b.Length == 0)
@@ -2073,7 +2020,7 @@ namespace csg3mf
           var mi = aobj as MethodInfo;
           if (mi == null)
           {
-            var mv = wt.GetMethod("Invoke"); var pa = Archive.TypeHelper.GetParametersNoCopy(mv);
+            var mv = wt.GetMethod("Invoke"); var pa = TypeHelper.GetParametersNoCopy(mv);
             var tt = new Type[pa.Length]; for (int t = 0; t < pa.Length; t++) tt[t] = pa[t].ParameterType;
             bind = (type != null ? BindingFlags.Instance : BindingFlags.Static) | BindingFlags.Public | BindingFlags.FlattenHierarchy;
             if ((mi = GetMethodBase(basetype, s, null, tt, bind, a, b) as MethodInfo) == null) return null;
@@ -2095,7 +2042,7 @@ namespace csg3mf
     }
     void ParseParams(Type type, BindingFlags bind, int np, Block cc, Type[] tt, MethodBase mi)
     {
-      var pp = Archive.TypeHelper.GetParametersNoCopy(mi);
+      var pp = TypeHelper.GetParametersNoCopy(mi);
       var na = mi.IsStatic && (bind & (BindingFlags.Instance | BindingFlags.Static)) == BindingFlags.Instance ? 1 : 0;
       if (na == 1 && type.IsByRef && !pp[0].ParameterType.IsByRef) mb.Ldobj(pp[0].ParameterType); //value extensions
       for (int i = na; i < pp.Length; i++)
@@ -2169,7 +2116,7 @@ namespace csg3mf
         {
           var me = (MethodBase)mm[i]; if (mef == null) mef = me;
           if (gen != null && !me.IsGenericMethod) continue;
-          var pa = Archive.TypeHelper.GetParametersNoCopy(me); int nc = 0;
+          var pa = TypeHelper.GetParametersNoCopy(me); int nc = 0;
           if (pa.Length < tt.Length)
           {
             if (pa.Length == 0) continue; var pl = pa[pa.Length - 1];
@@ -2185,7 +2132,7 @@ namespace csg3mf
           if (gen != null)
           {
             if (!__chkconst(ga, gen)) continue;
-            me = ((MethodInfo)me).MakeGenericMethod(gen); pa = Archive.TypeHelper.GetParametersNoCopy(me);
+            me = ((MethodInfo)me).MakeGenericMethod(gen); pa = TypeHelper.GetParametersNoCopy(me);
           }
           else if (ga != null) nc++;
           int k = 0; var gg = ga != null && gen == null ? new Type[ga.Length] : null;
@@ -2241,7 +2188,7 @@ namespace csg3mf
                 var pc = cc.GetParam(k - j); var bc = pc; var tc = pc.Next();
                 //var tc = cc; var pc = tc; for (int t = 0; t <= k - j; t++) pc = tc.Param(); tc = pc.Next();
                 if (!pc.Take("=>")) break; if (tc.StartsWith('(')) tc = tc.Trim();
-                var iv = b.GetMethod("Invoke"); if (Archive.TypeHelper.GetParametersNoCopy(iv).Length != tc.ParamCount()) break;
+                var iv = b.GetMethod("Invoke"); if (TypeHelper.GetParametersNoCopy(iv).Length != tc.ParamCount()) break;
                 if (__isgen(iv.ReturnType))
                 {
                   var ab = b.GetGenericArguments();
@@ -2272,8 +2219,8 @@ namespace csg3mf
                 var ta = a.IsGenericType ? a.GetGenericTypeDefinition() : a;
                 if (ta == tb) continue;
 
-                var ia = a.GetMethod("Invoke"); var aa = Archive.TypeHelper.GetParametersNoCopy(ia);
-                var ib = b.GetMethod("Invoke"); var bb = Archive.TypeHelper.GetParametersNoCopy(ib);
+                var ia = a.GetMethod("Invoke"); var aa = TypeHelper.GetParametersNoCopy(ia);
+                var ib = b.GetMethod("Invoke"); var bb = TypeHelper.GetParametersNoCopy(ib);
                 if (aa.Length == bb.Length)
                 {
                   int x = 0; for (; x < bb.Length && bb[x].ParameterType.IsOrIsSubclassOf(aa[x].ParameterType); x++) ;
@@ -2815,10 +2762,11 @@ namespace csg3mf
     internal Type[] GetTypes()
     {
       if (types != null) return types;
-      types = Archive.cache.Select(p => p.Target).OfType<Type[]>().FirstOrDefault();
-      if (types == null) Archive.cache.Add(new WeakReference(types = Archive.Assemblys.SelectMany(a => a.GetTypes()).Where(t => t.IsPublic && !t.IsNested && t.Namespace != null).ToArray()));
+      types = TypeHelper.cache.Select(p => p.Target).OfType<Type[]>().FirstOrDefault();
+      if (types == null) TypeHelper.cache.Add(new WeakReference(types = TypeHelper.Assemblys.SelectMany(a => a.GetTypes()).Where(t => t.IsPublic && !t.IsNested && t.Namespace != null).ToArray()));
       return types;
     }
+
     string GetNameSpace(string a, Token b, bool load)
     {
       var tt = GetTypes(); var t = -1;
@@ -2837,17 +2785,17 @@ namespace csg3mf
 
       //foreach (var x in
       //  Assembly.GetEntryAssembly().GetReferencedAssemblies().Concat(Assembly.GetExecutingAssembly().GetReferencedAssemblies()).Distinct().
-      //  Where(p => !Archive.Assemblys.Any(y => y.FullName == p.FullName))) { }
+      //  Where(p => !Assemblys.Any(y => y.FullName == p.FullName))) { }
 
       //var ra = Assembly.GetEntryAssembly().GetReferencedAssemblies();
       var ra = Assembly.GetEntryAssembly().GetReferencedAssemblies().Concat(Assembly.GetExecutingAssembly().GetReferencedAssemblies());
-      var an = ra.FirstOrDefault(p => !Archive.Assemblys.Any(x => x.FullName == p.FullName));
-      if (an != null) { Assembly.Load(an); Archive.Assemblys = null; cacheremove(types); types = null; return GetNameSpace(a, b, load); }
+      var an = ra.FirstOrDefault(p => !TypeHelper.Assemblys.Any(x => x.FullName == p.FullName));
+      if (an != null) { Assembly.Load(an); TypeHelper.Assemblys = null; cacheremove(types); types = null; return GetNameSpace(a, b, load); }
       return null;
     }
     static void cacheremove(object p)
     {
-      var cache = Archive.cache;
+      var cache = TypeHelper.cache;
       for (int i = cache.Count - 1; i >= 0; i--) if (cache[i].Target == p) { cache.RemoveAt(i); return; }
     }
     static Type GetDelegateType(DynamicMethod dm)
@@ -2855,7 +2803,7 @@ namespace csg3mf
       //var pp = dm.GetParameters(); var np = pp.Length; 
       //var tt = new Type[np]; for (int i = 1; i < np; i++) tt[i - 1] = pp[i].ParameterType; tt[np - 1] = dm.ReturnType;
       //var t = Expression.GetDelegateType(tt); return t;
-      var pp = Archive.TypeHelper.GetParams(dm);
+      var pp = TypeHelper.GetParams(dm);
       var np = pp.Length; var tt = new Type[np];
       for (int i = 1; i < np; i++) tt[i - 1] = pp[i]; tt[np - 1] = dm.ReturnType;
       var t = Expression.GetDelegateType(tt); return t;
@@ -3161,7 +3109,7 @@ namespace csg3mf
 
     internal void Begin(DynamicMethod dm)
     {
-      tokens = Archive.TypeHelper.GetTokens(il = dm.GetDynamicILInfo()); //Nop();
+      tokens = TypeHelper.GetTokens(il = dm.GetDynamicILInfo()); //Nop();
     }
     internal void End(StringBuilder trace)
     {
@@ -3500,7 +3448,7 @@ namespace csg3mf
       //  case TypeCode.Double: Ldc_I4(8); return;
       //  case TypeCode.Decimal: Ldc_I4(16); return; //case TypeCode.DateTime: 
       //}
-      if (Archive.TypeHelper.IsBlittable(type)) { Ldc_I4(Archive.TypeHelper.SizeOf(type)); return; }
+      if (TypeHelper.IsBlittable(type)) { Ldc_I4(TypeHelper.SizeOf(type)); return; }
       emitop(0xFE); emit(0x1C); emit(gettoken(type), 4); maxstack = Math.Max(maxstack, ++curstack);
     }
     internal void Ldftn(MethodInfo mi)
@@ -4035,8 +3983,8 @@ namespace csg3mf
       if (p is DynamicMethod) return TypeHelper.shortname(p);
       if (p is RuntimeMethodHandle) return TypeHelper.shortname(MethodBase.GetMethodFromHandle((RuntimeMethodHandle)p));
       if (p is RuntimeFieldHandle) return TypeHelper.shortname(FieldInfo.GetFieldFromHandle((RuntimeFieldHandle)p));
-      if (Archive.TypeHelper.IsGenericFieldInfo(p)) return TypeHelper.shortname(FieldInfo.GetFieldFromHandle(Archive.TypeHelper.GetFieldHandle(p), Archive.TypeHelper.GetContext(p)));
-      if (Archive.TypeHelper.IsGenericMethodInfo(p)) return TypeHelper.shortname(MethodInfo.GetMethodFromHandle(Archive.TypeHelper.GetMethodHandle(p), Archive.TypeHelper.GetContext(p)));
+      if (TypeHelper.IsGenericFieldInfo(p)) return TypeHelper.shortname(FieldInfo.GetFieldFromHandle(TypeHelper.GetFieldHandle(p), TypeHelper.GetContext(p)));
+      if (TypeHelper.IsGenericMethodInfo(p)) return TypeHelper.shortname(MethodInfo.GetMethodFromHandle(TypeHelper.GetMethodHandle(p), TypeHelper.GetContext(p)));
       return p;
     }
 
@@ -4069,6 +4017,96 @@ namespace csg3mf
 
   static class TypeHelper
   {
+    internal static List<WeakReference> cache = new List<WeakReference>(); //dynamics only
+    internal static Assembly[] Assemblys
+    {
+      get { return assemblys ?? (assemblys = AppDomain.CurrentDomain.GetAssemblies()/*.Where(p => !p.IsDynamic).ToArray()*/); }
+      set { assemblys = value; }
+    }
+    static Assembly[] assemblys;
+    static Func<DynamicILInfo, byte[]> t1, t2, t3; static Func<DynamicILInfo, int> t4; static Func<DynamicILInfo, List<object>> t5;
+    static Func<DynamicMethod, Type[]> t7;
+    static Func<MethodBase, ParameterInfo[]> t9, t10, t11;
+    static TypeHelper()
+    {
+      var tl = typeof(DynamicILInfo); var fl = BindingFlags.Instance | BindingFlags.NonPublic;
+      var pa = Expression.Parameter(typeof(DynamicILInfo));
+      t1 = Expression.Lambda<Func<DynamicILInfo, byte[]>>(Expression.Field(pa, tl.GetField("m_code", fl)), pa).Compile();
+      t2 = Expression.Lambda<Func<DynamicILInfo, byte[]>>(Expression.Field(pa, tl.GetField("m_exceptions", fl)), pa).Compile();
+      t3 = Expression.Lambda<Func<DynamicILInfo, byte[]>>(Expression.Field(pa, tl.GetField("m_localSignature", fl)), pa).Compile();
+      t4 = Expression.Lambda<Func<DynamicILInfo, int>>(Expression.Field(pa, tl.GetField("m_maxStackSize", fl)), pa).Compile();
+      t5 = Expression.Lambda<Func<DynamicILInfo, List<object>>>(Expression.Field(Expression.Field(pa, tl.GetField("m_scope", fl)), "m_tokens"), pa).Compile();
+    }
+    internal static bool IsBlittable(Type t)
+    {
+      if (t.IsPrimitive) return true; if (!t.IsValueType) return false;
+      var a = t.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+      for (int i = 0; i < a.Length; i++) if (!IsBlittable(a[i].FieldType)) return false;
+      return true;
+    }
+    internal static int SizeOf(Type t)
+    {
+      switch (Type.GetTypeCode(t))
+      {
+        case TypeCode.Boolean: return sizeof(bool);
+        case TypeCode.Char: return sizeof(char);
+        case TypeCode.SByte:
+        case TypeCode.Byte: return sizeof(byte);
+        case TypeCode.Int16:
+        case TypeCode.UInt16: return sizeof(short);
+        case TypeCode.Int32:
+        case TypeCode.UInt32: return sizeof(int);
+        case TypeCode.Int64:
+        case TypeCode.UInt64: return sizeof(long);
+        case TypeCode.Single: return sizeof(float);
+        case TypeCode.Double: return sizeof(double);
+        case TypeCode.Decimal: return sizeof(decimal);
+        //case TypeCode.DateTime: return sizeof(DateTime);
+      }
+      return Marshal.SizeOf(t);
+    }
+    internal static List<object> GetTokens(DynamicILInfo p) { return t5(p); }
+    internal static Type[] GetParams(DynamicMethod a)
+    {
+      if (t7 == null)
+      {
+        var p = Expression.Parameter(typeof(DynamicMethod));
+        t7 = Expression.Lambda<Func<DynamicMethod, Type[]>>(Expression.Field(p, typeof(DynamicMethod).GetField("m_parameterTypes", BindingFlags.Instance | BindingFlags.NonPublic)), p).Compile();
+      }
+      return t7(a);
+    }
+    internal static RuntimeTypeHandle GetContext(object p)//todo: Lambda
+    {
+      return (RuntimeTypeHandle)p.GetType().GetField("m_context", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(p);
+    }
+    internal static RuntimeMethodHandle GetMethodHandle(object p)//todo: Lambda
+    {
+      return (RuntimeMethodHandle)p.GetType().GetField("m_methodHandle", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(p);
+    }
+    internal static RuntimeFieldHandle GetFieldHandle(object p)//todo: Lambda
+    {
+      return (RuntimeFieldHandle)p.GetType().GetField("m_fieldHandle", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(p);
+    }
+    internal static bool IsGenericFieldInfo(object p)
+    {
+      return p.GetType().Name == "GenericFieldInfo";
+    }
+    internal static bool IsGenericMethodInfo(object p)
+    {
+      return p.GetType().Name == "GenericMethodInfo";
+    }
+    internal static ParameterInfo[] GetParametersNoCopy(MethodBase meth)
+    {
+      if (meth is DynamicMethod) return (t11 ?? (t11 = GetParametersNoCopy(meth.GetType())))(meth);
+      if (meth is ConstructorInfo) return (t10 ?? (t10 = GetParametersNoCopy(meth.GetType())))(meth);
+      return (t9 ?? (t9 = GetParametersNoCopy(meth.GetType())))(meth);
+    }
+    static Func<MethodBase, ParameterInfo[]> GetParametersNoCopy(Type t)
+    {
+      var me = t.GetMethod("GetParametersNoCopy", BindingFlags.NonPublic | BindingFlags.Instance);
+      var pa = Expression.Parameter(typeof(MethodBase));
+      return Expression.Lambda<Func<MethodBase, ParameterInfo[]>>(Expression.Call(Expression.Convert(pa, me.DeclaringType), me), pa).Compile();
+    }  
     static string xname(Type type)
     {
       if (type.IsByRef) return string.Format("{0} {1}", "ref", shortname(type.GetElementType()));
@@ -4135,7 +4173,6 @@ namespace csg3mf
       if (ci != null) return string.Format("{0} {1}({2})", shortname(ci.DeclaringType), ci.Name, shortname(ci.GetParameters()));
       return p.ToString();
     }
-
     static string shortname(ParameterInfo t)
     {
       var s = string.Format("{0} {1}", shortname(t.ParameterType), t.Name);
@@ -4144,7 +4181,6 @@ namespace csg3mf
       var v = t.DefaultValue; if (v != DBNull.Value && t.Member.DeclaringType != null) s = string.Format("[{0} = {1}]", s, v != null ? shortname(v) : "null");
       return s;
     }
-
     internal static string fullname(Type t)
     {
       if (!t.IsEnum) { var tc = Type.GetTypeCode(t); if (tc != TypeCode.Object || t == typeof(object)) return shortname(t, false); }
@@ -4189,7 +4225,6 @@ namespace csg3mf
       }
       return 0;
     }
-
     static string tocref(Type type)
     {
       if (type.IsGenericParameter)
@@ -4231,7 +4266,6 @@ namespace csg3mf
       if (pp != null && pp.Length > 0) ss = string.Format("{0}({1})", ss, string.Join(",", pp.Select(p => tocref(p)).ToArray()));
       return ss.ToString();
     }
-
     static Tuple<Type, string> tocref(object p)
     {
       var type = p as Type; if (type != null) return Tuple.Create(type, "T:" + type.FullName);
@@ -4247,12 +4281,11 @@ namespace csg3mf
     {
       return s.Length > 1 && s[1] == ':' ? s.Substring(2) : s;
     }
-
     static string docu(object p)
     {
       var doc = tocref(p); if (doc == null) return null;
       var assembly = doc.Item1.Assembly; if (assembly.IsDynamic) return null;
-      var xml = Archive.cache.Select(t => t.Target).OfType<XElement>().FirstOrDefault(t => t.Annotation<Assembly>() == assembly);
+      var xml = TypeHelper.cache.Select(t => t.Target).OfType<XElement>().FirstOrDefault(t => t.Annotation<Assembly>() == assembly);
       if (xml == null)
       {
         try
@@ -4264,7 +4297,7 @@ namespace csg3mf
           if (file != null) xml = XElement.Load(file);
         }
         catch { }
-        if (xml == null) xml = new XElement("null"); xml.AddAnnotation(assembly); Archive.cache.Add(new WeakReference(xml));
+        if (xml == null) xml = new XElement("null"); xml.AddAnnotation(assembly); TypeHelper.cache.Add(new WeakReference(xml));
       }
       var members = xml.Element("members"); if (members == null) return null;
       var member = members.Elements("member").FirstOrDefault(u => u.Attribute("name").Value == doc.Item2); if (member == null) return null;
@@ -4275,7 +4308,6 @@ namespace csg3mf
         paras.Select(pa => string.Format("  {0}: {1}", pa.Attribute("name").Value, evalsee(pa)))));
       return ss;
     }
-
     static string evalsee(XElement xe)
     {
       return string.Concat(xe.Nodes().Select(e =>
@@ -4285,7 +4317,6 @@ namespace csg3mf
         return string.Empty;
       })).Trim();
     }
-
     internal static string tooltip(object p)
     {
       var infos = p as MemberInfo[];
@@ -4321,7 +4352,6 @@ namespace csg3mf
       return string.Format("{0} {1}", "namespace", p);
       //return p.ToString();
     }
-
     internal static string tooltip(Compiler.map tpos, string text, bool skipdef = true)
     {
       switch (tpos.v & 0x0f)
@@ -4355,7 +4385,6 @@ namespace csg3mf
       }
       return null;
     }
-
     internal static void msdn(string s)
     {
       s = string.Format("http://msdn.microsoft.com/query/dev10.query?appId=Dev10IDEF1&k=k({0})", s);
@@ -4381,7 +4410,6 @@ namespace csg3mf
       catch { }
       Process.Start("iexplore.exe", s);
     }
-
     static Bitmap icons;
     internal static void drawicon(Graphics g, int x, int y, int i)
     {
@@ -4401,6 +4429,92 @@ namespace csg3mf
       try { Marshal.Release(Marshal.GetIUnknownForObject(p)); return false; }
       catch { return true; }
     }
+  }
+
+  class Neuron
+  {
+    private object[] data;
+    public virtual object Invoke(int id, object p)
+    {
+      switch (id)
+      {
+        case 0: return data; //IsDynamic
+        case 1: data = p as object[]; break; //to overwrite notify 
+        case 2: return ToString(); //to overwrite ScriptEditor Title
+        case 3: Invoke("."); break; //to overwrite onstart
+        case 4: Invoke("Dispose"); break; //to overwrite onstop
+        case 5: break; //onactivate
+        case 6: break; //ondeactivate
+        case 7: break; //addundo
+      }
+      return null;
+    }
+    public Delegate GetMethod(string name)
+    {
+      if (data == null) return null; var a = (object[])data[0];
+      for (int i = a.Length - 1; ; i--)
+      {
+        var de = a[i] as Delegate; if (de != null) { if (de.Method.Name == name) return de; continue; }
+        var dm = a[i] as DynamicMethod; if (dm == null) return null; if (dm.Name != name) continue;
+        return GetDelegate(i);
+      }
+    }
+    public void Invoke(string name)
+    {
+      if (GetMethod(name) is Action<Neuron> m) m(this);
+    }
+    internal protected bool AutoStop = true;
+    #region Debug support
+    public static Action<Neuron, Exception> Debugger; //todo: make private, possible with new exception handling
+    [ThreadStatic]
+    static internal int state, dbgpos;
+    [ThreadStatic]
+    static unsafe int* sp;
+    unsafe void dbgstp(int i)
+    {
+      var t = ((int[])data[1])[(dbgpos = i) >> 5];
+      if (t == 0 || (t & (1 << (i & 31))) == 0)
+      {
+        if (state == 0) return;
+        if (state == 1 && sp > &i + 1) return;
+        if (state == 3 && sp >= &i) return;
+      }
+      if (Debugger == null || state == 7) return;
+      sp = &i; state = 7; Debugger(this, null);
+    }
+    [ThreadStatic]
+    static internal unsafe int* stack;
+    unsafe static void dbgstk(int id, int* pi, void* pv)
+    {
+      if (pv == null)
+      {
+        var p = stack; if (p == null) return; // >
+        for (; ; ) { var v = p[0]; p = p[1] != 0 ? p + p[1] : null; if ((v & 0xffff) == id) { stack = p; return; } }
+      }
+      if (pi[0] != 0) return;
+      if (id == 0 && stack != null && stack <= pi) stack = null; //after exceptions
+      pi[0] = id | ((int)(((int*)pv) - pi) << 16);
+      pi[1] = stack != null ? (int)(stack - pi) : 0; stack = pi;
+    }
+    internal static object get(object p, string s) { return p.GetType().InvokeMember(s, BindingFlags.GetProperty, null, p, null, null, null, null); }
+    internal static void put(object p, string s, object v) { p.GetType().InvokeMember(s, BindingFlags.SetProperty, null, p, new object[] { v }, null, null, null); }
+    internal static object call(object p, string s, params object[] a)
+    {
+      return p.GetType().InvokeMember(s, BindingFlags.InvokeMethod, null, p, a, null);
+    }
+    unsafe Delegate GetDelegate(int i)
+    {
+      var a = (object[])data[0];
+      var de = a[i] as Delegate; if (de != null) return de;
+      var dm = (DynamicMethod)a[i];
+      var list = TypeHelper.GetTokens(dm.GetDynamicILInfo());
+      if (list[0] != null) return (Delegate)(a[i] = list[0]);
+      var tt = TypeHelper.GetParams(dm); Type type;
+      if (dm.ReturnType != typeof(void)) { Array.Resize(ref tt, tt.Length + 1); tt[tt.Length - 1] = dm.ReturnType; type = Expression.GetFuncType(tt); }
+      else type = Expression.GetActionType(tt);
+      list[0] = a[i] = de = dm.CreateDelegate(type); return de;
+    }
+    #endregion
   }
 
 }
