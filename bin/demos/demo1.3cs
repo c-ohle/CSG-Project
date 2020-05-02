@@ -1,0 +1,73 @@
+using csg3mf;
+using static csg3mf.CSG;
+using static csg3mf.CSG.Rational;
+
+Infos.Clear();
+Infos.Add("Hello World!");
+
+var m1 = new NodeList.Node.Material[1]; m1[0].Color = 0xff8080ff;
+var m2 = new NodeList.Node.Material[1]; m2[0].Color = 0xffff0000;
+ 
+Nodes.Clear();
+Nodes.Add(new NodeList.Node { Name = "Root" });
+Nodes.Add(new NodeList.Node { Name = "node1", Materials = m1 });
+Nodes.Add(new NodeList.Node { Name = "node2", Materials = m2 });
+
+//Rational width = 1, heigth = System.Math.PI;
+//var matr = Rational.Matrix.Identity();
+var sw = new System.Diagnostics.Stopwatch(); sw.Start();
+
+var box = CreateBox(1, 1, 1); Nodes[1].Mesh = box;
+box.Transform(new Vector3(-0.5m, -0.5m, -0.5m));
+var c1 = CreateCylinder(0.3m, 0.7m); Nodes[2].Mesh = c1;
+Nodes[1].Materials[0].Color = 0xffffff00;
+Nodes[1].Materials[0].Color = 0x808080ff;
+Tesselator.Join(box, c1, JoinOp.Difference); Nodes[2].Mesh = null;
+Nodes[1].Materials[0].Color = 0xff8080ff;
+Nodes[2].Mesh = c1;
+c1.Transform(new Vector3(0, -0.5m, 0)); 
+Tesselator.Join(box, c1, JoinOp.Difference); 
+Nodes[2].Mesh = null;
+var c2 = CreateCylinder(0.2m, 2); Nodes[2].Mesh = c2;
+c2.Transform(
+  Matrix.RotationX(Vector2.SinCos(System.Math.PI/2)) *
+  Matrix.Translation(0, 1, 0));
+Tesselator.Join(box, c2, JoinOp.Difference);
+Nodes.Remove(Nodes[2]);
+
+sw.Stop();
+Infos.Add("Vertices: " + box.VertexCount + " Indices: " + box.IndexCount);
+Infos.Add("Build time: " + sw.ElapsedMilliseconds + " ms");
+return;
+
+IMesh CreateBox(decimal dx, decimal dy, decimal dz)
+{
+  var tess = Tesselator;
+  tess.Mode = Mode.Fill | Mode.Outline| Mode.Positive;
+  tess.BeginPolygon();
+  tess.BeginContour();
+  tess.AddVertex(0, 0);
+  tess.AddVertex(dx, 0);
+  tess.AddVertex(dx, dy);
+  tess.AddVertex(0, dy);
+  tess.EndContour();
+  tess.EndPolygon();
+  var mesh = Factory.CreateMesh();
+  tess.Update(mesh, dz);
+  return mesh;
+}
+IMesh CreateCylinder(Rational radius, Rational height)
+{
+  int segs = 30;
+  var tess = Tesselator;
+  tess.Mode = Mode.NonZero | Mode.Fill | Mode.Outline;
+  tess.BeginPolygon();
+  tess.BeginContour(); var f = 2 * System.Math.PI / segs;
+  for (int i = 0; i < segs; i++)
+  tess.AddVertex(Vector2.SinCos(i * f) * radius);
+  tess.EndContour();
+  tess.EndPolygon();
+  var mesh = Factory.CreateMesh();
+  tess.Update(mesh, height);
+  return mesh;
+}
