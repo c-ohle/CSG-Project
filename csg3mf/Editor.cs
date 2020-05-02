@@ -934,7 +934,7 @@ namespace csg3mf
       {
         case Keys.Up:
         case Keys.Down:
-          tipobj((int)e.KeyCode); thetip.ToolTipTitle = tipobj(1) as string;
+          tipobj((int)e.KeyCode); if (thetip == null) break; thetip.ToolTipTitle = tipobj(1) as string;
           thetip.Show(tipobj(0) as string, this, new Point(tiprect.X, tiprect.Bottom));
           return true;
       }
@@ -1146,7 +1146,7 @@ namespace csg3mf
       catch (DebugStop) { editor?.stop(); return; }
       catch (Exception e) { MessageBox.Show(e.ToString()); }
       if (neuron.Invoke(5, null) != null) { neuron.Invoke(6, 0); editor?.onstop(null); }
-      }
+    }
     protected override void UpdateSyntaxColors()
     {
       if (colormap == null) colormap = new int[] { 0, 0x00007000, 0x00000088, 0x00ff0000, 0x11463a96, 0x2200ddff, 0x00af912b, 0x000000ff };
@@ -1417,16 +1417,17 @@ namespace csg3mf
       if (ReadOnly)
       {
         if ((ModifierKeys & (Keys.Control | Keys.Alt)) != 0) return;
-        if (ReadOnly) askstop(); return;
+        askstop(); return;
       }
       base.OnKeyPress(e);
       if (flyer != null && flyer.onpostkeypress != null) flyer.onpostkeypress(e);
     }
-    void askstop()
+    internal bool askstop()
     {
-      if (state == 7 && !(neuron.Invoke(5, null) != null)) return;
-      if (MessageBox.Show(this, "Stop execution to edit?", Parent.Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
-      onstop(null); return;
+      if (!ReadOnly) return false;
+      if (state == 7 && !(neuron.Invoke(5, null) != null)) return true;
+      if (MessageBox.Show(this, "Stop debugging?", Parent.Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return true;
+      onstop(null); return false;
     }
     internal unsafe void appexit(Form f)
     {
@@ -1514,8 +1515,8 @@ namespace csg3mf
       Select(spots[ibreak].i); ScrollVisible(); //stacktrace();
       if (e != null) MessageBox.Show(this, e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
       var cap = Native.SetCapture(IntPtr.Zero); DebugStop stop = null;
-      try {  for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); } }
-      catch (DebugStop p) { state = 0; stop = p; }  
+      try { for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); } }
+      catch (DebugStop p) { state = 0; stop = p; }
       if (e != null && state == 1) state = 2;// F10 -> F11 step into exception blocks
       Native.SetCapture(cap);
       Neuron.state = state;
@@ -1702,8 +1703,16 @@ namespace csg3mf
         if (ta == null) return null;
         //if (pi != null) return rt.IsAssignableFrom(ta.GetType()) || ta.GetType().IsCOMObject ? Tuple.Create(pi.GetValue(ta, null), (object)pi.PropertyType) : null;
         //if (fi != null) return rt.IsAssignableFrom(ta.GetType()) ? Tuple.Create(fi.GetValue(ta), (object)fi.FieldType) : null;
-        if (pi != null) return Tuple.Create(pi.GetValue(ta, null), (object)pi.PropertyType);
-        if (fi != null) return Tuple.Create(fi.GetValue(ta), (object)fi.FieldType);
+        if (pi != null)
+        {
+          if (pi.PropertyType != ta.GetType()) return null;
+          return Tuple.Create(pi.GetValue(ta, null), (object)pi.PropertyType);
+        }
+        if (fi != null)
+        {
+          if (fi.FieldType != ta.GetType()) return null;
+          return Tuple.Create(fi.GetValue(ta), (object)fi.FieldType);
+        }
       }
       if (v == 4 || v == 5)
       {
@@ -2076,7 +2085,8 @@ namespace csg3mf
         StartPosition = FormStartPosition.Manual,
         Location = Parent.Location + new Size(32, 64),
         Size = Parent.Size, //Width = Width * 2 / 3, Height = Height * 2 / 3, 
-        ShowInTaskbar = false, ShowIcon = false
+        ShowInTaskbar = false,
+        ShowIcon = false
       };
       var edit = new CodeEditor { Dock = DockStyle.Fill, EditText = compiler._trace_.ToString(), ReadOnly = true };
       form.Controls.Add(edit);

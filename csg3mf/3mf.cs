@@ -19,6 +19,7 @@ namespace csg3mf
   public unsafe class NodeList : Neuron, IEnumerable<NodeList.Node>
   {
     public readonly List<Node> Nodes = new List<Node>();
+    public readonly List<string> Infos = new List<string>();
     public int Count => Nodes.Count;
     public Node this[int i] { get => Nodes[i]; set => Nodes[i] = value; }
     public void Add(Node p) => Nodes.Add(p);

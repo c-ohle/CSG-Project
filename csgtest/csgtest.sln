@@ -17,6 +17,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "csg3mf", "..\csg3mf\csg3mf.
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "demos", "demos", "{5A1B324D-3880-4E39-9CE7-D1ED407061BF}"
 	ProjectSection(SolutionItems) = preProject
+		..\bin\demos\demo1.3cs = ..\bin\demos\demo1.3cs
 		..\bin\demos\demo1.3mf = ..\bin\demos\demo1.3mf
 		..\bin\demos\demo2.3mf = ..\bin\demos\demo2.3mf
 		..\bin\demos\demo3.3mf = ..\bin\demos\demo3.3mf

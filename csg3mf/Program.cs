@@ -185,10 +185,11 @@ namespace csg3mf
     {
       Cursor.Current = Cursors.WaitCursor;
       string script = null;
-      if (path != null && path.EndsWith(".3mf", true, null)) view.nodes = NodeList.Import3MF(path, out script);
-      else { view.nodes = new NodeList { new NodeList.Node() }; script = "using static csg3mf.CSG;\n"; }
+      if (path == null) { view.nodes = new NodeList(); script = "using static csg3mf.CSG;\n"; }
+      else if (path != null && path.EndsWith(".3cs", true, null)) { view.nodes = new NodeList(); script = File.ReadAllText(path); }
+      else view.nodes = NodeList.Import3MF(path, out script);
       var neuron = view.nodes; //var neuron = new Neuron(); 
-      NeuronEditor.InitNeuron(neuron, script ?? ""); //using static csg3mf.CSG;\n
+      NeuronEditor.InitNeuron(neuron, script ?? "");
       var e = new NeuronEditor { Dock = DockStyle.Fill, Tag = neuron };
       splitter.Panel1.Controls.Add(e);
       if (this.edit != null) this.edit.Dispose(); this.edit = e;
@@ -201,15 +202,20 @@ namespace csg3mf
     }
     int OnNew(object test)
     {
-      if (test == null) Open(null);
+      if (test != null) return 1;
+      if (edit != null && edit.askstop()) return 1;
+      if (!AskSave()) return 1;
+      Open(null);
       return 1;
     }
     int OnOpen(object test)
     {
-      if (test != null) return 1;
-      var dlg = new OpenFileDialog() { Filter = "3MF files|*.3mf|All files|*.*" };
+      if (test != null) return 1; if (edit.askstop()) return 1;
+      var dlg = new OpenFileDialog() { Filter = "3MF files|*.3mf;*.3cs|All files|*.*" };
       if (path != null) dlg.InitialDirectory = Path.GetDirectoryName(path);
       if (dlg.ShowDialog(this) != DialogResult.OK) return 1;
+      if (edit.askstop()) return 1;
+      if (!AskSave()) return 1;
       Open(dlg.FileName); return 1;
     }
     int OnSave(object test, bool saveas)
@@ -219,27 +225,36 @@ namespace csg3mf
       var s = path;
       if (saveas || s == null)
       {
-        var dlg = new SaveFileDialog() { Filter = "3MF files|*.3mf|All files|*.*", DefaultExt = "3mf" };
+        var dlg = new SaveFileDialog() { Filter = "3MF file|*.3mf|3CS C# template file|*.3cs|All files|*.*", DefaultExt = "3mf" };
         if (s != null) { dlg.InitialDirectory = Path.GetDirectoryName(s); dlg.FileName = Path.GetFileName(s); }
         if (dlg.ShowDialog(this) != DialogResult.OK) return 1; s = dlg.FileName;
       }
       Cursor.Current = Cursors.WaitCursor;
-      var bmp = View.preview(256, 256, view.camera, (view.flags & (1 << 10)) != 0, view.nodes.Skip(1).Where(p => p.vertexbuffer != null));
-      bmp.RotateFlip(RotateFlipType.RotateNoneFlipX); //bmp.Save("C:\\Users\\cohle\\Desktop\\test.png", System.Drawing.Imaging.ImageFormat.Png); goto raus;
-      view.nodes.Export3MF(s, bmp, edit.EditText);
+      if (s.EndsWith(".3cs", true, null)) File.WriteAllText(s, edit.EditText);
+      else
+      {
+        var bmp = View.CreatePreview(256, 256, view.camera, (view.flags & (1 << 10)) != 0, view.nodes.Skip(1).Where(p => p.vertexbuffer != null));
+        bmp.RotateFlip(RotateFlipType.RotateNoneFlipX); //bmp.Save("C:\\Users\\cohle\\Desktop\\test.png", System.Drawing.Imaging.ImageFormat.Png); goto raus;
+        view.nodes.Export3MF(s, bmp, edit.EditText);
+      }
       if (path != s) { path = s; UpdateTitle(); mru(path, path); }
       edit.IsModified = false; Cursor.Current = Cursors.Default;
       return 1;
     }
     int OnLastFiles(object test)
     {
-      if (test is string path) { mru(null, path); Open(path); return 1; }
+      if (test is string path)
+      {
+        if (edit.askstop()) return 1;
+        if (!AskSave()) return 1;
+        mru(null, path); Open(path); return 1;
+      }
       var item = test as MenuItem; foreach (var s in mru(null, null)) item.DropDownItems.Add(s).Tag = s;
       return 0;
     }
     bool AskSave()
     {
-      if (!edit.IsModified) return true;
+      if (edit == null || !edit.IsModified) return true;
       switch (MessageBox.Show(this, String.Format(path == null ? "Save changings?" : "Save changings in {0}?", path), Application.ProductName, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Exclamation))
       {
         case DialogResult.No: return true;
@@ -256,7 +271,8 @@ namespace csg3mf
         Text = string.Format($"{this.Text} - {"3MF XML"}"),
         StartPosition = FormStartPosition.Manual,
         Location = this.Location + new Size(32, 64),
-        Width = Width * 2 / 3, Height = Height * 2 / 3, 
+        Width = Width * 2 / 3,
+        Height = Height * 2 / 3,
         ShowInTaskbar = false,
         ShowIcon = false
       };
@@ -451,7 +467,8 @@ namespace csg3mf
         dc.SetTransform(1);
         dc.State = 0x0000001c; //dc.PixelShader = PixelShader.Color; dc.DepthStencil = DepthStencil.Default; dc.Rasterizer = Rasterizer.CullNone; 
         dc.Color = 0xff000000;
-        float x = dc.Viewport.x - 8, y = 8 + dc.Font.Ascent, dy = dc.Font.Height; string s;
+        float x = dc.Viewport.x - 8, y = 8 + dc.Font.Ascent, y1 = y, dy = dc.Font.Height; string s;
+        for (int i = 0; i < nodes.Infos.Count; i++, y1 += dy) if ((s = nodes.Infos[i]) != null) dc.DrawText(8, y1, s);
         s = Adapter; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
         s = $"{GetFPS()} fps"; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
         s = $"{DpiScale * 96} dpi"; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
@@ -551,7 +568,7 @@ namespace csg3mf
         float fm = Math.Min(ny * -ay, nx * -ax); // near = bmi.Min.Z - fm; far = bma.Max.Z - fm;
         return (new float3(mi.x + nx, mi.y + ny, fm) + cm, mi.z - fm, ma.z - fm, wb);
       }
-      internal static System.Drawing.Bitmap preview(int dx, int dy, float3x4 camera, bool shadows, IEnumerable<NodeList.Node> nodes)
+      internal static System.Drawing.Bitmap CreatePreview(int dx, int dy, float3x4 camera, bool shadows, IEnumerable<NodeList.Node> nodes)
       {
         return Print(dx, dy, 4, 0x00000000, dc =>
         {
