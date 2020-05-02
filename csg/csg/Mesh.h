@@ -2,13 +2,13 @@
 
 struct CMesh : public ICSGMesh
 {
-  UINT refcount = 1, flags = 0; //1: encode 2: shell
+  UINT refcount = 1, rtgen = getrtid(), flags = 0; //1: encode 2: shell
   sarray<UINT> ii;
   carray<Vector3R> pp;
   carray<Vector4R> ee;
   void clear()
   {
-    ii.setsize(0); pp.setsize(0); ee.setsize(0);
+    ii.setsize(0); pp.setsize(0); ee.setsize(0); 
   }
   void invert()
   {
@@ -77,7 +77,7 @@ struct CMesh : public ICSGMesh
   HRESULT __stdcall SetVertex(UINT i, CSGVAR p)
   {
     if ((UINT)i >= (UINT)pp.n) return E_INVALIDARG;
-    conv(&pp.p[i].x, 3, p); resetee(); return 0;
+    conv(&pp.p[i].x, 3, p); resetee(); rtgen = getrtid(); return 0;
   }
   HRESULT __stdcall get_IndexCount(UINT* p)
   {
@@ -91,7 +91,7 @@ struct CMesh : public ICSGMesh
   HRESULT __stdcall SetIndex(UINT i, UINT p)
   {
     if (i >= (UINT)ii.n) return E_INVALIDARG;
-    ii.p[i] = p; resetee(); return 0;
+    ii.p[i] = p; resetee(); rtgen = getrtid(); return 0;
   }
   HRESULT __stdcall get_PlaneCount(UINT* p)
   {
@@ -105,7 +105,7 @@ struct CMesh : public ICSGMesh
   HRESULT __stdcall Update(CSGVAR vertices, CSGVAR indices)
   {
     if (*(USHORT*)&indices.vt != CSG_TYPE_INT && (indices.count != 1 || indices.vt != CSG_TYPE_INT)) return E_INVALIDARG;
-    resetee();
+    resetee(); rtgen = getrtid();
     if (*(USHORT*)&vertices.vt == CSG_TYPE_INT) pp.setsize(*(UINT*)&vertices.p);
     else
     {
@@ -123,7 +123,7 @@ struct CMesh : public ICSGMesh
     m.flags = flags;
     ii.copyto(m.ii);
     pp.copyto(m.pp);
-    ee.copyto(m.ee);
+    ee.copyto(m.ee); m.rtgen = getrtid();
     return 0;
   }
   HRESULT __stdcall Transform(CSGVAR m);
@@ -137,7 +137,7 @@ struct CMesh : public ICSGMesh
   }
   HRESULT __stdcall ReadFromStream(IStream* str)
   {
-    CHR(readcount(str, flags)); if (ee.n) ee.setsize(0);
+    CHR(readcount(str, flags)); if (ee.n) ee.setsize(0); rtgen = getrtid();
     UINT np; CHR(readcount(str, np)); pp.setsize(np);
     CHR(Rational::read(str, &pp.p->x, pp.n * 3));
     UINT ni; CHR(readcount(str, ni)); ii.setsize(ni * 3);
@@ -152,5 +152,10 @@ struct CMesh : public ICSGMesh
     ee.freeextra();
     return 0;
   }
+  HRESULT __stdcall get_Generation(UINT* p)
+  {
+    *p = rtgen; return 0;
+  }
+
 };
 

@@ -148,6 +148,7 @@ interface ICSGMesh : IUnknown
   HRESULT ReadFromStream(IStream* str);
   HRESULT CreateBox([in] CSGVAR a, [in] CSGVAR b);
   HRESULT Check([in] CSG_MESH_CHECK check, [out] CSG_MESH_CHECK* p);
+  [propget] HRESULT Generation([out, retval] UINT* p);
 };
 
 typedef enum CSG_UNIT

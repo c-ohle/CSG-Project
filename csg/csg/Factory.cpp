@@ -33,6 +33,13 @@ HRESULT CCSGFactory::CreateMesh(ICSGMesh** p)
   *p = new CMesh(); return 0;
 }
 
+static UINT rtid;
+UINT getrtid()
+{
+  auto id = InterlockedIncrement(&rtid);
+  return id ? id : getrtid();
+}
+
 void conv(Rational* rr, UINT nr, const CSGVAR& v)
 {
   UINT count = min(v.count, nr);

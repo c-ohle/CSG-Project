@@ -82,6 +82,7 @@ namespace csg3mf
       void ReadFromStream(COM.IStream str);
       void CreateBox(Variant a, Variant b);
       MeshCheck Check(MeshCheck m = 0);
+      uint Generation { get; }
     }
 
     public enum Op1 { Copy = 0, Neg = 1, TransPM = 2, Inv3x4 = 3, Dot2 = 4, Dot3 = 5, Norm3 = 6, Num = 7, Den = 8, Lsb = 9, Msb = 10, Trunc = 11, Floor = 12, Ceil = 13, Round = 14, Rnd10 = 15, Com = 16 }
@@ -211,7 +212,7 @@ namespace csg3mf
         public Rational LengthSq { get { var p = ctor(1); p.p.Execute1(Op1.Dot2, p.i, m.p, m.i); return p; } }
         public double Length => Math.Sqrt((double)LengthSq);
         public double Angle => Math.Atan2((double)y, (double)x) * (180 / Math.PI);
-        public static Vector2 SinCos(double a, int prec = 10) { var p = new Vector2(0); p.m.p.SinCos(p.m.i, a, prec); return p; }
+        public static Vector2 SinCos(double a, int prec = 0) { var p = new Vector2(0); p.m.p.SinCos(p.m.i, a, prec); return p; }
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         readonly Rational m; internal Vector2(int _) => m = ctor(2);
       }
@@ -372,7 +373,6 @@ namespace csg3mf
     public static IEnumerable<Rational.Vector3> Vertices(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexR3(i); }
     public static IEnumerable<Viewer.D3DView.float3> VerticesF3(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexF3(i); }
     public static IEnumerable<int> Indices(this IMesh mesh) { for (int i = 0, n = mesh.IndexCount; i < n; i++) yield return mesh.GetIndex(i); }
-    public static void Display(params IMesh[] a) => disp?.Invoke(a); internal static Action<IMesh[]> disp; //debug helper
     #endregion
   }
 

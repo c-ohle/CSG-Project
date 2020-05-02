@@ -228,7 +228,7 @@ HRESULT CMesh::Check(CSG_MESH_CHECK check, CSG_MESH_CHECK* p)
 
 HRESULT CMesh::Transform(CSGVAR m)
 {
-  if (ee.n) ee.setsize(0);
+  if (ee.n) ee.setsize(0); rtgen = getrtid();
   if (m.vt == CSG_TYPE_RATIONAL)
   {
     if (m.count == 12)
@@ -249,7 +249,7 @@ HRESULT CMesh::Transform(CSGVAR m)
 
 HRESULT CMesh::CreateBox(CSGVAR a, CSGVAR b)
 {
-  UINT l = -1; ee.setsize(0); flags = 0;
+  UINT l = -1; ee.setsize(0); flags = 0; rtgen = getrtid();
   Vector3R ab[2]; conv(&ab[0].x, 3, a); conv(&ab[1].x, 3, b);
   for (UINT i = 0; i < 3; i++)
   {
@@ -290,7 +290,7 @@ HRESULT CTesselatorRat::Cut(ICSGMesh* mesh, CSGVAR vplane)
   UINT np = m.pp.n, xe = np, mf = 0; auto ff = csg.ff.getptr(np + m.ee.n + 1);
   for (UINT i = 0; i < np; i++) mf |= ff[i] = 1 << (1 + (0 ^ plane.DotCoord(m.pp[i])));
   if (mf == 1) return 0;
-  if (mf == 4) { m.clear(); return 0; }
+  if (mf == 4) { m.clear(); m.rtgen = getrtid(); return 0; }
   auto vv = csg.pp.getptr(csg.np = np); for (UINT i = 0; i < np; i++) vv[i] = m.pp[i];
   auto nk = 0; auto kk = csg.ii.getptr(m.ii.n); UINT ss[4];
   auto nt = 0; auto tt = csg.tt.getptr(128); csg.clearab();
@@ -354,7 +354,7 @@ HRESULT CTesselatorRat::Cut(ICSGMesh* mesh, CSGVAR vplane)
   m.ee.setsize(xe);
   csg.trim(nk);
   m.pp.copy(csg.pp.p, csg.np);
-  m.ii.copy((const UINT*)csg.ii.p, nk);
+  m.ii.copy((const UINT*)csg.ii.p, nk); m.rtgen = getrtid();
   return 0;
 }
 
@@ -428,9 +428,9 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
       auto in = a.ii.n; a.ii.setsize(a.ii.n + b.ii.n); for (UINT i = 0; i < b.ii.n; i++) a.ii.p[in + i] = an + b.ii.p[i];
       if (csg.ne < a.ee.n + b.ee.n) a.resetee();
       else { auto en = a.ee.n; a.ee.setsize(a.ee.n + b.ee.n); for (UINT i = 0; i < b.ee.n; i++) a.ee[en + i] = b.ee[i]; }
-      return 0;
+      a.rtgen = getrtid(); return 0;
     }
-    if (mp != 1) a.clear(); return 0;
+    if (mp != 1) { a.rtgen = getrtid(); a.clear(); } return 0;
   }
   mode = (CSG_TESS)((mp == 0 ? CSG_TESS_POSITIVE : mp == 1 ? CSG_TESS_ABSGEQTWO : CSG_TESS_GEQTHREE) | CSG_TESS_FILL | CSG_TESS_NOTRIM);
   for (int e = 0, i0, i1, i2; e < (int)csg.ne; e++)
@@ -502,7 +502,7 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
   a.ee.setsize(nx); for (UINT i = 0, k = 0; i < csg.ne; i++) if (ff[i] != 1) a.ee[k++] = csg.ee[i];
   csg.trim(ni);
   a.pp.copy(csg.pp.p, csg.np);
-  a.ii.copy((const UINT*)csg.ii.p, ni);
+  a.ii.copy((const UINT*)csg.ii.p, ni); a.rtgen = getrtid();
   return 0;
 }
 

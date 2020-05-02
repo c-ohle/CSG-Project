@@ -2479,21 +2479,11 @@ namespace csg3mf.Viewer
       }
       public override string ToString()
       {
-        if (data[0] == 0) fixed (byte* p = data) { ReadPtr = p + 1; return ReadString(); }
         return $"{info & 0xffff} x {info >> 16}"; // {Srv.Desc.Format}";
       }
       protected override void Init(void* p, int n)
       {
         base.Init(p, n);
-        if (*(byte*)p == 0)
-        {
-          var t1 = ReadPtr; ReadPtr = (byte*)p + 1; var s = ReadString();
-          if (s.Contains(':'))
-            try { var a = s.StartsWith("data") ? Convert.FromBase64String(s.Substring(s.IndexOf(',') + 1)) : DownloadData(s); memcpy(StackPtr, a); n = a.Length; }
-            catch (Exception e) { n = 0; Debug.WriteLine(e.Message + " " + s); }
-          else n = ZipArc.GetDefault().Load(s);
-          p = StackPtr; ReadPtr = t1; if (n == 0) return;
-        }
         srv = CreateTexture((byte*)p, n, out info);
       }
       protected override void Dispose()
@@ -2509,7 +2499,6 @@ namespace csg3mf.Viewer
       public byte[] ToArray()
       {
         var x = StackPtr; var p = StackPtr; var n = GetData(p);
-        if (*p == 0) { var t1 = ReadPtr; ReadPtr = p + 1; n = ZipArc.GetDefault().Load(ReadString()); p = StackPtr; ReadPtr = t1; }
         var a = new byte[n]; memcpy(a, p); Debug.Assert(x == StackPtr); return a;
       }
     }
@@ -2517,13 +2506,6 @@ namespace csg3mf.Viewer
     {
       var t1 = StackPtr; WriteCount(0); WriteString(path); var n = (int)(StackPtr - t1); StackPtr = t1;
       return (Texture)Buffer.GetBuffer(typeof(Texture), StackPtr, n);
-    }
-    public static Texture GetTexture(string path)
-    {
-      if (Path.IsPathRooted(path)) return (Texture)Buffer.GetBuffer(typeof(Texture), StackPtr, ReadFile(path));
-      return GetTexture((path, 0, path.Length));
-      //var t1 = StackPtr; WriteCount(0); WriteString(path); var n = (int)(StackPtr - t1); StackPtr = t1;
-      //return (Texture)Buffer.GetBuffer(typeof(Texture), StackPtr, n);
     }
     public static Texture GetTexture(byte[] data)
     {
@@ -2545,17 +2527,17 @@ namespace csg3mf.Viewer
           gr.SmoothingMode = SmoothingMode.AntiAlias;
           fmt = draw(gr);
         }
-        if (fmt != 0)
-        {
-          var data = bmp.LockBits(new Rectangle(0, 0, dx, dy), System.Drawing.Imaging.ImageLockMode.ReadWrite, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-          var ptr = (byte*)data.Scan0.ToPointer(); Assert(data.Stride == dx << 2);
-          var n = data.Stride * dy;
-          if (fmt == FORMAT.A8_UNORM) { for (int i = 3; i < n; i += 4) ptr[i >> 2] = ptr[i]; n >>= 2; }
-          var i1 = StackPtr; var ii = (int*)i1; ii[0] = (int)fmt << 16; ii[1] = dx | (dy << 16);
-          StackPtr = i1 + 8; StackPtr += Zip.Compress(ptr, n); bmp.UnlockBits(data);
-          var tex = (Texture)Buffer.GetBuffer(typeof(Texture), ii, (int)(StackPtr - i1));
-          StackPtr = i1; return tex;
-        }
+        //if (fmt != 0)
+        //{
+        //  var data = bmp.LockBits(new Rectangle(0, 0, dx, dy), System.Drawing.Imaging.ImageLockMode.ReadWrite, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        //  var ptr = (byte*)data.Scan0.ToPointer(); Assert(data.Stride == dx << 2);
+        //  var n = data.Stride * dy;
+        //  if (fmt == FORMAT.A8_UNORM) { for (int i = 3; i < n; i += 4) ptr[i >> 2] = ptr[i]; n >>= 2; }
+        //  var i1 = StackPtr; var ii = (int*)i1; ii[0] = (int)fmt << 16; ii[1] = dx | (dy << 16);
+        //  StackPtr = i1 + 8; StackPtr += Zip.Compress(ptr, n); bmp.UnlockBits(data);
+        //  var tex = (Texture)Buffer.GetBuffer(typeof(Texture), ii, (int)(StackPtr - i1));
+        //  StackPtr = i1; return tex;
+        //}
         return GetTexture(bmp);
       }
     }
@@ -2574,11 +2556,11 @@ namespace csg3mf.Viewer
     }
     static IntPtr CreateTexture(byte* p, int n, out int info) //IShaderResourceView
     {
-      if (*(ushort*)p == 0)
-      {
-        info = ((int*)p)[1]; ReadPtr = p + 8; Zip.Decompress();
-        return CreateTexture(((ushort*)p)[2], ((ushort*)p)[3], 0, (FORMAT)((ushort*)p)[1], 1, StackPtr);
-      }
+      //if (*(ushort*)p == 0)
+      //{
+      //  info = ((int*)p)[1]; ReadPtr = p + 8; Zip.Decompress();
+      //  return CreateTexture(((ushort*)p)[2], ((ushort*)p)[3], 0, (FORMAT)((ushort*)p)[1], 1, StackPtr);
+      //}
       if (*(int*)p == 0x20534444) //DDS, only the compressed formats 
       {
         var dh = (DDS_HEADER*)(p + 4);
@@ -2978,162 +2960,8 @@ namespace csg3mf.Viewer
           vv[j].t = p;
         }
       }
-
       indices = (IndexBuffer)Buffer.GetBuffer(typeof(IndexBuffer), kk, ni * sizeof(int), indices);
       vertices = (VertexBuffer)Buffer.GetBuffer(typeof(VertexBuffer), vv, np * sizeof(vertex), vertices);
-    }
-
-    static class Zip
-    {
-      internal static byte[] Compress(byte[] a)
-      {
-        int n; fixed (byte* p = a) n = Compress(p, a.Length);
-        memcpy(a = new byte[n], StackPtr); return a;
-      }
-      internal static byte[] Decompress(byte[] a)
-      {
-        var t = StackPtr; memcpy(t, a); StackPtr = t + a.Length;
-        ReadPtr = t; int n = Decompress();
-        memcpy(a = new byte[n], StackPtr); StackPtr = t; return a;
-      }
-      internal static int Compress(void* p, int n)
-      {
-        zstr str; int hr = deflateInit2_(&str, -1, 8, -15, 8, 0, ref zver, sizeof(zstr)); Assert(hr == 0);
-        str.nextIn = p; str.availIn = n;
-        str.nextOut = StackPtr; str.availOut = int.MaxValue;
-        hr = deflate(&str, 4); Assert(hr == 1);
-        hr = deflateEnd(&str); Assert(hr == 0);
-        return str.totalOut;
-      }
-      internal static int Decompress()
-      {
-        zstr str; int hr = inflateInit2_(&str, -15, ref zver, sizeof(zstr)); Assert(hr == 0);
-        str.nextIn = ReadPtr; str.availIn = int.MaxValue;
-        str.nextOut = StackPtr; str.availOut = int.MaxValue;
-        hr = inflate(&str, 0); if (hr != 1) throw new InvalidDataException();
-        hr = inflateEnd(&str); ReadPtr += str.totalIn; return str.totalOut;
-      }
-      static long zver = 0x332e322e31;
-      struct zstr
-      {
-        internal void* nextIn;
-        internal int availIn, totalIn;
-        internal void* nextOut;
-        internal int availOut, totalOut;
-        internal void* msg, state, zalloc, zfree, opaque;
-        internal int dataType, adler, reserved;
-      }
-      //return: Ok, StreamEnd, NeedDictionary, ErrorNo = -1, StreamError = -2, DataError = -3, MemError = -4, BufError = -5, VersionError = -6
-      //strategy: Filtered = 1, HuffmanOnly = 2, Rle = 3, Fixed = 4, Default = 0
-      //level:  NoCompression = 0,  BestSpeed = 1, BestCompression = 9, Default = -1
-      //flush: NoFlush = 0, PartialFlush = 1, SyncFlush = 2, FullFlush = 3, Finish = 4, Block = 5
-      [DllImport("clrcompression.dll", CallingConvention = CallingConvention.StdCall), SuppressUnmanagedCodeSecurity]
-      extern static int deflateInit2_(zstr* p, int level, int method, int windowBits, int memLevel, int strategy, [In] ref long version, int streamSize);
-      [DllImport("clrcompression.dll", CallingConvention = CallingConvention.StdCall), SuppressUnmanagedCodeSecurity]
-      extern static int deflate(zstr* p, int flush);
-      [DllImport("clrcompression.dll", CallingConvention = CallingConvention.StdCall), SuppressUnmanagedCodeSecurity]
-      extern static int deflateEnd(zstr* p);
-      [DllImport("clrcompression.dll", CallingConvention = CallingConvention.StdCall), SuppressUnmanagedCodeSecurity]
-      extern static int inflateInit2_(zstr* p, int windowBits, [In] ref long version, int streamSize);
-      [DllImport("clrcompression.dll", CallingConvention = CallingConvention.StdCall), SuppressUnmanagedCodeSecurity]
-      extern static int inflate(zstr* p, int flush);
-      [DllImport("clrcompression.dll", CallingConvention = CallingConvention.StdCall), SuppressUnmanagedCodeSecurity]
-      extern static int inflateEnd(zstr* p);
-      [DllImport("kernel32.dll"), SuppressUnmanagedCodeSecurity]
-      static extern void* LoadLibrary(string s);
-      static void* dll = LoadLibrary(Path.Combine(RuntimeEnvironment.GetRuntimeDirectory(), "clrcompression.dll"));
-    }
-
-    public class ZipArc : IDisposable
-    {
-      static WeakReference db = new WeakReference(null);
-      public static ZipArc GetDefault()
-      {
-        var p = db.Target as ZipArc;
-        if (p == null) db.Target = p = new ZipArc(Path.ChangeExtension(Application.ExecutablePath, "zip"));
-        return p;
-      }
-
-      public ZipArc(string path)
-      {
-        //Debug.WriteLine("ZipArc " + path);
-        fixed (char* p = path) file = CreateFileW(p, 0x80000000, FileShare.Read, null, FileMode.Open, 0x80, null);
-        if (file == (void*)-1) throw new Exception($"{new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()).Message}\n{path}");
-        int nh, nl = GetFileSize(file, &nh); len = nl;
-        mmf = CreateFileMappingW(file, null, 0x2, 0, len, null); if (mmf == null) throw new Exception();
-        ptr = MapViewOfFile(mmf, 0x4, 0, 0, 0); if (ptr == null) throw new Exception();
-      }
-
-      //Tuple<string> entry(ref int x)
-      //{
-      //  if (ptr == null) return null;
-      //  int nc = *(ushort*)(ptr + len - 12); if (x >= nc) return null;
-      //  int ic = *(int*)(ptr + len - 6);
-      //  var rec = ptr + ic;
-      //  for (int i = 0;; i++)
-      //  {
-      //    var ns = *(ushort*)(rec + 0x001C);
-      //    if(i == x)
-      //    {
-      //      var ss = new string((sbyte*)(rec + 0x002E), 0, ns, encoding);
-      //      return new Tuple<string>(ss);
-      //    }
-      //    rec += 0x002E + ns + *(ushort*)(rec + 0x001E) + *(ushort*)(rec + 0x0020);
-      //  }
-      //}
-      Tuple<string> find(ref int it)
-      {
-        if (it == 0) it = *(int*)(ptr + len - 6); if (it >= len - 22) return null;
-        var rec = ptr + it; var ns = *(ushort*)(rec + 0x001C);
-        it += 0x002E + ns + *(ushort*)(rec + 0x001E) + *(ushort*)(rec + 0x0020);
-        return new Tuple<string>(new string((sbyte*)(rec + 0x002E), 0, ns, encoding));
-      }
-
-      public IEnumerable<Tuple<string>> Entries
-      {
-        get { for (int i = 0; ;) { var p = find(ref i); if (p == null) break; yield return p; } }
-      }
-
-      public int Load(string name)
-      {
-        int nn; fixed (char* ps = name) nn = encoding.GetBytes(ps, name.Length, StackPtr, 1024);
-        int nc = *(ushort*)(ptr + len - 12);
-        int ic = *(int*)(ptr + len - 6);
-        var rec = ptr + ic;
-        for (int i = 0; i < nc; i++)
-        {
-          var ns = *(ushort*)(rec + 0x001C); //var ss = new string((sbyte*)(rec + 0x002E), 0, ns);
-          var ok = ns == name.Length;
-          if (ns == nn && memcmp((sbyte*)(rec + 0x002E), StackPtr, (void*)ns) == 0)
-          {
-            var loc = *(uint*)(rec + 0x002A);
-            var dat = ptr + loc;
-            var cmp = *(ushort*)(dat + 0x0008); var l1 = *(uint*)(dat + 0x0012); var l2 = *(uint*)(dat + 0x0016);
-            dat += 0x001E + *(ushort*)(dat + 0x001A) + *(ushort*)(dat + 0x001C);
-            if (cmp == 0) { memcpy(StackPtr, dat, (void*)l2); return (int)l2; }
-            else if (cmp == 8) { ReadPtr = dat; return Zip.Decompress(); }
-            else return -1;
-          }
-          rec += 0x002E + ns + *(ushort*)(rec + 0x001E) + *(ushort*)(rec + 0x0020);
-        }
-        throw new FileNotFoundException(name);
-      }
-      public void Dispose()
-      {
-        //Debug.WriteLine("ZipArc " + "Dispose");
-        if (ptr != null) { var ok = UnmapViewOfFile(ptr); ptr = null; }
-        if (mmf != null) { var ok = CloseHandle(mmf); mmf = null; }
-        if (file != (void*)-1) { var ok = CloseHandle(file); file = (void*)-1; }
-      }
-      ~ZipArc() { Dispose(); }
-      void* file, mmf; byte* ptr; int len;
-      [DllImport("kernel32.dll", SetLastError = true), SuppressUnmanagedCodeSecurity]
-      static extern void* CreateFileMappingW(void* hFile, void* lpFileMappingAttributes, int flProtect, int dwMaximumSizeHigh, int dwMaximumSizeLow, void* lpName);
-      [DllImport("Kernel32", SetLastError = true), SuppressUnmanagedCodeSecurity]
-      static extern byte* MapViewOfFile(void* hFileMapping, int dwDesiredAccess, int dwFileOffsetHigh, int dwFileOffsetLow, int dwNumberOfBytesToMap);
-      [DllImport("kernel32"), SuppressUnmanagedCodeSecurity]
-      static extern bool UnmapViewOfFile(void* p);
-      static System.Text.Encoding encoding = System.Text.Encoding.GetEncoding(437);
     }
 
     static void Read(void* p, int n)
@@ -3171,236 +2999,7 @@ namespace csg3mf.Viewer
       fixed (char* t = s) for (int i = 0; i < n; i++) t[i] = (char)ReadCount();
       return s;
     }
-    static int ReadFile(string path)
-    {
-      void* h; fixed (char* p = path) h = CreateFileW(p, 0x80000000, FileShare.Read, null, FileMode.Open, 0x80, null);
-      if (h == (void*)-1) throw new Exception($"{new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()).Message}\n{path}");
-      int nh, nl = GetFileSize(h, &nh); if (nh != 0 || nl < 0) { CloseHandle(h); throw new Exception(); }
-      if (nl > maxstack - (StackPtr - baseptr)) throw new OutOfMemoryException();
-      int nr = ReadFile(h, StackPtr, nl, null, null);
-      CloseHandle(h); if (nr != 1) throw new Exception(); return nl;
-    }
-    static void WriteFile(string path, void* pp, int np)
-    {
-      void* h; fixed (char* p = path) h = CreateFileW(p, 0x40000000, FileShare.None, null, FileMode.Create, 0x80, null);
-      if (h == (void*)-1) throw new Exception($"{new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()).Message}\n{path}");
-      int nr = WriteFile(h, pp, np, null, null);
-      CloseHandle(h); if (nr != 1) throw new Exception($"{new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()).Message}\n{path}");
-    }
-    public static void WriteFile(string path, Action<IArchive> ar)
-    {
-      var p = StackPtr; try
-      {
-        if (path == null) StackPtr += 4; var a = new Archive(true); ar(a); a.Compress = false; var c = (int)(StackPtr - p);
-        if (path == null) *(int*)p = c - 4; else WriteFile(path, p, c);
-      }
-      finally { StackPtr = p; }
-    }
-    public static void ReadFile(string path, Action<IArchive> ar)
-    {
-      var p = StackPtr; try
-      {
-        byte* endptr;
-        if (path == null) { endptr = StackPtr += 4 + *(int*)StackPtr; ReadPtr = p + 4; }
-        else { endptr = StackPtr += Path.IsPathRooted(path) ? ReadFile(path) : ZipArc.GetDefault().Load(path); ReadPtr = p; }
-        var a = new Archive(false); ar(a); a.Compress = false;
-        Debug.WriteLineIf(ReadPtr - endptr < -3 || ReadPtr - endptr > 0, $"StackPtr - ReadPtr {ReadPtr - endptr}");
-      }
-      finally { StackPtr = p; }
-    }
-
-    class Archive : IArchive
-    {
-      internal Archive(bool storing)
-      {
-        if (this.storing = storing)
-          o2i = new Dictionary<object, int>(512);
-        else
-          i2o = new List<object>(512);
-      }
-      bool storing; Dictionary<object, int> o2i; List<object> i2o;
-      byte* p1, p2; static Type[] types;
-
-      public uint Version { get; set; }
-      public bool IsStoring
-      {
-        get { return storing; }
-      }
-      public void Serialize<T>(ref T value)
-      {
-        if (storing) type<T>.Serialize(value, this);
-        else value = type<T>.Serialize(value, this);
-      }
-      public bool Compress
-      {
-        get { return p1 != null; }
-        set
-        {
-          if (Compress == value) return;
-          if (storing)
-          {
-            if (value) p1 = StackPtr;
-            else { var c = (int)(StackPtr - p1); StackPtr = p1; StackPtr += Zip.Compress(p1, c); Debug.WriteLine($"compress: {c} -> {StackPtr - p1}"); p1 = null; }
-          }
-          else
-          {
-            if (value) { p2 = StackPtr; StackPtr += Zip.Decompress(); p1 = ReadPtr; ReadPtr = p2; }
-            else { ReadPtr = p1; StackPtr = p2; p1 = null; }
-          }
-        }
-      }
-
-      static int SizeOf(Type t)
-      {
-        if (!t.IsValueType) return -1;
-        if (t.IsEnum) return SizeOf(t.GetEnumUnderlyingType());
-        if (!t.IsLayoutSequential) return -1; //{ if (t == typeof(DateTime)) return sizeof(long); return -1; }
-        if (!IsPrimitive(t)) return -1;
-        return Marshal.SizeOf(t);
-      }
-      static bool IsPrimitive(Type type)
-      {
-        if (type.IsPrimitive) return true; if (!type.IsValueType) return false; //if (!type.IsLayoutSequential) return false;
-        var a = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        for (int i = 0; i < a.Length; i++) if (!IsPrimitive(a[i].FieldType)) return false; return true;
-      }
-
-      static Func<T[], Archive, T[]> make<T>()
-      {
-        return (v, ar) =>
-        {
-          int n; if (ar.storing) WriteCount((n = (v != null) ? v.Length : -1) + 1);
-          else v = (n = ReadCount() - 1) >= 0 ? new T[n] : null; if (n <= 0) return v;
-          for (int i = 0; i < n; i++) ar.Serialize(ref v[i]);
-          return v;
-        };
-      }
-
-      static Delegate f3(Type type)
-      {
-        //works for readonly struct too
-        var dm = new DynamicMethod(String.Empty, type, new Type[] { type, typeof(Archive) }, typeof(Archive).Module, true);
-        var il = dm.GetILGenerator(); MethodInfo me = null;
-        var ff = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        for (int i = 0; i < ff.Length; i++)
-        {
-          il.Emit(OpCodes.Ldarg_1); il.Emit(OpCodes.Ldarg_0); il.Emit(OpCodes.Ldflda, ff[i]);
-          il.Emit(OpCodes.Call, i != 0 && ff[i - 1].FieldType == ff[i].FieldType ? me :
-            (me = typeof(Archive).GetMethod(nameof(Serialize)).MakeGenericMethod(ff[i].FieldType)));
-        }
-        il.Emit(OpCodes.Ldarg_0); il.Emit(OpCodes.Ret);
-        return dm.CreateDelegate(Expression.GetFuncType(type, typeof(Archive), type));
-
-        //var ff = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        //var p1 = Expression.Parameter(typeof(Archive)); var p2 = Expression.Parameter(type);
-        //var t2 = Expression.Block(ff.Select(fi => Expression.Call(p1, typeof(Archive).GetMethod(nameof(Serialize)).MakeGenericMethod(new Type[] { fi.FieldType }), Expression.Field(p2, fi))));
-        //var t4 = Expression.Lambda(Expression.GetFuncType(type, typeof(Archive), type), Expression.Block(t2, p2), p2, p1);
-        //return t4.Compile();
-      }
-
-      static class type<T>
-      {
-        internal static readonly Func<T, Archive, T> Serialize;
-        static type()
-        {
-          var t = typeof(T); var size = SizeOf(t);
-          if (size != -1) { Serialize = (v, ar) => { var r = __makeref(v); var p = *((void**)&r); if (ar.storing) Write(p, size); else Read(p, size); return v; }; return; }
-          if (t.IsValueType) { Serialize = (Func<T, Archive, T>)f3(t); return; }
-          if (t.IsArray)
-          {
-            var e = t.GetElementType(); size = SizeOf(e);
-            if (size != -1)
-            {
-              Serialize = (v, ar) =>
-              {
-                int n; if (ar.storing) WriteCount((n = (v != null) ? (v as Array).Length : -1) + 1);
-                else v = (n = ReadCount() - 1) >= 0 ? (T)(object)Array.CreateInstance(e, n) : default(T); if (n <= 0) return v;
-                var h = GCHandle.Alloc(v, GCHandleType.Pinned); var p = (byte*)h.AddrOfPinnedObject(); n *= size;
-                if (ar.storing) Write(p, n); else Read(p, n); h.Free(); return v;
-              };
-              return;
-            }
-            Serialize = (Func<T, Archive, T>)typeof(Archive).GetMethod(nameof(make), BindingFlags.Static | BindingFlags.NonPublic).MakeGenericMethod(e).Invoke(null, null);
-            return;
-          }
-          if (t == typeof(string)) { Serialize = (v, ar) => { if (ar.storing) WriteString((string)(object)v); else v = (T)(object)ReadString(); return v; }; return; }
-          if (typeof(Buffer).IsAssignableFrom(t))
-          {
-            Serialize = (value, ar) =>
-            {
-              if (ar.storing)
-              {
-                if (!(value is Buffer v)) { WriteCount(0); return value; }
-                if (ar.o2i.TryGetValue(v, out int id)) { WriteCount(2 + id); return value; }
-                WriteCount(1); ar.o2i.Add(v, ar.o2i.Count); WriteCount(v.GetData(null)); StackPtr += v.GetData(StackPtr); //if (v is AppBuffer b) b.Serialize(ar);
-              }
-              else
-              {
-                var i = ReadCount(); if (i == 0) return default;
-                if (i >= 2) { value = (T)ar.i2o[i - 2]; (value as Buffer).AddRef(); return value; }
-                var n = ReadCount(); value = (T)(object)Buffer.GetBuffer(typeof(T), ReadPtr, n); ReadPtr += n; ar.i2o.Add(value); //if ((object)value is AppBuffer b) b.Serialize(ar);
-              }
-              return value;
-            };
-            return;
-          }
-          if (t == typeof(object))
-          {
-            Serialize = (v, ar) =>
-            {
-              if (ar.storing)
-              {
-                { if (v is Font p) { WriteCount(1); ar.Serialize(ref p); return v; } }
-                { if (v is Texture p) { WriteCount(2); ar.Serialize(ref p); return v; } }
-                Debug.Assert(false);
-              }
-              else
-                switch (ReadCount())
-                {
-                  case 1: { Font p = null; ar.Serialize(ref p); return (T)(object)p; }
-                  case 2: { Texture p = null; ar.Serialize(ref p); return (T)(object)p; }
-                }
-              return v;
-            };
-            return;
-          }
-          {
-            if (types == null)
-            {
-              var r = t; for (; r.BaseType != typeof(object); r = r.BaseType) ;
-              types = (Type[])r.GetMethod("GetTypes", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic).Invoke(null, null);
-            }
-            var inner = (Action<T, Archive>)Delegate.CreateDelegate(typeof(Action<T, Archive>), t.GetMethod("Serialize", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
-            Serialize = (v, ar) =>
-            {
-              if (ar.storing)
-              {
-                if (v == null) { WriteCount(0); return v; }
-                if (ar.o2i.TryGetValue(v, out int id)) { WriteCount(2 + id); return v; }
-                WriteCount(1); WriteCount(id = Array.IndexOf(types, v.GetType())); Assert(id >= 0);
-                ar.o2i.Add(v, ar.o2i.Count);
-              }
-              else
-              {
-                var i = ReadCount();
-                if (i == 0) return default(T);
-                if (i >= 2) return (T)ar.i2o[i - 2];
-                ar.i2o.Add(v = (T)Activator.CreateInstance(types[ReadCount()]));
-              }
-              inner(v, ar); return v;
-            };
-          }
-        }
-      }
-    }
-
-    static WeakReference webc;
-    public static byte[] DownloadData(string s)
-    {
-      var wc = webc != null ? webc.Target as System.Net.WebClient : null;
-      if (wc == null) webc = new WeakReference(wc = new System.Net.WebClient());
-      return wc.DownloadData(s);
-    }
+     
   }
 
   unsafe partial class D3DView

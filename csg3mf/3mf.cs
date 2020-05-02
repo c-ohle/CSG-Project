@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -15,98 +16,17 @@ using static csg3mf.Viewer.D3DView;
 
 namespace csg3mf
 {
-  public unsafe class Node //: Neuron
+  public unsafe class NodeList : Neuron, IEnumerable<NodeList.Node>
   {
-    internal Node() { Transform = Rational.Matrix.Identity(); }
-    internal Node Parent;
-    public string Name;
-    public Rational.Matrix Transform;
-    public IMesh Mesh;
-    public float2[] Texcoords;
-    public Material[] Materials;
-    public struct Material
-    {
-      public int StartIndex, IndexCount;
-      public uint Color;
-      public byte[] Texture;
-      public Texture texture;
-    }
-    internal float3x4 transform;
-    internal VertexBuffer vertexbuffer;
-    internal IndexBuffer indexbuffer;
-    internal float3x4 gettrans(Node rel = null)
-    {
-      var m = transform;
-      for (var p = Parent; p != rel && p.Parent != null; p = p.Parent) m *= p.transform; return m;
-    }
-    internal void getbox(in float3x4 m, float3* box, float2* ab = null)
-    {
-      //if (Mesh == null) return;
-      //var nv = Mesh.VertexCount; var vv = (float3*)StackPtr;
-      //var vp = new Variant(&vv->x, 3, nv); Mesh.CopyBuffer(0, 0, ref vp);
-      if (vertexbuffer == null) return;
-      var vv = vertexbuffer.GetPoints(); var nv = vv.Length;
-      for (int i = 0; i < nv; i++)
-      {
-        var p = vv[i] * m; if (ab == null) { boxadd(&p, box); continue; }
-        box[0].x = Math.Min(box[0].x, p.x + p.z * ab->x);
-        box[0].y = Math.Min(box[0].y, p.y + p.z * ab->y);
-        box[0].z = Math.Min(box[0].z, p.z);
-        box[1].x = Math.Max(box[1].x, p.x - p.z * ab->x);
-        box[1].y = Math.Max(box[1].y, p.y - p.z * ab->y);
-        box[1].z = Math.Max(box[1].z, p.z);
-      }
-    }
-    internal void update()
-    {
-      transform = (float3x4)Transform; if (Mesh == null) return;
-      var nv = Mesh.VertexCount; var vv = (double3*)StackPtr; StackPtr += nv * sizeof(double3);
-      var ni = Mesh.IndexCount; var ii = (int*)StackPtr; StackPtr += ni * sizeof(int);
-      Mesh.CopyBuffer(0, 0, new Variant(&vv->x, 3, nv));
-      Mesh.CopyBuffer(1, 0, new Variant(ii, 1, ni));
-      for (int i = 0; i < ni; i++) ((ushort*)ii)[i] = (ushort)ii[i];
-      for (int i = 0; i < Materials.Length; i++)
-      {
-        ref var m = ref Materials[i];
-        if (m.Texture != null && m.texture == null) m.texture = GetTexture(m.Texture);
-      }
-      if (Texcoords != null) fixed (float2* tt = Texcoords) GetMesh(ref vertexbuffer, ref indexbuffer, vv, nv, (ushort*)ii, ni, 0.3f, tt, 2);
-      else GetMesh(ref vertexbuffer, ref indexbuffer, vv, nv, (ushort*)ii, ni, 0.3f);
-      StackPtr = (byte*)vv;
-    }
+    public readonly List<Node> Nodes = new List<Node>();
+    public int Count => Nodes.Count;
+    public Node this[int i] { get => Nodes[i]; set => Nodes[i] = value; }
+    public void Add(Node p) => Nodes.Add(p);
+    public void RemoveRange(int i, int n) => Nodes.RemoveRange(i, n);
+    IEnumerator<Node> IEnumerable<Node>.GetEnumerator() => Nodes.GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => Nodes.GetEnumerator();
 
-    //static void unscale(List<Node> nodes, Node parent)
-    //{
-    //  for (int i = 0; i < nodes.Count; i++)
-    //  {
-    //    var p = nodes[i]; if (p.Parent != parent) continue;
-    //    var lsq = p.Transform.mx.LengthSq;
-    //    if (lsq != 1)
-    //    {
-    //      var s = (Rational)(decimal)Math.Sqrt((double)lsq);
-    //      p.Transform = Rational.Matrix.Scaling(1 / s) * p.Transform;
-    //      if (p.StartIndex == 0) p.Mesh?.Transform(s);
-    //      for (int t = 0; t < nodes.Count; t++)
-    //        if (nodes[t].Parent == p)
-    //          nodes[t].Transform = nodes[t].Transform * Rational.Matrix.Scaling(s);
-    //    }
-    //    unscale(nodes, p);
-    //  }
-    //}
-    //internal static float3box getboxest(IEnumerable<Node> nodes, Node root = null)
-    //{
-    //  float3box box; boxempty((float3*)&box);
-    //  foreach (var p in nodes)
-    //  {
-    //    if (p.Mesh == null) continue;
-    //    var m = (float3x4)p.Transform; for (var t = p.Parent; t != root; t = t.Parent) m *= (float3x4)t.Transform;
-    //    foreach (var v in p.Mesh.VerticesF3()) boxadd(&v, &m, &box.min);
-    //  }
-    //  return box;
-    //}
-    static int strcpy(char* p, string s) { int n = s.Length; for (int i = 0; i < n; i++) p[i] = s[i]; return n; }
-
-    internal static List<Node> Import3MF(string path, out string script)
+    internal static NodeList Import3MF(string path, out string script)
     {
       using (var package = System.IO.Packaging.Package.Open(path))
       {
@@ -117,7 +37,7 @@ namespace csg3mf
         var scale = unit == "micron" ? 0.000001m : unit == "millimeter" ? 0.001m : unit == "centimeter" ? 0.01m : unit == "inch" ? 0.0254m : unit == "foot" ? 0.3048m : 1;
         var res = model.Element(ns + "resources");
         var build = model.Element(ns + "build");
-        var nodes = new List<Node>();
+        var nodes = new NodeList();
         var root = new Node(); nodes.Add(root);
         root.Transform[0u] = root.Transform[4u] = root.Transform[8u] = scale; //root.Transform = Rational.Matrix.Scaling(scale); 
         foreach (var p in build.Elements(ns + "item").Select(item => convert(item))) { p.Parent = root; nodes.Add(p); }
@@ -165,7 +85,8 @@ namespace csg3mf
           var ii = (int*)StackPtr;
           for (int i = 0, k = 0; i < kk.Length; i++) { var p = kk[i]; ii[k++] = (int)p.Attribute("v1"); ii[k++] = (int)p.Attribute("v2"); ii[k++] = (int)p.Attribute("v3"); }
           var me = Factory.CreateMesh(); me.Update(vertices.Count(), new Variant(ii, 1, kk.Length * 3));
-#if(true) 
+#if (true)
+          int strcpy(char* p, string s) { int n = s.Length; for (int i = 0; i < n; i++) p[i] = s[i]; return n; }
           int l = 0; var ss = (char*)StackPtr;
           foreach (var p in vertices)
           {
@@ -180,7 +101,7 @@ namespace csg3mf
             fixed (char* t = $"{p.Attribute("x").Value} {p.Attribute("y").Value} {p.Attribute("z").Value}")
               me.SetVertex(l++, new Variant(t, 3));
 #endif
-          node.Mesh = me; node.Materials = new Material[mm.Length];
+          node.Mesh = me; node.Materials = new Node.Material[mm.Length];
           var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
           for (int i = 0, ab = 0, bis = 1; i < mm.Length; i++, ab = bis)
           {
@@ -221,7 +142,7 @@ namespace csg3mf
         };
       }
     }
-    internal static void Export3MF(List<Node> nodes, string path, Bitmap prev, string script)
+    internal XElement Export3MF(string path, Bitmap prev, string script)
     {
       var ns = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/core/2015/02";
       var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
@@ -234,6 +155,7 @@ namespace csg3mf
       var uid = 1; var textures = new List<(byte[] bin, int id, XElement e)>();
       var basematerials = new XElement(ns + "basematerials"); resources.Add(basematerials);
       var bmid = uid++; basematerials.SetAttributeValue("id", bmid);
+      var nodes = this;
       void add(Node group, XElement dest)
       {
         var obj = new XElement(ns + "object"); obj.SetAttributeValue("id", 0);
@@ -322,7 +244,7 @@ namespace csg3mf
         dest.Add(item);
       };
       foreach (var group in nodes.Where(p => p.Parent == nodes[0])) add(group, build);
-      //doc.Save("C:\\Users\\cohle\\Desktop\\test2.xml");
+      if (path == null) return doc;//doc.Save("C:\\Users\\cohle\\Desktop\\test2.xml");
       var memstr = new MemoryStream();
       using (var package = System.IO.Packaging.Package.Open(memstr, FileMode.Create))
       {
@@ -347,7 +269,133 @@ namespace csg3mf
           using (var str = packpng.GetStream()) using (var sw = new StreamWriter(str)) sw.Write(script);
         }
       }
-      File.WriteAllBytes(path, memstr.ToArray());
+      File.WriteAllBytes(path, memstr.ToArray()); return null;
+    }
+
+    internal Action OnUpdate;
+    public override object Invoke(int id, object p)
+    {
+      if (id == 5) return this; //AutoStop
+      if (id == 6) { update(); OnUpdate?.Invoke(); return null; } //step
+      return base.Invoke(id, p);
+    }
+    internal void update()
+    {
+      for (int i = 0; i < Nodes.Count; i++)
+      {
+        var p = Nodes[i]; if (p.Parent == null && i != 0) p.Parent = Nodes[0];
+        p.update();
+      }
+    }
+
+    public class Node
+    {
+      public Node() { Transform = Rational.Matrix.Identity(); }
+      public Node Parent;
+      public string Name;
+      public Rational.Matrix Transform;
+      public IMesh Mesh;
+      public float2[] Texcoords;
+      public Material[] Materials;
+      public struct Material
+      {
+        public int StartIndex, IndexCount;
+        public uint Color;
+        public byte[] Texture;
+        public Texture texture;
+      }
+      internal float3x4 transform;
+      internal VertexBuffer vertexbuffer; uint mgen;
+      internal IndexBuffer indexbuffer;
+      internal float3x4 gettrans(Node rel = null)
+      {
+        var m = transform;
+        for (var p = Parent; p != rel && p.Parent != null; p = p.Parent) m *= p.transform; return m;
+      }
+      internal void getbox(in float3x4 m, float3* box, float2* ab = null)
+      {
+        //if (Mesh == null) return;
+        //var nv = Mesh.VertexCount; var vv = (float3*)StackPtr;
+        //var vp = new Variant(&vv->x, 3, nv); Mesh.CopyBuffer(0, 0, ref vp);
+        if (vertexbuffer == null) return;
+        var vv = vertexbuffer.GetPoints(); var nv = vv.Length;
+        for (int i = 0; i < nv; i++)
+        {
+          var p = vv[i] * m; if (ab == null) { boxadd(&p, box); continue; }
+          box[0].x = Math.Min(box[0].x, p.x + p.z * ab->x);
+          box[0].y = Math.Min(box[0].y, p.y + p.z * ab->y);
+          box[0].z = Math.Min(box[0].z, p.z);
+          box[1].x = Math.Max(box[1].x, p.x - p.z * ab->x);
+          box[1].y = Math.Max(box[1].y, p.y - p.z * ab->y);
+          box[1].z = Math.Max(box[1].z, p.z);
+        }
+      }
+      internal void update()
+      {
+        transform = (float3x4)Transform;
+        if (Mesh == null)
+        {
+          if (vertexbuffer != null) { vertexbuffer.Release(); vertexbuffer = null; }
+          if (indexbuffer != null) { indexbuffer.Release(); indexbuffer = null; }
+          if (Materials == null) return;
+          for (int i = 0; i < Materials.Length; i++)
+          {
+            ref var m = ref Materials[i];
+            if (m.texture != null) { m.texture.Release(); m.texture = null; }
+          }
+          return;
+        }
+        int nv = Mesh.VertexCount, ni = Mesh.IndexCount;
+        if (Materials == null) Materials = new Material[] { new Material { Color = 0xffa0a0a0 } };
+        if (Materials.Length == 1) { ref var p = ref Materials[0]; p.StartIndex = 0; p.IndexCount = ni; }
+        else { } //todo: ...
+        if (mgen == Mesh.Generation) return; mgen = Mesh.Generation;
+        var vv = (double3*)StackPtr; StackPtr += nv * sizeof(double3);
+        var ii = (int*)StackPtr; StackPtr += ni * sizeof(int);
+        Mesh.CopyBuffer(0, 0, new Variant(&vv->x, 3, nv));
+        Mesh.CopyBuffer(1, 0, new Variant(ii, 1, ni));
+        for (int i = 0; i < ni; i++) ((ushort*)ii)[i] = (ushort)ii[i];
+        for (int i = 0; i < Materials.Length; i++)
+        {
+          ref var m = ref Materials[i];
+          if (m.Texture != null && m.texture == null) m.texture = GetTexture(m.Texture);
+        }
+        if (Texcoords != null) fixed (float2* tt = Texcoords) GetMesh(ref vertexbuffer, ref indexbuffer, vv, nv, (ushort*)ii, ni, 0.3f, tt, 2);
+        else GetMesh(ref vertexbuffer, ref indexbuffer, vv, nv, (ushort*)ii, ni, 0.3f);
+        StackPtr = (byte*)vv; 
+      }
     }
   }
+
+
+  //static void unscale(List<Node> nodes, Node parent)
+  //{
+  //  for (int i = 0; i < nodes.Count; i++)
+  //  {
+  //    var p = nodes[i]; if (p.Parent != parent) continue;
+  //    var lsq = p.Transform.mx.LengthSq;
+  //    if (lsq != 1)
+  //    {
+  //      var s = (Rational)(decimal)Math.Sqrt((double)lsq);
+  //      p.Transform = Rational.Matrix.Scaling(1 / s) * p.Transform;
+  //      if (p.StartIndex == 0) p.Mesh?.Transform(s);
+  //      for (int t = 0; t < nodes.Count; t++)
+  //        if (nodes[t].Parent == p)
+  //          nodes[t].Transform = nodes[t].Transform * Rational.Matrix.Scaling(s);
+  //    }
+  //    unscale(nodes, p);
+  //  }
+  //}
+  //internal static float3box getboxest(IEnumerable<Node> nodes, Node root = null)
+  //{
+  //  float3box box; boxempty((float3*)&box);
+  //  foreach (var p in nodes)
+  //  {
+  //    if (p.Mesh == null) continue;
+  //    var m = (float3x4)p.Transform; for (var t = p.Parent; t != root; t = t.Parent) m *= (float3x4)t.Transform;
+  //    foreach (var v in p.Mesh.VerticesF3()) boxadd(&v, &m, &box.min);
+  //  }
+  //  return box;
+  //}
+
 }

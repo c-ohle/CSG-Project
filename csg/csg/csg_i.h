@@ -773,6 +773,9 @@ EXTERN_C const IID IID_ICSGMesh;
             /* [in] */ CSG_MESH_CHECK check,
             /* [out] */ CSG_MESH_CHECK *p) = 0;
         
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Generation( 
+            /* [retval][out] */ UINT *p) = 0;
+        
     };
     
     
@@ -868,6 +871,10 @@ EXTERN_C const IID IID_ICSGMesh;
             /* [in] */ CSG_MESH_CHECK check,
             /* [out] */ CSG_MESH_CHECK *p);
         
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Generation )( 
+            ICSGMesh * This,
+            /* [retval][out] */ UINT *p);
+        
         END_INTERFACE
     } ICSGMeshVtbl;
 
@@ -938,6 +945,9 @@ EXTERN_C const IID IID_ICSGMesh;
 
 #define ICSGMesh_Check(This,check,p)	\
     ( (This)->lpVtbl -> Check(This,check,p) ) 
+
+#define ICSGMesh_get_Generation(This,p)	\
+    ( (This)->lpVtbl -> get_Generation(This,p) ) 
 
 #endif /* COBJMACROS */
 

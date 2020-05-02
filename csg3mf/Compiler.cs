@@ -4441,11 +4441,10 @@ namespace csg3mf
         case 0: return data; //IsDynamic
         case 1: data = p as object[]; break; //to overwrite notify 
         case 2: return ToString(); //to overwrite ScriptEditor Title
-        case 3: if(this.AutoStop) sp = null; Invoke("."); break; //to overwrite onstart
+        case 3: if(this.Invoke(5,null)!=null) sp = null; Invoke("."); break; //to overwrite onstart
         case 4: Invoke("Dispose"); break; //to overwrite onstop
-        case 5: break; //onactivate
-        case 6: break; //ondeactivate
-        case 7: break; //addundo
+        //case 5: return null; //AutoStop
+        //case 6: return null; //Step
       }
       return null;
     }
@@ -4463,7 +4462,6 @@ namespace csg3mf
     {
       if (GetMethod(name) is Action<Neuron> m) m(this);
     }
-    internal bool AutoStop = true;
     #region Debug support
     public static Action<Neuron, Exception> Debugger; //todo: make private, possible with new exception handling
     [ThreadStatic]

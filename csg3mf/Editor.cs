@@ -13,6 +13,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -1050,6 +1051,76 @@ namespace csg3mf
     }
   }
 
+  class XmlEditor : CodeEditor
+  {
+    static Regex par0 = new Regex("<\\??/?\\s*([a-z0-9_\\.\\-]*)\\s*(.*?)/?\\??>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    static Regex par1 = new Regex("([a-z0-9_\\.\\-]*)\\s*=\\s*\"(.*?)\"", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    static Regex par2 = new Regex("<!--(.*?)-->", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    void color(Capture p, byte c) { for (int i = 0; i < p.Length; i++) charcolor[p.Index + i] = c; }
+    protected override void UpdateSyntaxColors()
+    {
+      if (colormap == null) colormap = new int[] { 0, 0xff0000, 0x000088, 0x0000ff, 0xff0000, 0x007000 };
+      int n = text.Length; Array.Resize(ref charcolor, n + 1);
+      for (var i = 0; i < n; i++) charcolor[i] = 0;
+      for (var t = par0.Match(text); t.Success; t = t.NextMatch())
+      {
+        color(t.Groups[0], 1); color(t.Groups[1], 2);
+        for (var x = par1.Match(text, t.Groups[2].Index, t.Groups[2].Length); x.Success; x = x.NextMatch())
+        {
+          color(x.Groups[1], 3); var p = x.Groups[2]; charcolor[p.Index - 1] = charcolor[p.Index + p.Length] = 0;
+        }
+      }
+      for (var t = par2.Match(text); t.Success; t = t.NextMatch()) { color(t.Groups[0], 1); color(t.Groups[1], 5); }
+    }
+    protected override int GetRange(int x)
+    {
+      bool intag = false, para = false, endtag = false; char lastchar = (char)0;
+      for (int i = x, level = 0, n = text.Length; i < n; i++)
+      {
+        var c = text[i];
+        if (c == '\n' && lastchar == (char)0) return 0;
+        if (c <= ' ') continue;
+        if (!intag)
+        {
+          if (c == '<' && (i + 1 >= n || text[i + 1] != '!')) { intag = true; endtag = false; lastchar = ' '; }
+          continue;
+        }
+        if (c == '"') { para ^= true; continue; }
+        if (para) continue;
+        if (c == '>')
+        {
+          if (lastchar != '/')
+          {
+            if (endtag) level--; else level++;
+          }
+          if (level == 0) return i + 1;
+          if (level < 0) return 0;
+          intag = false;
+          continue;
+        }
+        if (lastchar == ' ' && c == '/') endtag = true;
+        lastchar = c;
+      }
+      return 0;
+    }
+    protected override void OnHandleCreated(EventArgs e)
+    {
+      //base.EditText = ((Entity)this.Tag).Save().ToString().Replace("\r", string.Empty);
+      base.OnHandleCreated(e);
+    }
+    public override int OnCommand(int id, object test)
+    {
+      //switch (id)
+      //{
+      //  case 0250: // GetPropList
+      //    { var list = (System.Collections.IList)test; list.Add(this.Tag); }
+      //    return 1;
+      //  case 0010: return OnContextMenu((System.Collections.IList)test);
+      //}
+      return base.OnCommand(id, test);
+    }
+  }
+
   class NeuronEditor : CodeEditor
   {
     Neuron neuron; Compiler compiler;
@@ -1074,8 +1145,8 @@ namespace csg3mf
       try { neuron.Invoke(3, null); }
       catch (DebugStop) { editor?.stop(); return; }
       catch (Exception e) { MessageBox.Show(e.ToString()); }
-      if (neuron.AutoStop) editor?.onstop(null);
-    }
+      if (neuron.Invoke(5, null) != null) { neuron.Invoke(6, 0); editor?.onstop(null); }
+      }
     protected override void UpdateSyntaxColors()
     {
       if (colormap == null) colormap = new int[] { 0, 0x00007000, 0x00000088, 0x00ff0000, 0x11463a96, 0x2200ddff, 0x00af912b, 0x000000ff };
@@ -1353,7 +1424,7 @@ namespace csg3mf
     }
     void askstop()
     {
-      if (state == 7 && !neuron.AutoStop) return;
+      if (state == 7 && !(neuron.Invoke(5, null) != null)) return;
       if (MessageBox.Show(this, "Stop execution to edit?", Parent.Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
       onstop(null); return;
     }
@@ -1438,7 +1509,7 @@ namespace csg3mf
     }
     internal unsafe void Show(Exception e)
     {
-      if (Neuron.state != 7 && e == null) return;
+      if (Neuron.state != 7 && e == null) return; neuron.Invoke(6, e);
       spots[ibreak = Neuron.dbgpos].v |= 2; threadstack = (IntPtr)Neuron.stack; Refresh();
       Select(spots[ibreak].i); ScrollVisible(); //stacktrace();
       if (e != null) MessageBox.Show(this, e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -1511,7 +1582,7 @@ namespace csg3mf
     int onstop(object test)
     {
       if (!isrunning() && !ReadOnly) return 0;
-      if (state == 7 && !neuron.AutoStop) return 0;
+      if (state == 7 && !(neuron.Invoke(5, null) != null)) return 0;
       if (test != null) return 1;
       if (state == 7) throw new DebugStop();
       stop(); return 1;
@@ -2001,11 +2072,11 @@ namespace csg3mf
       var form = new Form
       {
         Text = string.Format($"{ParentForm.Text} - {"ILCode"}"),
-        Icon = ParentForm.Icon,
+        //Icon = ParentForm.Icon,
         StartPosition = FormStartPosition.Manual,
         Location = Parent.Location + new Size(32, 64),
         Size = Parent.Size, //Width = Width * 2 / 3, Height = Height * 2 / 3, 
-        ShowInTaskbar = false
+        ShowInTaskbar = false, ShowIcon = false
       };
       var edit = new CodeEditor { Dock = DockStyle.Fill, EditText = compiler._trace_.ToString(), ReadOnly = true };
       form.Controls.Add(edit);
