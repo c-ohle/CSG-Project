@@ -78,7 +78,7 @@ namespace csg3mf
           new MenuItem(5027, "Goto &Definition", Keys.F12 )
         ),
         new MenuItem("&Script",
-          new MenuItem(5011, "&Run Release", Keys.F5|Keys.Control ),
+          new MenuItem(5011, "&Run", Keys.F5|Keys.Control ),
           new ToolStripSeparator(),
           new MenuItem(5010, "Run &Debug", Keys.F5 ),
           new MenuItem(5016, "Ste&p", Keys.F10 ),

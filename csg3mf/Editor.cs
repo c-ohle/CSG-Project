@@ -1701,18 +1701,10 @@ namespace csg3mf
         }
         else ta = this.neuron;
         if (ta == null) return null;
-        //if (pi != null) return rt.IsAssignableFrom(ta.GetType()) || ta.GetType().IsCOMObject ? Tuple.Create(pi.GetValue(ta, null), (object)pi.PropertyType) : null;
-        //if (fi != null) return rt.IsAssignableFrom(ta.GetType()) ? Tuple.Create(fi.GetValue(ta), (object)fi.FieldType) : null;
-        if (pi != null)
-        {
-          if (pi.PropertyType != ta.GetType()) return null;
-          return Tuple.Create(pi.GetValue(ta, null), (object)pi.PropertyType);
-        }
-        if (fi != null)
-        {
-          if (fi.FieldType != ta.GetType()) return null;
-          return Tuple.Create(fi.GetValue(ta), (object)fi.FieldType);
-        }
+        if (pi != null) return rt.IsAssignableFrom(ta.GetType()) || ta.GetType().IsCOMObject ? Tuple.Create(pi.GetValue(ta, null), (object)pi.PropertyType) : null;
+        if (fi != null) return rt.IsAssignableFrom(ta.GetType()) ? Tuple.Create(fi.GetValue(ta), (object)fi.FieldType) : null;
+        //if (pi != null) return Tuple.Create(pi.GetValue(ta, null), (object)pi.PropertyType); 
+        //if (fi != null) return Tuple.Create(fi.GetValue(ta), (object)fi.FieldType);
       }
       if (v == 4 || v == 5)
       {
