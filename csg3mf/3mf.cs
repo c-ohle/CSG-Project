@@ -1,56 +1,53 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 using static csg3mf.CSG;
 using static csg3mf.Viewer.D3DView;
 
 namespace csg3mf
 {
-  public unsafe class NodeList : Neuron, IEnumerable<NodeList.Node>
+  public unsafe class Container : Neuron
   {
     public readonly List<Node> Nodes = new List<Node>();
     public readonly List<string> Infos = new List<string>();
-    public int Count => Nodes.Count;
-    public Node this[int i] { get => Nodes[i]; set => Nodes[i] = value; }
-    public void Add(Node p) => Nodes.Add(p);
-    public void RemoveRange(int i, int n) => Nodes.RemoveRange(i, n);
-    IEnumerator<Node> IEnumerable<Node>.GetEnumerator() => Nodes.GetEnumerator();
-    IEnumerator IEnumerable.GetEnumerator() => Nodes.GetEnumerator();
-
-    internal static NodeList Import3MF(string path, out string script)
+    public Unit BaseUnit;
+    public Action OnUpdate;
+    public enum Unit { meter, micron, millimeter, centimeter, inch, foot }
+    public static Container Import3MF(string path, out string script)
     {
       using (var package = System.IO.Packaging.Package.Open(path))
       {
         var xml = package.GetPart(new Uri("/3D/3dmodel.model", UriKind.Relative));
         XDocument doc; using (var str = xml.GetStream()) doc = XDocument.Load(str); //doc.Save("C:\\Users\\cohle\\Desktop\\test1.xml");
         var model = doc.Root; var ns = model.Name.Namespace;
-        var unit = (string)model.Attribute("unit");
-        var scale = unit == "micron" ? 0.000001m : unit == "millimeter" ? 0.001m : unit == "centimeter" ? 0.01m : unit == "inch" ? 0.0254m : unit == "foot" ? 0.3048m : 1;
+        var cont = new Container();
+        switch ((string)model.Attribute("unit"))
+        {
+          case "default:": cont.BaseUnit = Unit.meter; break;
+          case "micron": cont.BaseUnit = Unit.micron; break;
+          case "millimeter": cont.BaseUnit = Unit.millimeter; break;
+          case "centimeter": cont.BaseUnit = Unit.centimeter; break;
+          case "inch": cont.BaseUnit = Unit.inch; break;
+          case "foot": cont.BaseUnit = Unit.foot; break;
+        }
+        //cont.BaseUnit = unit == "micron" ? 0.000001m : unit == "millimeter" ? 0.001m : unit == "centimeter" ? 0.01m : unit == "inch" ? 0.0254m : unit == "foot" ? 0.3048m : 1;
         var res = model.Element(ns + "resources");
         var build = model.Element(ns + "build");
-        var nodes = new NodeList();
-        var root = new Node(); nodes.Add(root);
-        root.Transform[0u] = root.Transform[4u] = root.Transform[8u] = scale; //root.Transform = Rational.Matrix.Scaling(scale); 
-        foreach (var p in build.Elements(ns + "item").Select(item => convert(item))) { p.Parent = root; nodes.Add(p); }
+        foreach (var p in build.Elements(ns + "item").Select(item => convert(item))) cont.Nodes.Add(p);
         /////////////
-        if (nodes.Count > 1 && dot(((float3x4)nodes[1].Transform)[0]) > 10) //curiosity bug fix
-          foreach (var p in nodes) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
+        if (cont.Nodes.Count != 0 && dot(((float3x4)cont.Nodes[0].Transform)[0]) > 10) //curiosity bug fix
+          foreach (var p in cont.Nodes) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
         /////////////
         var uri = new Uri("/Metadata/csg.cs", UriKind.Relative);
-        if (!package.PartExists(uri)) { script = null; return nodes; }
+        if (!package.PartExists(uri)) { script = null; return cont; }
         using (var str = package.GetPart(uri).GetStream())
         using (var sr = new StreamReader(str)) script = sr.ReadToEnd();
-        return nodes;
+        return cont;
         Node convert(XElement e)
         {
           var oid = (string)e.Attribute("objectid");
@@ -61,7 +58,7 @@ namespace csg3mf
           var tra = (string)e.Attribute("transform");
           if (tra != null) fixed (char* p = tra) node.Transform.SetValues(new Variant(p, 12));
           var cmp = obj.Element(ns + "components");
-          if (cmp != null) foreach (var p in cmp.Elements(ns + "component").Select(item => convert(item))) { p.Parent = node; nodes.Add(p); }
+          if (cmp != null) foreach (var p in cmp.Elements(ns + "component").Select(item => convert(item))) { p.Parent = node; cont.Nodes.Add(p); }
           if (mesh == null) return node;
           var mid = (string)obj.Attribute("materialid"); var color = 0xffffffff;
           if (mid != null) //2013/01
@@ -143,13 +140,13 @@ namespace csg3mf
         };
       }
     }
-    internal XElement Export3MF(string path, Bitmap prev, string script)
+    public XElement Export3MF(string path, Bitmap prev, string script)
     {
       var ns = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/core/2015/02";
       var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
       var doc = new XElement(ns + "model");
       doc.Add(new XAttribute(XNamespace.Xml + "lang", "en-US"));
-      doc.SetAttributeValue("unit", "meter");
+      doc.SetAttributeValue("unit", BaseUnit.ToString());
       doc.Add(new XAttribute(XNamespace.Xmlns + "m", ms.NamespaceName));
       var resources = new XElement(ns + "resources"); doc.Add(resources);
       var build = new XElement(ns + "build"); doc.Add(build);
@@ -161,7 +158,7 @@ namespace csg3mf
       {
         var obj = new XElement(ns + "object"); obj.SetAttributeValue("id", 0);
         if (group.Name != null) obj.SetAttributeValue("name", group.Name);
-        var desc = nodes.Where(p => p.Parent == group);
+        var desc = nodes.Nodes.Where(p => p.Parent == group);
         var components = desc.Any() ? new XElement(ns + "components") : null;
         if (group.Mesh != null)
         {
@@ -244,7 +241,7 @@ namespace csg3mf
         item.SetAttributeValue("transform", new string(ss));
         dest.Add(item);
       };
-      foreach (var group in nodes.Where(p => p.Parent == nodes[0])) add(group, build);
+      foreach (var group in nodes.Nodes.Where(p => p.Parent == null)) add(group, build);
       if (path == null) return doc;//doc.Save("C:\\Users\\cohle\\Desktop\\test2.xml");
       var memstr = new MemoryStream();
       using (var package = System.IO.Packaging.Package.Open(memstr, FileMode.Create))
@@ -264,7 +261,7 @@ namespace csg3mf
           using (var str = packpng.GetStream()) prev.Save(str, System.Drawing.Imaging.ImageFormat.Png);
           package.CreateRelationship(packpng.Uri, System.IO.Packaging.TargetMode.Internal, "http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail", "rel1");
         }
-        if (script != null)
+        if (!string.IsNullOrEmpty(script))
         {
           var packpng = package.CreatePart(new Uri("/Metadata/csg.cs", UriKind.Relative), System.Net.Mime.MediaTypeNames.Text.Plain);
           using (var str = packpng.GetStream()) using (var sw = new StreamWriter(str)) sw.Write(script);
@@ -273,7 +270,6 @@ namespace csg3mf
       File.WriteAllBytes(path, memstr.ToArray()); return null;
     }
 
-    internal Action OnUpdate;
     public override object Invoke(int id, object p)
     {
       if (id == 5) return this; //AutoStop
@@ -282,16 +278,18 @@ namespace csg3mf
     }
     internal void update()
     {
-      for (int i = 0; i < Nodes.Count; i++)
-      {
-        var p = Nodes[i]; if (p.Parent == null && i != 0) p.Parent = Nodes[0];
-        p.update();
-      }
+      for (int i = 0; i < Nodes.Count; i++) Nodes[i].update();
     }
 
     public class Node
     {
       public Node() { Transform = Rational.Matrix.Identity(); }
+      public Node(string name) : this() { Name = name; }
+      public Node(string name, uint color) : this(name)
+      {
+        Mesh = Factory.CreateMesh();
+        Materials = new Material[] { new Material { Color = color } };
+      }
       public Node Parent;
       public string Name;
       public Rational.Matrix Transform;
@@ -305,13 +303,30 @@ namespace csg3mf
         public byte[] Texture;
         public Texture texture;
       }
+      public void Cut(Node b)
+      {
+        if (Mesh == null) return;
+        var t = b.Transform; 
+        Tesselator.Cut(Mesh, Rational.Plane.FromPointNormal(t.mp, t.mz));
+      }
+      public void Join(Node b, JoinOp op)
+      {
+        if (Mesh == null || b.Mesh == null) return;
+        var m = b.Mesh.Clone(); m.Transform(b.Transform * !Transform);
+        Tesselator.Join(Mesh, m, op);
+        Marshal.ReleaseComObject(m);
+      }
+      public void Union(Node b) => Join(b, JoinOp.Union);
+      public void Difference(Node b) => Join(b, JoinOp.Difference);
+      public void Intersection(Node b) => Join(b, JoinOp.Intersection);
+      
       internal float3x4 transform;
       internal VertexBuffer vertexbuffer; uint mgen;
       internal IndexBuffer indexbuffer;
       internal float3x4 gettrans(Node rel = null)
       {
         var m = transform;
-        for (var p = Parent; p != rel && p.Parent != null; p = p.Parent) m *= p.transform; return m;
+        for (var p = Parent; p != rel; p = p.Parent) m *= p.transform; return m;
       }
       internal void getbox(in float3x4 m, float3* box, float2* ab = null)
       {
@@ -346,11 +361,11 @@ namespace csg3mf
           }
           return;
         }
+        if (mgen == Mesh.Generation) return; mgen = Mesh.Generation;
         int nv = Mesh.VertexCount, ni = Mesh.IndexCount;
-        if (Materials == null) Materials = new Material[] { new Material { Color = 0xffa0a0a0 } };
+        if (Materials == null || Materials.Length == 0) Materials = new Material[] { new Material { Color = 0xffa0a0a0 } };
         if (Materials.Length == 1) { ref var p = ref Materials[0]; p.StartIndex = 0; p.IndexCount = ni; }
         else { } //todo: ...
-        if (mgen == Mesh.Generation) return; mgen = Mesh.Generation;
         var vv = (double3*)StackPtr; StackPtr += nv * sizeof(double3);
         var ii = (int*)StackPtr; StackPtr += ni * sizeof(int);
         Mesh.CopyBuffer(0, 0, new Variant(&vv->x, 3, nv));
@@ -363,40 +378,8 @@ namespace csg3mf
         }
         if (Texcoords != null) fixed (float2* tt = Texcoords) GetMesh(ref vertexbuffer, ref indexbuffer, vv, nv, (ushort*)ii, ni, 0.3f, tt, 2);
         else GetMesh(ref vertexbuffer, ref indexbuffer, vv, nv, (ushort*)ii, ni, 0.3f);
-        StackPtr = (byte*)vv; 
+        StackPtr = (byte*)vv;
       }
     }
   }
-
-
-  //static void unscale(List<Node> nodes, Node parent)
-  //{
-  //  for (int i = 0; i < nodes.Count; i++)
-  //  {
-  //    var p = nodes[i]; if (p.Parent != parent) continue;
-  //    var lsq = p.Transform.mx.LengthSq;
-  //    if (lsq != 1)
-  //    {
-  //      var s = (Rational)(decimal)Math.Sqrt((double)lsq);
-  //      p.Transform = Rational.Matrix.Scaling(1 / s) * p.Transform;
-  //      if (p.StartIndex == 0) p.Mesh?.Transform(s);
-  //      for (int t = 0; t < nodes.Count; t++)
-  //        if (nodes[t].Parent == p)
-  //          nodes[t].Transform = nodes[t].Transform * Rational.Matrix.Scaling(s);
-  //    }
-  //    unscale(nodes, p);
-  //  }
-  //}
-  //internal static float3box getboxest(IEnumerable<Node> nodes, Node root = null)
-  //{
-  //  float3box box; boxempty((float3*)&box);
-  //  foreach (var p in nodes)
-  //  {
-  //    if (p.Mesh == null) continue;
-  //    var m = (float3x4)p.Transform; for (var t = p.Parent; t != root; t = t.Parent) m *= (float3x4)t.Transform;
-  //    foreach (var v in p.Mesh.VerticesF3()) boxadd(&v, &m, &box.min);
-  //  }
-  //  return box;
-  //}
-
 }

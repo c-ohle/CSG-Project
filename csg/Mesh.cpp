@@ -5,7 +5,7 @@
 
 HRESULT CTesselatorRat::Update(ICSGMesh* mesh, CSGVAR v, UINT flags)
 {
-  auto& m = *static_cast<CMesh*>(mesh); m.resetee(); bool inv = false;
+  auto& m = *static_cast<CMesh*>(mesh); m.resetee(); m.rtgen = getrtid(); bool inv = false;
   UINT mo = (flags >> 16) & 0x0f, nn = nl != 0 ? max(1, flags & 0x0000ffff) : 0, nb = ns ? nn : nn + 1, nt = np;
   if (mo & 3)
   {
@@ -86,7 +86,7 @@ HRESULT CTesselatorRat::Update(ICSGMesh* mesh, CSGVAR v, UINT flags)
 
 HRESULT CTesselatorDbl::Update(ICSGMesh* mesh, CSGVAR v, UINT flags)
 {
-  auto& m = *static_cast<CMesh*>(mesh); m.resetee(); bool inv = false;
+  auto& m = *static_cast<CMesh*>(mesh); m.resetee(); m.rtgen = getrtid(); bool inv = false;
   UINT mo = (flags >> 16) & 0x0f, nn = nl != 0 ? max(1, flags & 0x0000ffff) : 0, nb = ns ? nn : nn + 1, nt = np;
   if (mo & 3)
   {

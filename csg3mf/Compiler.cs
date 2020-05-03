@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
@@ -12,7 +11,6 @@ using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 
 namespace csg3mf
@@ -411,12 +409,14 @@ namespace csg3mf
       //    {
       //      type = (Type)pmap[j]; typeid = vmap[j] & ~0x80; break;
       //    }
-      if (type == null && usingst.Count != 0)
+
+      if (type == null)
       {
         var ss = token.ToString();
-        for (int i = usingst.Count - 1; i >= 0; i--)
-          if ((type = usingst[i].GetNestedType(ss)) != null)
-            break;
+        if ((type = @this.GetNestedType(ss)) == null)
+          for (int i = usingst.Count - 1; i >= 0; i--)
+            if ((type = usingst[i].GetNestedType(ss)) != null)
+              break;
       }
       if (type == null)
       {
@@ -4441,10 +4441,10 @@ namespace csg3mf
         case 0: return data; //IsDynamic
         case 1: data = p as object[]; break; //to overwrite notify 
         case 2: return ToString(); //to overwrite ScriptEditor Title
-        case 3: if(this.Invoke(5,null)!=null) sp = null; Invoke("."); break; //to overwrite onstart
+        case 3: if (this.Invoke(5, null) != null) sp = null; Invoke("."); break; //to overwrite onstart
         case 4: Invoke("Dispose"); break; //to overwrite onstop
-        //case 5: return null; //AutoStop
-        //case 6: return null; //Step
+                                          //case 5: return null; //AutoStop
+                                          //case 6: return null; //Step
       }
       return null;
     }

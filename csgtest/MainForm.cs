@@ -20,17 +20,19 @@ namespace csgtest
 
       var ca1 = new CheckBox() { Text = "Correct T-Junctions", Location = new Point(32, 380), Width = 500, Checked = GLU.Tesselator.correctTJunctions };
       this.Controls.Add(ca1); ca1.Click += (p, e) => { GLU.Tesselator.correctTJunctions = ca1.Checked; min1 = long.MaxValue; Invalidate(); };
-      var ca2 = new CheckBox() { Text = "Outlines", Location = new Point(32, 380 + 24), Width = 500, Checked = gluoutlines };
+      var ca2 = new CheckBox() { Text = "Outlines", Location = new Point(32, 380 + 1*24), Width = 500, Checked = gluoutlines };
       this.Controls.Add(ca2); ca2.Click += (p, e) => { gluoutlines = ca2.Checked; min1 = long.MaxValue; Invalidate(); };
+      var ca3 = new CheckBox() { Text = "Delaunay optimization (not implement)", Location = new Point(32, 380 + 2*24), Width = 500, Enabled = false};
+      this.Controls.Add(ca3);
 
-      var cb2 = new CheckBox() { Text = "Delaunay optimized", Location = new Point(32 + 500 + 32, 380), Width = 500, Checked = delauny };
-      this.Controls.Add(cb2); cb2.Click += (p, e) => { delauny = cb2.Checked; min2 = long.MaxValue; Invalidate(); };
+      var cb1 = new CheckBox() { Text = "Correct T-Junctions (inclusive, algorithm does not produce T-Junctions)", Location = new Point(32 + 500 + 32, 380), Width = 500, Checked = true, Enabled = false };
+      this.Controls.Add(cb1);
       var cb3 = new CheckBox() { Text = "Outlines", Location = new Point(32 + 500 + 32, 380 + 1 * 24), Width = 500, Checked = outlines };
       this.Controls.Add(cb3); cb3.Click += (p, e) => { outlines = cb3.Checked; min2 = long.MaxValue; Invalidate(); };
-      //var cb4 = new CheckBox() { Text = "Rational", Location = new Point(32 + 500 + 32, 380 + 2 * 24), Width = 500 };
+      var cb2 = new CheckBox() { Text = "Delaunay optimization", Location = new Point(32 + 500 + 32, 380 + 2 * 24), Width = 500, Checked = delauny };
+      this.Controls.Add(cb2); cb2.Click += (p, e) => { delauny = cb2.Checked; min2 = long.MaxValue; Invalidate(); };
+      //var cb4 = new CheckBox() { Text = "Rational", Location = new Point(32 + 500 + 32, 380 + 3 * 24), Width = 500 };
       //this.Controls.Add(cb4); cb4.Click += (p, e) => { csgtess = CSG.Factory.CreateTessalator(cb4.Checked ? CSG.Unit.Rational : CSG.Unit.Double); min2 = long.MaxValue; Invalidate(); };
-      var cb5 = new Button() { Text = "CSG Demo...", Location = new Point(32 + 500 + 32, 380 + 3 * 24), Width = 150 };
-      this.Controls.Add(cb5); cb5.Click += (p, e) => new TestCSGForm().ShowDialog(this); 
     }
 
     static PointF[] polygon = new PointF[3];
@@ -96,7 +98,7 @@ namespace csgtest
       gr.Transform = mat2;
       {
         var tess = csgtess; var ver = CSG.Factory.Version;
-        gr.DrawString($"CSG Tesselator {((ver & 0x100) != 0 ? "Debug" : "Release")} Build", SystemFonts.MenuFont, Brushes.Black, new PointF(0, -25));
+        gr.DrawString($"CSG Tesselator {((ver & 0x100) != 0 ? "(in Debug!)" : "")}", SystemFonts.MenuFont, Brushes.Black, new PointF(0, -25));
         tess.Mode = CSG.Mode.Positive | (delauny ? CSG.Mode.Fill : CSG.Mode.FillFast) | (outlines ? CSG.Mode.Outline : 0) | CSG.Mode.NoTrim;
         sw.Restart();
         demo1(tess);

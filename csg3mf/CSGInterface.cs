@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
@@ -14,6 +15,7 @@ namespace csg3mf
     //public static readonly IFactory Factory = (IFactory)new CFactory(); //alternative from registry
     public static ITesselator Tesselator => tess ?? (tess = Factory.CreateTessalator(Unit.Rational));
     [ThreadStatic] static ITesselator tess;
+    
     [ComImport, Guid("54ca8e82-bdb3-41db-8ed5-3b890279c431")]
     public class CFactory { }
 
@@ -380,16 +382,17 @@ namespace csg3mf
   {
     public static T CreateInstance<T>(string path, in Guid clsid)
     {
-      var t1 = GetProcAddress(LoadLibrary(path), "DllGetClassObject");
-      var t2 = Marshal.GetDelegateForFunctionPointer<DllGetClassObject>(t1);
-      t2(clsid, typeof(IClassFactory).GUID, out var cf);
+      var t1 = LoadLibrary(path); if (t1 == IntPtr.Zero) throw new FileNotFoundException(path);
+      var t2 = GetProcAddress(t1, "DllGetClassObject");
+      var t3 = Marshal.GetDelegateForFunctionPointer<DllGetClassObject>(t2);
+      t3(clsid, typeof(IClassFactory).GUID, out var cf);
       return (T)cf.CreateInstance(IntPtr.Zero, typeof(T).GUID);
     }
-    [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Ansi), SuppressUnmanagedCodeSecurity]
-    static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)]string lpFileName);
-    [DllImport("kernel32", CharSet = CharSet.Ansi, ExactSpelling = true, SetLastError = true), SuppressUnmanagedCodeSecurity]
-    static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
-    delegate int DllGetClassObject(in Guid clsid, in Guid iid, [Out, MarshalAs(UnmanagedType.Interface)] out IClassFactory classFactory);
+    [DllImport("kernel32.dll"), SuppressUnmanagedCodeSecurity]
+    static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)] string s);
+    [DllImport("kernel32.dll"), SuppressUnmanagedCodeSecurity]
+    static extern IntPtr GetProcAddress(IntPtr h, string s);
+    delegate int DllGetClassObject(in Guid clsid, in Guid iid, [Out, MarshalAs(UnmanagedType.Interface)] out IClassFactory p);
     [ComImport, Guid("00000001-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     interface IClassFactory {[return: MarshalAs(UnmanagedType.IUnknown)] object CreateInstance(IntPtr _, ref Guid clsid); }
     [ComImport, Guid("0000000c-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
@@ -409,7 +412,7 @@ namespace csg3mf
     static bool ndebug()
     {
       if (!Debugger.IsAttached) return false;
-      var e = XElement.Load("..\\csg3mf\\csg3mf.csproj.user");
+      var e = XElement.Load(Directory.EnumerateFiles("..\\", Process.GetCurrentProcess().ProcessName + ".csproj.user", SearchOption.AllDirectories).FirstOrDefault());
       return e.Descendants(e.Name.Namespace + "EnableUnmanagedDebugging").First().Value == "true";
     }
 #endif
