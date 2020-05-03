@@ -27,6 +27,7 @@ namespace csg3mf
       Native.SetProcessDPIAware();
       Application.EnableVisualStyles();
       Application.SetCompatibleTextRenderingDefault(false);
+      Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
       Application.Run(new MainFram());
     }
   }
@@ -196,7 +197,7 @@ namespace csg3mf
       Neuron.Debugger = (p, v) => this.edit.Show(v);
       view.cont.update();
       view.setcamera(); view.Invalidate();
-      view.cont.OnUpdate = () => view.Invalidate();
+      view.cont.OnUpdate = view.onstep;
       if (view.IsHandleCreated) view.OnCenter(null);
       this.path = path; UpdateTitle(); if (path != null) mru(path, path);
     }
@@ -303,7 +304,7 @@ namespace csg3mf
     }
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-      if (e.Cancel = !AskSave()) return; edit.appexit(this);
+      if (e.Cancel = !AskSave()) return; view.Timer = null; edit.appexit(this);
       var reg = Application.UserAppDataRegistry;
       reg.SetValue("lwp", getrestore(), Microsoft.Win32.RegistryValueKind.QWord);
       if (path != null) reg.SetValue("lod", path); else reg.DeleteValue("lod", false);
@@ -473,7 +474,7 @@ namespace csg3mf
         s = Adapter; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
         s = $"{GetFPS()} fps"; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
         s = $"{DpiScale * 96} dpi"; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
-        s = (CSG.Factory.Version & 0x100) != 0 ? "Debug" : "Release"; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
+        if ((CSG.Factory.Version & 0x100) != 0) { s = "Debug"; dc.DrawText(x - dc.Measure(s), y, s); y += dy; }
       }
       protected override int OnDispatch(int id, ISelector pc)
       {
@@ -527,7 +528,7 @@ namespace csg3mf
       }
       internal int OnCenter(object test)
       {
-        if (!cont.Nodes.Any(p => p.vertexbuffer != null)) return 0;
+        if (!cont.Nodes.Any(p => p.indexbuffer != null && p.indexbuffer.count != 0)) return 0;
         if (test != null) return 1;
         var r = center(cont.Nodes, (float2)ClientSize / DpiScale - new float2(32, 32), vscale, camera);
         z1 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z1)) - 1);
@@ -629,6 +630,20 @@ namespace csg3mf
             }
           }
         });
+      }
+      internal void onstep()
+      {
+        Invalidate();
+        var r = center(cont.Nodes, (float2)ClientSize / DpiScale - new float2(100, 100), vscale, camera);
+        if (r.z1 == r.z2 || camera == r.cm) return;
+        z1 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z1)) - 1);
+        z2 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z2)) + 2); minwz = r.wb.min.z;
+        var ab = camera; float f = 0; this.Timer += ani;//camera = r.cm;
+        void ani()
+        {
+          f = Math.Min(1, f + 0.01f); var t = f == 1 ? f : (float)(f <= 0.5f ? Math.Pow(f * 2, 3) : 2 - Math.Pow((1 - f) * 2, 3)) * 0.5f;
+          camera[3] = ab[3] * (1 - t) + r.cm[3] * t; Invalidate(); if (f == 1) Timer -= ani;
+        }
       }
     }
   }

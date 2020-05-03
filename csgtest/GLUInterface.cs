@@ -185,7 +185,7 @@ namespace csgtest
         this.ni = t;
       }
 
-      void CSG.ITesselator.GetVertex(int i, ref CSG.Variant p) => throw new NotImplementedException();
+      void CSG.ITesselator.GetVertex(int i, CSG.Variant p) => throw new NotImplementedException();
       void CSG.ITesselator.Update(CSG.IMesh mesh, CSG.Variant z, int flags) => throw new NotImplementedException();
       void CSG.ITesselator.Cut(CSG.IMesh a, CSG.Variant plane) => throw new NotImplementedException();
       void CSG.ITesselator.Join(CSG.IMesh a, CSG.IMesh b, CSG.JoinOp op) => throw new NotImplementedException();

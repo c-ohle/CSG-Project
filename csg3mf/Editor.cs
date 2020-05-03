@@ -34,7 +34,7 @@ namespace csg3mf
     static int charwidth;
     static int linehight;
     static int sidedx, sidedu;
-    protected String text = string.Empty;
+    protected string text = string.Empty;
     protected byte[] lineflags;
     protected byte[] charcolor;
     protected int[] colormap;
@@ -814,18 +814,21 @@ namespace csg3mf
           }
           break;
         case Keys.Up:
-          {
-            Point P = rcaret.Location; P.Y -= linehight - 1; if (lastx != 0) P.X = lastx;
+        case Keys.PageUp:
+          { 
+            var dy = e.KeyCode == Keys.PageUp ? Height : linehight - 1;
+            Point P = rcaret.Location; P.Y -= dy; if (lastx != 0) P.X = lastx;
             if ((e.Modifiers & Keys.Shift) != 0) Select(sela, PosFromPoint(P)); else Select(PosFromPoint(P));
-            ScrollVisible();
-            lastx = P.X;
+            ScrollVisible(); lastx = P.X;
           }
           break;
         case Keys.Down:
+        case Keys.PageDown:
           {
-            Point P = rcaret.Location; P.Y += linehight + 1; if (lastx != 0) P.X = lastx;
-            if ((e.Modifiers & Keys.Shift) != 0) Select(sela, PosFromPoint(P)); else Select(PosFromPoint(P)); ScrollVisible();
-            lastx = P.X;
+            var dy = e.KeyCode == Keys.PageDown ? Height : linehight + 1;
+            Point P = rcaret.Location; P.Y += dy; if (lastx != 0) P.X = lastx;
+            if ((e.Modifiers & Keys.Shift) != 0) Select(sela, PosFromPoint(P)); else Select(PosFromPoint(P)); 
+            ScrollVisible(); lastx = P.X;
           }
           break;
         case Keys.Home:
@@ -840,20 +843,15 @@ namespace csg3mf
             if ((e.Modifiers & Keys.Shift) != 0) Select(SelMin, t); else Select(t); ScrollVisible();
           }
           break;
-        case Keys.Next:
-          break;
-        case Keys.PageUp:
-          break;
       }
     }
     protected override void OnKeyPress(KeyPressEventArgs e)
     {
       base.OnKeyPress(e);
       if (_readonly) return;
-
       if (e.KeyChar == (char)13)
       {
-        String s = text;
+        var s = text;
         int a = SelMin; for (; (a > 0) && (s[a - 1] != '\n'); a--) ;
         int b = a; for (; b < s.Length && s[b] == ' '; b++) ;
         Replace("\n" + s.Substring(a, b - a)); return;
@@ -2556,6 +2554,8 @@ namespace csg3mf
     internal static extern IntPtr WindowFromPoint(System.Drawing.Point p);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool PostMessage(IntPtr hWnd, int m, void* w, void* l);
+    [DllImport("user32.dll")]
+    public static extern int PeekMessage(void* msg, IntPtr window, int fmin, int fmax, int remove);
     [DllImport("ntdll.dll", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr memcpy(void* d, void* s, void* n);
     [DllImport("msvcrt.dll", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]

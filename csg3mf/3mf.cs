@@ -318,8 +318,7 @@ namespace csg3mf
       }
       public void Union(Node b) => Join(b, JoinOp.Union);
       public void Difference(Node b) => Join(b, JoinOp.Difference);
-      public void Intersection(Node b) => Join(b, JoinOp.Intersection);
-      
+      public void Intersection(Node b) => Join(b, JoinOp.Intersection); 
       internal float3x4 transform;
       internal VertexBuffer vertexbuffer; uint mgen;
       internal IndexBuffer indexbuffer;

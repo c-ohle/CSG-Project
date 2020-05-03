@@ -50,7 +50,7 @@ namespace csgtest
       void EndContour();
       void EndPolygon();
       int VertexCount { get; }
-      void GetVertex(int i, ref Variant p);
+      void GetVertex(int i, Variant p);
       int IndexCount { get; }
       int GetIndex(int i);
       int OutlineCount { get; }
@@ -352,9 +352,7 @@ namespace csgtest
     {
       var p = (x, y); tess.AddVertex(new Variant(&p.x, 2));
     }
-    public static Vector3 GetVertex(this ITesselator tess, int i) { Vector3 p; var v = new Variant((double*)&p, 3); tess.GetVertex(i, ref v); return p; }
-    public static (float x, float y) GetVertexF2(this ITesselator tess, int i) { (float x, float y) p = default; var v = new Variant(&p.x, 2); tess.GetVertex(i, ref v); return p; }
-    public static (decimal x, decimal y) GetVertexD2(this ITesselator tess, int i) { (decimal x, decimal y) p = default; var v = new Variant(&p.x, 2); tess.GetVertex(i, ref v); return p; }
+    public static Vector3 GetVertex(this ITesselator tess, int i) { Vector3 p; tess.GetVertex(i, new Variant((double*)&p, 3)); return p; }
     public static Vector3 GetVertex(this IMesh mesh, int i) { Vector3 p; mesh.GetVertex(i, new Variant((double*)&p, 3)); return p; }
     public static Rational.Vector3 GetVertexR3(this IMesh mesh, int i)
     {

@@ -184,6 +184,8 @@ namespace csg3mf.Viewer
       //if(hr == unchecked((int)0x8876017C)) hr = swapchain.Present(0, 0); //DDERR_OUTOFVIDEOMEMORY windows 10 1803 nvidia bug
       long t2; QueryPerformanceCounter(&t2); counter = (int)(t2 - t1);
       inval = false; Assert(StackPtr - baseptr == fixstack); //StackPtr = baseptr + fixstack;
+      if (Timer != null && Native.PeekMessage(StackPtr, IntPtr.Zero, 0, 0, 0) == 0)
+        Native.PostMessage(Handle, 0x0113, null, null);
     }
     public new void Invalidate() { inval = true; }
     public long GetFPS()
@@ -283,7 +285,7 @@ namespace csg3mf.Viewer
           OnDispatch(m.Msg, this);
           return;
         case 0x0001: //WM_CREATE    
-          SetTimer(Handle, (void*)0, 30, null); dc = this; break;
+          SetTimer(Handle, (void*)0, 20, null); dc = this; break;
         case 0x0002: //WM_DESTROY    
           releasebuffers(true);
           break;
@@ -2999,7 +3001,7 @@ namespace csg3mf.Viewer
       fixed (char* t = s) for (int i = 0; i < n; i++) t[i] = (char)ReadCount();
       return s;
     }
-     
+
   }
 
   unsafe partial class D3DView

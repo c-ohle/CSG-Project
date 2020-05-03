@@ -196,7 +196,7 @@ EXTERN_C const IID IID_ICSGTesselator;
         
         virtual HRESULT STDMETHODCALLTYPE GetVertex( 
             /* [in] */ UINT i,
-            /* [out][in] */ CSGVAR *z) = 0;
+            /* [in] */ CSGVAR z) = 0;
         
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_IndexCount( 
             /* [retval][out] */ UINT *p) = 0;
@@ -282,7 +282,7 @@ EXTERN_C const IID IID_ICSGTesselator;
         HRESULT ( STDMETHODCALLTYPE *GetVertex )( 
             ICSGTesselator * This,
             /* [in] */ UINT i,
-            /* [out][in] */ CSGVAR *z);
+            /* [in] */ CSGVAR z);
         
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_IndexCount )( 
             ICSGTesselator * This,

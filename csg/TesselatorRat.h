@@ -307,7 +307,7 @@ class CTesselatorRat : public ICSGTesselator
   HRESULT __stdcall get_Mode(CSG_TESS* p);
   HRESULT __stdcall put_Mode(CSG_TESS v);
   HRESULT __stdcall get_VertexCount(UINT* p);
-  HRESULT __stdcall GetVertex(UINT i, CSGVAR* v);
+  HRESULT __stdcall GetVertex(UINT i, CSGVAR v);
   HRESULT __stdcall get_IndexCount(UINT* p);
   HRESULT __stdcall GetIndex(UINT i, UINT* p);
   HRESULT __stdcall get_OutlineCount(UINT* p);

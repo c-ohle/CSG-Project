@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -50,7 +51,7 @@ namespace csg3mf
       void EndContour();
       void EndPolygon();
       int VertexCount { get; }
-      void GetVertex(int i, ref Variant p);
+      void GetVertex(int i, Variant p);
       int IndexCount { get; }
       int GetIndex(int i);
       int OutlineCount { get; }
@@ -203,10 +204,12 @@ namespace csg3mf
         public override bool Equals(object p) => p is Vector3 b && Equals(b);
         public bool Equals(Vector2 b) => m.p.Equals(m.i, b.m.p, b.m.i, 2);
         public Vector2(Rational x, Rational y) { m = ctor(2); this.x = x; this.y = y; }
+        public static implicit operator Vector2(double a) => SinCos(a);
         public static implicit operator Variant(Vector2 p) => new Variant(p.m.p, 2, p.m.i);
         public static implicit operator Vector2(in (Variant x, Variant y) p) => new Vector2(p.x, p.y);
         public static bool operator ==(in Vector2 a, in Vector2 b) => a.Equals(b);
         public static bool operator !=(in Vector2 a, in Vector2 b) => !a.Equals(b);
+        public static Vector2 operator -(Vector2 a) => new Vector2(-a.m, -a.y);
         public static Vector2 operator +(Vector2 a, Vector2 b) => new Vector2(a.m + b.m, a.y + b.y);
         public static Vector2 operator -(Vector2 a, Vector2 b) => new Vector2(a.m - b.m, a.y - b.y);
         public static Vector2 operator *(Vector2 a, Rational b) => new Vector2(a.m * b, a.y * b);
@@ -340,24 +343,24 @@ namespace csg3mf
     }
 
     #region example extensions
-    //public static void SetNormal(this ITesselator tess, Vector3 v) => tess.SetNormal(&v);
-    //public static void AddVertex(this ITesselator tess, Vector3 p) => tess.AddVertex(&p);
     public static void AddVertex(this ITesselator tess, double x, double y)
     {
       var p = (x, y); tess.AddVertex(new Variant(&p.x, 2));
     }
     public static void AddVertex(this ITesselator tess, float x, float y)
     {
-      var p = (x, y); tess.AddVertex(new Variant(&p.x, 2));
+      long l; var p = (float*)&l; p[0] = x; p[1] = y; tess.AddVertex(new Variant(p, 2));
     }
     public static void AddVertex(this ITesselator tess, decimal x, decimal y)
     {
       var p = (x, y); tess.AddVertex(new Variant(&p.x, 2));
     }
-    //public static Vector3 GetVertex(this ITesselator tess, int i) { Vector3 p; Variant v = &p; tess.GetVertex(i, ref v); return p; }
-    public static (float x, float y) GetVertexF2(this ITesselator tess, int i) { (float x, float y) p = default; var v = new Variant(&p.x, 2); tess.GetVertex(i, ref v); return p; }
-    public static (decimal x, decimal y) GetVertexD2(this ITesselator tess, int i) { (decimal x, decimal y) p = default; var v = new Variant(&p.x, 2); tess.GetVertex(i, ref v); return p; }
-    //public static Vector3 GetVertex(this IMesh mesh, int i) { Vector3 p; Variant v = &p; mesh.GetVertex(i, ref v); return p; }
+    public static void AddVertex(this ITesselator tess, Rational x, Rational y)
+    {
+      tess.AddVertex(new Rational.Vector2(x, y));
+    }
+    public static PointF GetVertexF2(this ITesselator tess, int i) { PointF p; tess.GetVertex(i, new Variant((float*)&p, 2)); return p; }
+    public static (decimal x, decimal y) GetVertexD2(this ITesselator tess, int i) { (decimal x, decimal y) p = default; tess.GetVertex(i, new Variant(&p.x, 2)); return p; }
     public static Rational.Vector3 GetVertexR3(this IMesh mesh, int i)
     {
       var p = new Rational.Vector3(0); mesh.GetVertex(i, p); return p;

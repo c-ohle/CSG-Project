@@ -227,10 +227,10 @@ HRESULT CTesselatorRat::get_VertexCount(UINT* p)
 {
   *p = np; return 0;
 }
-HRESULT CTesselatorRat::GetVertex(UINT i, CSGVAR* v)
+HRESULT CTesselatorRat::GetVertex(UINT i, CSGVAR v)
 {
   if (i >= (UINT)np) return E_INVALIDARG;
-  conv(*v, &pp[i].x, 3); return 0;
+  conv(v, &pp[i].x, 3); return 0;
 }
 HRESULT CTesselatorRat::get_IndexCount(UINT* p)
 {
