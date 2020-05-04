@@ -1,4 +1,8 @@
-# CSG Project
+# CSG for 3MF Project
+
+![X](img/csg3mf.png)
+
+(Description for the new solution based on the new algorithm described below coming soon. The unlimited robustness and precision of the new approach allows constructions of unlimited complexity.)
 
 The plan is to develop a COM component for CSG functions as described in:
 https://en.wikipedia.org/wiki/Constructive_solid_geometry.
