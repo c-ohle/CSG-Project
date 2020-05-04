@@ -176,7 +176,7 @@ namespace csg3mf.Viewer
 
     public override void Refresh()
     {
-      OnTimer(); if (!inval) return;
+      loop: OnTimer(); if (!inval) return;
       if (rtv == IntPtr.Zero) sizebuffers();
       long t1; QueryPerformanceCounter(&t1);
       Begin(rtv, dsv, viewport, (uint)BackColor.ToArgb()); OnRender(dc);
@@ -184,8 +184,8 @@ namespace csg3mf.Viewer
       //if(hr == unchecked((int)0x8876017C)) hr = swapchain.Present(0, 0); //DDERR_OUTOFVIDEOMEMORY windows 10 1803 nvidia bug
       long t2; QueryPerformanceCounter(&t2); counter = (int)(t2 - t1);
       inval = false; Assert(StackPtr - baseptr == fixstack); //StackPtr = baseptr + fixstack;
-      if (Timer != null && Native.PeekMessage(StackPtr, IntPtr.Zero, 0, 0, 0) == 0)
-        Native.PostMessage(Handle, 0x0113, null, null);
+      if (Timer != null && Native.PeekMessage(StackPtr, IntPtr.Zero, 0, 0, 0) == 0) goto loop;
+      //Native.PostMessage(Handle, 0x0113, null, null);
     }
     public new void Invalidate() { inval = true; }
     public long GetFPS()

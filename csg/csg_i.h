@@ -522,6 +522,16 @@ EXTERN_C const IID IID_ICSGVector;
             /* [in] */ DOUBLE angel,
             /* [in] */ UINT prec) = 0;
         
+        virtual HRESULT STDMETHODCALLTYPE WriteToStream( 
+            /* [in] */ IStream *str,
+            /* [in] */ UINT i,
+            /* [in] */ UINT n) = 0;
+        
+        virtual HRESULT STDMETHODCALLTYPE ReadFromStream( 
+            /* [in] */ IStream *str,
+            /* [in] */ UINT i,
+            /* [in] */ UINT n) = 0;
+        
     };
     
     
@@ -614,6 +624,18 @@ EXTERN_C const IID IID_ICSGVector;
             /* [in] */ DOUBLE angel,
             /* [in] */ UINT prec);
         
+        HRESULT ( STDMETHODCALLTYPE *WriteToStream )( 
+            ICSGVector * This,
+            /* [in] */ IStream *str,
+            /* [in] */ UINT i,
+            /* [in] */ UINT n);
+        
+        HRESULT ( STDMETHODCALLTYPE *ReadFromStream )( 
+            ICSGVector * This,
+            /* [in] */ IStream *str,
+            /* [in] */ UINT i,
+            /* [in] */ UINT n);
+        
         END_INTERFACE
     } ICSGVectorVtbl;
 
@@ -669,6 +691,12 @@ EXTERN_C const IID IID_ICSGVector;
 
 #define ICSGVector_SinCos(This,i,angel,prec)	\
     ( (This)->lpVtbl -> SinCos(This,i,angel,prec) ) 
+
+#define ICSGVector_WriteToStream(This,str,i,n)	\
+    ( (This)->lpVtbl -> WriteToStream(This,str,i,n) ) 
+
+#define ICSGVector_ReadFromStream(This,str,i,n)	\
+    ( (This)->lpVtbl -> ReadFromStream(This,str,i,n) ) 
 
 #endif /* COBJMACROS */
 
@@ -760,10 +788,10 @@ EXTERN_C const IID IID_ICSGMesh;
             /* [in] */ CSGVAR p) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE WriteToStream( 
-            IStream *str) = 0;
+            /* [in] */ IStream *str) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE ReadFromStream( 
-            IStream *str) = 0;
+            /* [in] */ IStream *str) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE CreateBox( 
             /* [in] */ CSGVAR a,
@@ -855,11 +883,11 @@ EXTERN_C const IID IID_ICSGMesh;
         
         HRESULT ( STDMETHODCALLTYPE *WriteToStream )( 
             ICSGMesh * This,
-            IStream *str);
+            /* [in] */ IStream *str);
         
         HRESULT ( STDMETHODCALLTYPE *ReadFromStream )( 
             ICSGMesh * This,
-            IStream *str);
+            /* [in] */ IStream *str);
         
         HRESULT ( STDMETHODCALLTYPE *CreateBox )( 
             ICSGMesh * This,

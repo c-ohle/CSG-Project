@@ -376,6 +376,16 @@ struct CVector : public ICSGVector
     auto* vp = &val + i; if (i + 1 > length) return E_INVALIDARG;
     ((Vector2R*)vp)[0] = 0 | Vector2R::SinCos(a, flags); return 0;
   }
+  HRESULT __stdcall WriteToStream(IStream* str, UINT i, UINT n)
+  {
+    if (i + n > length) return E_INVALIDARG;
+    return Rational::write(str, &val + i, n);
+  }
+  HRESULT __stdcall ReadFromStream(IStream* str, UINT i, UINT n)
+  {
+    if (i + n > length) return E_INVALIDARG;
+    return Rational::read(str, &val + i, n);
+  }
 #if(0) 
   HRESULT __stdcall Compute(UINT i, const BYTE* code)
   {

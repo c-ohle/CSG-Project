@@ -16,7 +16,7 @@ namespace csg3mf
     //public static readonly IFactory Factory = (IFactory)new CFactory(); //alternative from registry
     public static ITesselator Tesselator => tess ?? (tess = Factory.CreateTessalator(Unit.Rational));
     [ThreadStatic] static ITesselator tess;
-    
+
     [ComImport, Guid("54ca8e82-bdb3-41db-8ed5-3b890279c431")]
     public class CFactory { }
 
@@ -104,7 +104,9 @@ namespace csg3mf
       void SetValue(int i, Variant v);
       void Execute1(Op1 op, int i, IVector pa, int ia);
       void Execute2(Op2 op, int i, IVector pa, int ia, IVector pb, int ib);
-      void SinCos(int i, double a, int prec); // 0:R4; 1:R8; 10..52: rational on unit circle; -1..-28: decimal digits
+      void SinCos(int i, double a, int prec); // 0: R4; 1: R8; 10..52: rational on unit circle; -1..-28: decimal digits
+      void WriteToStream(COM.IStream str, int i, int n);
+      void ReadFromStream(COM.IStream str, int i, int n);
     }
 
     public enum VarType { Int = 1, Float = 2, Double = 3, Decimal = 4, Rational = 5, String = 6 }
@@ -217,7 +219,17 @@ namespace csg3mf
         public Rational LengthSq { get { var p = ctor(1); p.p.Execute1(Op1.Dot2, p.i, m.p, m.i); return p; } }
         public double Length => Math.Sqrt((double)LengthSq);
         public double Angle => Math.Atan2((double)y, (double)x) * (180 / Math.PI);
-        public static Vector2 SinCos(double a, int prec = 0) { var p = new Vector2(0); p.m.p.SinCos(p.m.i, a, prec); return p; }
+        /// <summary>
+        /// Create Vector2 as sin cos pair in x, y where x is cos and y is sin
+        /// </summary>
+        /// <param name="angel">aAngel in radians</param>
+        /// <param name="prec">
+        /// Precison 0: R4, 1: R8,
+        /// 10..52: exact on unit circle: x² + y² = 1
+        /// -1..-28: decimal digits
+        /// </param>
+        /// <returns></returns>
+        public static Vector2 SinCos(double angel, int prec = 0) { var p = new Vector2(0); p.m.p.SinCos(p.m.i, angel, prec); return p; }
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         readonly Rational m; internal Vector2(int _) => m = ctor(2);
       }
@@ -276,6 +288,9 @@ namespace csg3mf
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         readonly Rational m; internal Plane(int _) => m = ctor(4);
       }
+      /// <summary>
+      /// Matrix class
+      /// </summary>
       public struct Matrix : IEquatable<Matrix>
       {
         public override int GetHashCode() => m.p.GetHashCode(m.i, 12);
@@ -286,6 +301,10 @@ namespace csg3mf
         {
           var m = new Matrix(0); m.SetIdentity(); return m;
         }
+        /// <summary>
+        /// Build translation matrix 
+        /// </summary>
+        /// <returns></returns>
         public static Matrix Translation(Rational x, Rational y, Rational z)
         {
           var m = new Matrix(0); var v = stackalloc int[9] { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
@@ -296,17 +315,22 @@ namespace csg3mf
         {
           var m = new Matrix(0); m[0] = x; m[4] = y; m[8] = z; return m;
         }
-        public static Matrix RotationX(Vector2 sc)
+        /// <summary>
+        /// Build rotation matrix from sin cos pair in Vector2 
+        /// </summary> 
+        /// <param name="sincos">sin cos pair</param>
+        /// <returns></returns>
+        public static Matrix RotationX(Vector2 sincos)
         {
-          var m = Identity(); m[4] = m[8] = sc.x; m[7] = -(m[5] = sc.y); return m;
+          var m = Identity(); m[4] = m[8] = sincos.x; m[7] = -(m[5] = sincos.y); return m;
         }
-        public static Matrix RotationY(Vector2 sc)
+        public static Matrix RotationY(Vector2 sincos)
         {
-          var m = Identity(); m[0] = m[8] = sc.x; m[2] = -(m[6] = sc.y); return m;
+          var m = Identity(); m[0] = m[8] = sincos.x; m[2] = -(m[6] = sincos.y); return m;
         }
-        public static Matrix RotationZ(Vector2 sc)
+        public static Matrix RotationZ(Vector2 sincos)
         {
-          var m = Identity(); m[0] = m[4] = sc.x; m[3] = -(m[1] = sc.y); return m;
+          var m = Identity(); m[0] = m[4] = sincos.x; m[3] = -(m[1] = sincos.y); return m;
         }
         public Vector3 mx { get => copy(0); set => m.p.Copy(m.i + 0, value.m.p, value.m.i, 3); }
         public Vector3 my { get => copy(3); set => m.p.Copy(m.i + 3, value.m.p, value.m.i, 3); }
@@ -338,7 +362,14 @@ namespace csg3mf
         internal void GetValues(Variant v) => m.p.GetValue(m.i, ref v);
         internal void SetValues(Variant v) => m.p.SetValue(m.i, v);
         internal void SetIdentity() { var v = stackalloc int[12] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 }; m.p.SetValue(m.i, new Variant(v, 12)); }
-        public static explicit operator Viewer.D3DView.float3x4(Matrix m) { Viewer.D3DView.float3x4 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
+        public static explicit operator Viewer.D3DView.float3x4(Matrix m) { Viewer.D3DView.float3x4 t; m.GetValues(new Variant((float*)&t, 12)); return t; } 
+        //public void Save()
+        //{
+        //  var str = COM.SHCreateMemStream();
+        //  m.p.WriteToStream(str, m.i, 12); long c; str.Seek(0, 1, &c); str.Seek(0);
+        //  var t = Identity();
+        //  t.m.p.ReadFromStream(str, t.m.i, 12);
+        //} 
       }
     }
 
@@ -401,11 +432,13 @@ namespace csg3mf
     [ComImport, Guid("0000000c-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     public interface IStream
     {
-      void Read(void* p, int n, int* r = null);
-      void Write(void* p, int n, int* r = null);
-      void Seek(long i, int org = 0, long* r = null);
+      void Read(void* p, int n, int* pr = null);
+      void Write(void* p, int n, int* pw = null);
+      void Seek(long i, int org = 0, long* p = null);
       void SetSize(long n);
     }
+    //[DllImport("shlwapi.dll")]
+    //public static extern IStream SHCreateMemStream(void* p = null, int n = 0);
 #if (!DEBUG)
     internal const bool DEBUG = false;
     internal const bool NDEBUG = false;

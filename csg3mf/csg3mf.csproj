@@ -24,6 +24,8 @@
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Prefer32Bit>false</Prefer32Bit>
+    <DocumentationFile>..\bin\csg3mf.xml</DocumentationFile>
+    <NoWarn>1591</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -35,6 +37,8 @@
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Prefer32Bit>false</Prefer32Bit>
+    <DocumentationFile>..\bin\csg3mf.xml</DocumentationFile>
+    <NoWarn>1591</NoWarn>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
@@ -81,6 +85,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
+    <EmbeddedResource Include="Resources\Resources.resx" />
     <EmbeddedResource Include="Viewer\Shader\gs_line" />
     <EmbeddedResource Include="Viewer\Shader\gs_outl3d" />
     <EmbeddedResource Include="Viewer\Shader\gs_shadows" />
@@ -100,6 +105,24 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\app.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\run.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\rund.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\stepin.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\stepout.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\stepover.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\stop.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

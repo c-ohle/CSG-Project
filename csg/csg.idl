@@ -117,6 +117,8 @@ interface ICSGVector : IUnknown
   HRESULT Execute1([in] CSG_OP1 op, [in] UINT ic, [in] const ICSGVector* pa, [in] UINT ia);
   HRESULT Execute2([in] CSG_OP2 op, [in] UINT ic, [in] const ICSGVector* pa, [in] UINT ia, [in] const ICSGVector* pb, [in] UINT ib);
   HRESULT SinCos([in] UINT i, [in] DOUBLE angel, [in] UINT prec);
+  HRESULT WriteToStream([in] IStream* str, [in] UINT i, [in] UINT n);
+  HRESULT ReadFromStream([in] IStream* str, [in] UINT i, [in] UINT n);
 };
 
 typedef enum CSG_MESH_CHECK
@@ -144,8 +146,8 @@ interface ICSGMesh : IUnknown
   HRESULT SetIndex([in] UINT i, [in] UINT p);
   [propget] HRESULT PlaneCount([out, retval] UINT* p);
   HRESULT GetPlane([in] UINT i, [in] CSGVAR p);
-  HRESULT WriteToStream(IStream* str);
-  HRESULT ReadFromStream(IStream* str);
+  HRESULT WriteToStream([in] IStream* str);
+  HRESULT ReadFromStream([in] IStream* str);
   HRESULT CreateBox([in] CSGVAR a, [in] CSGVAR b);
   HRESULT Check([in] CSG_MESH_CHECK check, [out] CSG_MESH_CHECK* p);
   [propget] HRESULT Generation([out, retval] UINT* p);

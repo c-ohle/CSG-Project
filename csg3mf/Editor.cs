@@ -1427,11 +1427,11 @@ namespace csg3mf
       if (MessageBox.Show(this, "Stop debugging?", Parent.Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return true;
       onstop(null); return false;
     }
-    internal unsafe void appexit(Form f)
+    internal unsafe void OnFormClosing(Form f)
     {
       if (state != 7) return;
       Native.PostMessage(f.Handle, 0x0010, null, null); //WM_CLOSE 
-      throw new DebugStop();
+      IsModified = false; throw new DebugStop();
     }
     internal static byte[] compress(string s)
     {
@@ -1459,7 +1459,7 @@ namespace csg3mf
         EndFlyer(); ontimer = null;
         //it works for now, when it starts with internal optimizations using internal Localloc, then it needs a system 
         if (id == 1 && text.IndexOf("stackalloc", spots[ibreak].i, spots[ibreak].n) != -1) id = 2; //stepin as stack correct
-        state = id;
+        state = id; //Application.RaiseIdle(null);
         return 1;
       }
       if (isrunning())
@@ -1468,7 +1468,11 @@ namespace csg3mf
         if (id == 8 && !isdebug()) return 2;
         return 0;
       }
-      if (test != null) return 1;
+      if (test != null)
+      {
+        if (id == 3) return 0;
+        return 1;
+      }
       if (text == string.Empty) { IsModified = false; setdata(neuron, null); return 1; }
       if (rebuild != 0) build();
       if (id != 9) data = dbgdata;
@@ -1513,9 +1517,9 @@ namespace csg3mf
       Select(spots[ibreak].i); ScrollVisible(); //stacktrace();
       if (e != null) MessageBox.Show(this, e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
       var cap = Native.SetCapture(IntPtr.Zero); DebugStop stop = null;
-      try { for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); } }
+      try { for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); Application.RaiseIdle(null); } }
       catch (DebugStop p) { state = 0; stop = p; }
-      if (e != null && state == 1) state = 2;// F10 -> F11 step into exception blocks
+      if (e != null && state == 1) state = 2; // F10 -> F11 step into exception blocks
       Native.SetCapture(cap);
       Neuron.state = state;
       spots[ibreak].v &= ~2; threadstack = IntPtr.Zero; Refresh(); Update(); if (stop != null) throw stop;

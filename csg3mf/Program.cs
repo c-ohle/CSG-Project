@@ -38,7 +38,7 @@ namespace csg3mf
     {
       Icon = Icon.FromHandle(Native.LoadIcon(Marshal.GetHINSTANCE(GetType().Module), (IntPtr)32512));
       StartPosition = FormStartPosition.WindowsDefaultBounds;
-      MainMenuStrip = new MenuStrip(); MenuItem.CommandRoot = OnCommand;
+      MainMenuStrip = new MenuStrip(); MenuItem.CommandRoot = TryCommand;
       MainMenuStrip.Items.AddRange(new ToolStripItem[]
       {
         new MenuItem("&File",
@@ -128,8 +128,21 @@ namespace csg3mf
           new MenuItem(5070 , "&About...")
         ),
        });
+      
+      var tb1 = new ToolStrip() { Margin = new Padding(30), ImageScalingSize = new Size(24, 24), GripStyle = ToolStripGripStyle.Hidden };
+      Application.Idle += (p, e) => { MenuItem.Update(tb1.Items); tb1.Update(); };
+      tb1.Items.Add(new MenuItem.Button(5011, "Run", Resources.run));
+      tb1.Items.Add(new ToolStripSeparator());
+      tb1.Items.Add(new MenuItem.Button(5010, "Run Debug", Resources.rund));
+      tb1.Items.Add(new MenuItem.Button(5016, "Step", Resources.stepover));
+      tb1.Items.Add(new MenuItem.Button(5015, "Step Into", Resources.stepin));
+      tb1.Items.Add(new MenuItem.Button(5017, "Step Out", Resources.stepout));
+      tb1.Items.Add(new ToolStripSeparator());
+      tb1.Items.Add(new MenuItem.Button(5013, "Stop", Resources.stop));
+
       splitter = new SplitContainer { Dock = DockStyle.Fill };
       splitter.SplitterDistance = 75;// ClientSize.Width / 2;
+      splitter.Panel1.Controls.Add(tb1);
       splitter.Panel2.Controls.Add(view = new View { Dock = DockStyle.Fill });
       Controls.Add(splitter);
       Controls.Add(MainMenuStrip);
@@ -150,6 +163,15 @@ namespace csg3mf
     }
     SplitContainer splitter; View view;
     string path; NeuronEditor edit;
+    int TryCommand(int id, object test)
+    {
+      try { return OnCommand(id, test); }
+      catch (Exception e)
+      {
+        if (e.GetType().IsNestedPrivate) throw;
+        MessageBox.Show(e.Message, Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error); return -1;
+      }
+    }
     int OnCommand(int id, object test)
     {
       var re = edit.OnCommand(id, test);
@@ -192,8 +214,10 @@ namespace csg3mf
       var neuron = view.cont; //var neuron = new Neuron(); 
       NeuronEditor.InitNeuron(neuron, script ?? "");
       var e = new NeuronEditor { Dock = DockStyle.Fill, Tag = neuron };
-      splitter.Panel1.Controls.Add(e);
+      splitter.Panel1.SuspendLayout();
+      splitter.Panel1.Controls.Add(e); e.BringToFront();
       if (this.edit != null) this.edit.Dispose(); this.edit = e;
+      splitter.Panel1.ResumeLayout();
       Neuron.Debugger = (p, v) => this.edit.Show(v);
       view.cont.update();
       view.setcamera(); view.Invalidate();
@@ -304,7 +328,7 @@ namespace csg3mf
     }
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-      if (e.Cancel = !AskSave()) return; view.Timer = null; edit.appexit(this);
+      if (e.Cancel = !AskSave()) return; view.Timer = null; edit.OnFormClosing(this);
       var reg = Application.UserAppDataRegistry;
       reg.SetValue("lwp", getrestore(), Microsoft.Win32.RegistryValueKind.QWord);
       if (path != null) reg.SetValue("lod", path); else reg.DeleteValue("lod", false);
@@ -530,7 +554,7 @@ namespace csg3mf
       {
         if (!cont.Nodes.Any(p => p.indexbuffer != null && p.indexbuffer.count != 0)) return 0;
         if (test != null) return 1;
-        var r = center(cont.Nodes, (float2)ClientSize / DpiScale - new float2(32, 32), vscale, camera);
+        var r = center(cont.Nodes, (float2)ClientSize / DpiScale - new float2(100, 100), vscale, camera);
         z1 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z1)) - 1);
         z2 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z2)) + 2); minwz = r.wb.min.z;
         setcwma(r.cm); return 1;
@@ -638,11 +662,14 @@ namespace csg3mf
         if (r.z1 == r.z2 || camera == r.cm) return;
         z1 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z1)) - 1);
         z2 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z2)) + 2); minwz = r.wb.min.z;
-        var ab = camera; float f = 0; this.Timer += ani;//camera = r.cm;
+        var ab = camera; //camera = r.cm;
+        var tf = 1000.0f / Stopwatch.Frequency;
+        var t1 = Stopwatch.GetTimestamp(); this.Timer = ani;
         void ani()
         {
-          f = Math.Min(1, f + 0.01f); var t = f == 1 ? f : (float)(f <= 0.5f ? Math.Pow(f * 2, 3) : 2 - Math.Pow((1 - f) * 2, 3)) * 0.5f;
-          camera[3] = ab[3] * (1 - t) + r.cm[3] * t; Invalidate(); if (f == 1) Timer -= ani;
+          var dt = ((Stopwatch.GetTimestamp() - t1) * tf) - 1000; if (dt < 0) return;
+          var f = Math.Min(1, dt / 1000); var t = f == 1 ? f : (float)(f <= 0.5f ? Math.Pow(f * 2, 3) : 2 - Math.Pow((1 - f) * 2, 3)) * 0.5f;
+          camera[3] = ab[3] * (1 - t) + r.cm[3] * t; Invalidate(); if (f == 1) Timer = null;
         }
       }
     }
@@ -669,10 +696,11 @@ namespace csg3mf
     {
       for (int i = 0; i < items.Count; i++)
       {
-        var mi = items[i] as MenuItem; if (mi == null || mi.id == 0) continue;
+        var mi = items[i] as MenuItem;
+        if (mi == null) { var bu = items[i] as Button; if (bu != null) bu.Enabled = (CommandRoot(bu.id, bu) & 1) != 0; continue; }
+        if (mi.id == 0) continue;
         var hr = CommandRoot(mi.id, mi); mi.Enabled = (hr & 1) != 0; mi.Checked = (hr & 2) != 0;
-        if (!mi.HasDropDownItems) continue;
-        mi.Visible = false; //i++; while (items.Count > i && items[i].GetType() == typeof(MenuItem)) items.RemoveAt(i);
+        if (!mi.HasDropDownItems) continue; mi.Visible = false;
         foreach (var e in mi.DropDownItems.OfType<ToolStripMenuItem>()) items.Insert(++i, new MenuItem(mi.id, e.Text) { Tag = e.Tag, Checked = e.Checked });
         mi.DropDownItems.Clear();
       }
@@ -685,6 +713,17 @@ namespace csg3mf
     protected override void OnClick(EventArgs e)
     {
       if (id != 0) CommandRoot(id, Tag);
+    }
+    internal class Button : ToolStripButton
+    {
+      internal int id;
+      public Button(int id, string text, Image img)
+      {
+        this.id = id; Text = text; Image = img; DisplayStyle = ToolStripItemDisplayStyle.Image;
+        AutoSize = false; Size = new Size(40, 40); 
+      }
+      protected override void OnClick(EventArgs e) => CommandRoot(id, Tag);
+
     }
   }
 

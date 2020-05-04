@@ -274,6 +274,7 @@ namespace csg3mf
     {
       if (id == 5) return this; //AutoStop
       if (id == 6) { update(); OnUpdate?.Invoke(); return null; } //step
+      if (id == 3) { System.Windows.Forms.Application.RaiseIdle(null); }
       return base.Invoke(id, p);
     }
     internal void update()
@@ -289,6 +290,10 @@ namespace csg3mf
       {
         Mesh = Factory.CreateMesh();
         Materials = new Material[] { new Material { Color = color } };
+      }
+      public override string ToString()
+      {
+        return Name ?? base.ToString();
       }
       public Node Parent;
       public string Name;
@@ -306,7 +311,7 @@ namespace csg3mf
       public void Cut(Node b)
       {
         if (Mesh == null) return;
-        var t = b.Transform; 
+        var t = b.Transform;
         Tesselator.Cut(Mesh, Rational.Plane.FromPointNormal(t.mp, t.mz));
       }
       public void Join(Node b, JoinOp op)
@@ -318,7 +323,7 @@ namespace csg3mf
       }
       public void Union(Node b) => Join(b, JoinOp.Union);
       public void Difference(Node b) => Join(b, JoinOp.Difference);
-      public void Intersection(Node b) => Join(b, JoinOp.Intersection); 
+      public void Intersection(Node b) => Join(b, JoinOp.Intersection);
       internal float3x4 transform;
       internal VertexBuffer vertexbuffer; uint mgen;
       internal IndexBuffer indexbuffer;

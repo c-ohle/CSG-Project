@@ -2033,7 +2033,7 @@ namespace csg3mf
         if (atbase)
         {
           var t = basetype.GetNestedType(s);
-          if (t != null) { Map(a, t, 0, 0); b.Take(); basetype = t; goto m1; }
+          if (t != null) { Map(a, t, 0, 0); var x = b.Take(); if (x.Equals('.') || x.Equals('#')) Map(x, t, 0x41, 0); basetype = t; goto m1; }
         }
         if (iskeyword(a[0])) { Error(1002, "; expected", a[-1].End()); return null; }
         Error(0117, "'{1}' does not contain a definition for '{0}'", a, basetype); return null;
@@ -4232,7 +4232,7 @@ namespace csg3mf
         if (type.DeclaringMethod != null) return string.Format("``{0}", type.GenericParameterPosition);
         if (type.DeclaringType != null) return string.Format("`{0}", type.GenericParameterPosition);
       }
-      var ss = string.Format("{0}.{1}", type.Namespace, type.Name);
+      var ss = type.FullName.Replace('+','.');
       if (type.IsGenericType && !type.IsGenericTypeDefinition) { int t = ss.LastIndexOf("`"); if (t >= 0) ss = ss.Substring(0, t); }
       if (type.IsGenericType) ss = string.Format("{0}{{{1}}}", ss, string.Join(",", type.GetGenericArguments().Select(t => tocref(t)).ToArray()));
       return ss;
@@ -4250,7 +4250,7 @@ namespace csg3mf
         dt = dt.GetGenericTypeDefinition();
         mi = dt.GetMethods().FirstOrDefault(m => m.Name == mi.Name && m.GetParameters().Length == mi.GetParameters().Length);
       }
-      var ss = string.Format("M:{0}.{1}.{2}", dt.Namespace, dt.Name, mi.Name);
+      var ss = $"M:{dt.FullName.Replace('+', '.')}.{mi.Name}";
       if (mi.IsGenericMethodDefinition) ss += '`';
       var ga = mi.GetGenericArguments(); if (ga != null && ga.Length > 0) ss = string.Format("{0}`{1}", ss, ga.Length);
       var pp = mi.GetParameters();
@@ -4268,7 +4268,7 @@ namespace csg3mf
     }
     static Tuple<Type, string> tocref(object p)
     {
-      var type = p as Type; if (type != null) return Tuple.Create(type, "T:" + type.FullName);
+      var type = p as Type; if (type != null) return Tuple.Create(type, "T:" + type.FullName.Replace('+','.'));
       var mi = p as MethodInfo; if (mi != null) return mi.DeclaringType != null ? Tuple.Create(mi.DeclaringType, tocref(mi)) : null;
       var ci = p as ConstructorInfo; if (ci != null) return Tuple.Create(ci.DeclaringType, tocref(ci));
       var pi = p as MemberInfo;
@@ -4295,6 +4295,13 @@ namespace csg3mf
               Path.GetDirectoryName(assembly.Location), Path.ChangeExtension(Path.GetFileName(assembly.Location), ".xml"), SearchOption.AllDirectories).FirstOrDefault();
           //Debug.WriteLine("load: " + file);
           if (file != null) xml = XElement.Load(file);
+          var s = (string)xml.Attribute("redirect");
+          if (s != null) 
+          {
+            s = Environment.ExpandEnvironmentVariables(s);
+            if (s.Contains('%')) s = Environment.ExpandEnvironmentVariables(s.Replace("DIR%", "(X86)%\\"));
+            xml = XElement.Load(s);
+          }
         }
         catch { }
         if (xml == null) xml = new XElement("null"); xml.AddAnnotation(assembly); TypeHelper.cache.Add(new WeakReference(xml));
