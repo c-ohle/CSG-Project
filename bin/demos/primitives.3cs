@@ -1,0 +1,190 @@
+using csg3mf;
+using System.Linq;
+using static csg3mf.CSG;
+using static csg3mf.CSG.Rational;
+
+Nodes.Clear(); Infos.Clear();
+Infos.Add("Primitves");
+
+var node = new Node("Box"); Nodes.Add(node);
+//create a box with IMesh.CreateBox
+node.Mesh = Factory.CreateMesh();
+node.Mesh.CreateBox(new Vector3(-0.5m, -0.5m, 0), new Vector3(+0.5m, +0.5m, 1));
+node.Color = 0xff0000ff; //set a display color
+//use IMesh.CreateBox to create a ground plate
+node.Name = "ground plate"; node.Color = 0xffaaff80;
+node.Mesh.CreateBox(new Vector3(-2, -2, 0), new Vector3(+2, +2, -0.1f));
+
+//new node as second object
+Nodes.Add(node = new Node("Box1"));
+//use Tesselator  to create a box
+var tess = Tesselator;
+tess.Mode = Mode.Fill | Mode.Outline| Mode.Positive;
+tess.BeginPolygon();
+tess.BeginContour();
+tess.AddVertex(-0.5, -0.5f);
+tess.AddVertex(+0.5, -0.5m);
+tess.AddVertex(+0.5, +0.5d);
+tess.AddVertex(-0.5, +0.5);
+tess.EndContour();
+tess.EndPolygon();
+//create extrusion
+tess.Update(node.Mesh = Factory.CreateMesh(), 1);
+node.Color = 0xff8080ff;
+node.Transform = Matrix.Translation(1, 1, 0);
+
+//new node as 3th object
+Nodes.Add(node = new Node("Box2"));
+tess.BeginPolygon();
+tess.BeginContour();
+tess.AddVertex(-0.5, -0.5f); //works with several number precisions
+tess.AddVertex(+0.5, -0.5m);
+tess.AddVertex(+0.5, +0.5d);
+tess.AddVertex(-0.5, +(Rational)0.5);
+tess.EndContour();
+tess.BeginContour(); //draw a hole
+tess.AddVertex(-0.4, +0.4);
+tess.AddVertex(+0.4, +0.4);
+tess.AddVertex(+0.4, -0.4);
+tess.AddVertex(-0.4, -0.4);
+tess.EndContour();
+tess.EndPolygon();
+tess.Update(node.Mesh = Factory.CreateMesh(), 1);
+node.Color = 0xff80ff80;
+node.Transform = Matrix.Translation(-1, 1, 0);
+
+//create a cylinder
+Nodes.Add(node = new Node("Cylinder1", 0xffff8080));
+var segments = 50;
+Rational radius = 0.5, height = 1;
+tess.BeginPolygon();
+tess.BeginContour(); var f = 2 * System.Math.PI / segments;
+for (int i = 0; i < segments; i++)
+tess.AddVertex(Vector2.SinCos(i * f) * radius);
+tess.EndContour();
+tess.EndPolygon();
+tess.Update(node.Mesh = Factory.CreateMesh(), height);
+node.Transform = Matrix.Translation(+1, -1, 0);
+
+//create a pipe
+Nodes.Add(node = new Node("Pipe1", 0xffff8080));
+var innerradius = 0.4m;
+tess.BeginPolygon();
+tess.BeginContour();
+for (int i = 0; i < segments; i++)
+tess.AddVertex(Vector2.SinCos(i * f) * radius);
+tess.EndContour();
+tess.BeginContour();
+for (int i = 0; i < segments; i++)
+tess.AddVertex(Vector2.SinCos(i * -f) * innerradius);
+tess.EndContour();
+tess.EndPolygon();
+tess.Update(node.Mesh = Factory.CreateMesh(), height);
+node.Transform = Matrix.Translation(-1, -1, 0);
+
+//we need more space, lets scale the groundplate
+Nodes[0].Mesh.Transform(Matrix.Scaling(1.5m, 1.5m, 1));
+Nodes[0].Mesh.Transform(Matrix.Translation(-1, -1, 0));
+Nodes.Last().Transform = Matrix.Translation(-3, 1, 0);
+
+//lets use a function t tesselate primiteves
+Nodes.Add(node = new Node("aNode", 0xffaaaaaa));
+node.Transform = Matrix.Translation(-2, -2, 0.01m);
+tess.Mode = Mode.NonZero | Mode.Fill | Mode.Outline;
+draw_circle(tess, 1.5, 50);
+void draw_circle(ITesselator tess, Rational radius, int segs)
+{
+  var f = 2 * System.Math.PI / segs;
+  tess.BeginPolygon();
+  tess.BeginContour();
+  for (int i = 0; i < segs; i++)
+  tess.AddVertex(Vector2.SinCos(i * f) * radius);
+  tess.EndContour();
+  tess.EndPolygon();
+}
+tess.Update(node.Mesh, 2);
+
+//the same with outline only
+tess.Mode = Mode.NonZero | Mode.Outline;
+draw_circle(tess, 1.5, 50);
+tess.Update(node.Mesh, 2);
+
+//with fill only we get the surface only
+tess.Mode = Mode.NonZero | Mode.Fill;
+draw_circle(tess, 1.5, 50);
+tess.Update(node.Mesh, 2);
+
+//on the way to create a sphere
+tess.Mode = Mode.NonZero | Mode.Fill | Mode.Outline;
+draw_halfcircle(tess, 1.5, 0.5, 30);
+void draw_halfcircle(ITesselator tess, Rational radius, Rational offsety, int segs)
+{
+  var f = System.Math.PI / segs; var v = new Vector2(0, offsety);
+  tess.BeginPolygon();
+  tess.BeginContour();
+  for (int i = 0; i <= segs; i++)
+  tess.AddVertex(Vector2.SinCos(i * f) * radius + v);
+  tess.EndContour();
+  tess.EndPolygon();
+}
+//normal extrusion z = 1
+tess.Update(node.Mesh, 0.1m);
+//in general we can extruse with layers
+tess.Update(node.Mesh, 0.1m, 20);
+//can be rotated 45° with 20 segments around x: (1 << 16)
+tess.Update(node.Mesh, System.Math.PI/4, (1 << 16) | 20);
+//with an offset
+draw_halfcircle(tess, 1.5, 0.5m, 30);
+tess.Update(node.Mesh, System.Math.PI/4, (1 << 16) | 20);
+
+node.Transform *= Matrix.Translation(0,0,1.5m);
+tess.Update(node.Mesh, System.Math.PI / 2, (1 << 16) | 20);
+tess.Update(node.Mesh, System.Math.PI, (1 << 16) | 20);
+tess.Update(node.Mesh, 1.5 * System.Math.PI, (1 << 16) | 20);
+tess.Update(node.Mesh, 1.9 * System.Math.PI, (1 << 16) | 20);
+//with angle 0 it calculates the angle for a closed form  
+tess.Update(node.Mesh, 0, (1 << 16) | 20);
+//it remains a gap, therefore outline only:
+tess.Mode = Mode.NonZero | Mode.Outline;
+draw_halfcircle(tess, 1.5, 0.5m, 30);
+tess.Update(node.Mesh, 0, (1 << 16) | 20); //with 0 and outline only it closed
+//to get perfect sphere without offset
+draw_halfcircle(tess, 1.5, 0, 30);
+tess.Update(node.Mesh, 0, (1 << 16) | 20);
+Infos.Add("Errors: " + node.Mesh.Check());
+
+//move away 
+node.Mesh.Transform(Matrix.Scaling(0.5));
+node.Transform *= Matrix.Translation(3, -1, -1.5/2);
+
+//same procedure for torus
+Nodes.Add(node = new Node("bNode", 0xffffff00));
+node.Transform = Matrix.Translation(-2, -2, 1.5);
+draw_circle2(tess, 0.3, 1, 20);
+void draw_circle2(ITesselator tess, Rational radius, Rational offsety, int segs)
+{
+  var f = 2 * System.Math.PI / segs; var v = new Vector2(0, offsety);
+  tess.BeginPolygon();
+  tess.BeginContour();
+  for (int i = 0; i < segs; i++)
+  tess.AddVertex(Vector2.SinCos(i * f) * radius + v);
+  tess.EndContour();
+  tess.EndPolygon();
+}
+tess.Update(node.Mesh, 0, (1 << 16) | 20);
+ 
+node.Transform = Matrix.RotationY(System.Math.PI/2) * node.Transform;
+node.Transform *= Matrix.Translation(0,0,-1.5 + 0.3);
+
+//finally we can intersect 
+var t1 = Nodes.First(p => p.Name == "Box1");
+var t2 = t1.Transform;
+t1.Transform = Matrix.Translation(-2, -3, 0);
+node.Difference(t1); t1.Transform = t2;
+
+t1 = Nodes.First(p => p.Name == "Cylinder1");
+t2 = t1.Transform;
+t1.Transform = Matrix.Translation(-3, -2, 0.3);
+node.Difference(t1); t1.Transform = t2;
+
+return; //ready
