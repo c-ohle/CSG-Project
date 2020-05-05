@@ -24,6 +24,9 @@ namespace csg3mf
     [STAThread]
     static void Main()
     {
+      var p = CSG.Factory.CreateVector(3);
+      var s = p.ToString();
+     
       Native.SetProcessDPIAware();
       Application.EnableVisualStyles();
       Application.SetCompatibleTextRenderingDefault(false);
@@ -129,7 +132,7 @@ namespace csg3mf
         ),
        });
       
-      var tb1 = new ToolStrip() { Margin = new Padding(30), ImageScalingSize = new Size(24, 24), GripStyle = ToolStripGripStyle.Hidden };
+      var tb1 = new ToolStrip() { Margin = new Padding(15), ImageScalingSize = new Size(24, 24), GripStyle = ToolStripGripStyle.Hidden };
       Application.Idle += (p, e) => { MenuItem.Update(tb1.Items); tb1.Update(); };
       tb1.Items.Add(new MenuItem.Button(5011, "Run", Resources.run));
       tb1.Items.Add(new ToolStripSeparator());

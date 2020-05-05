@@ -288,7 +288,7 @@ namespace csg3mf
       public Node(string name) : this() { Name = name; }
       public Node(string name, uint color) : this(name)
       {
-        Mesh = Factory.CreateMesh();
+        //Mesh = Factory.CreateMesh();
         Materials = new Material[] { new Material { Color = color } };
       }
       public override string ToString()
@@ -308,6 +308,11 @@ namespace csg3mf
         public byte[] Texture;
         public Texture texture;
       }
+      public uint Color 
+      { 
+        get => Materials != null ? Materials[0].Color : 0; 
+        set => (Materials ?? (Materials = new Material[1]))[0].Color = value; 
+      }
       public void Cut(Node b)
       {
         if (Mesh == null) return;
@@ -324,6 +329,9 @@ namespace csg3mf
       public void Union(Node b) => Join(b, JoinOp.Union);
       public void Difference(Node b) => Join(b, JoinOp.Difference);
       public void Intersection(Node b) => Join(b, JoinOp.Intersection);
+      public int[] Indices => Mesh != null ? Mesh.Indices().ToArray() : null;
+      public Rational.Vector3[] Vertices => Mesh != null ? Mesh.Vertices().ToArray() : null;
+      public Rational.Plane[] Planes => Mesh != null ? Mesh.Planes().ToArray() : null;
       internal float3x4 transform;
       internal VertexBuffer vertexbuffer; uint mgen;
       internal IndexBuffer indexbuffer;

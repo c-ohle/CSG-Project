@@ -8,7 +8,7 @@ struct CMesh : public ICSGMesh
   carray<Vector4R> ee;
   void clear()
   {
-    ii.setsize(0); pp.setsize(0); ee.setsize(0); 
+    ii.setsize(0); pp.setsize(0); ee.setsize(0);
   }
   void invert()
   {
@@ -156,6 +156,19 @@ struct CMesh : public ICSGMesh
   {
     *p = rtgen; return 0;
   }
-
+  //HRESULT __stdcall get_Indices(SAFEARRAY** p)
+  //{
+  //  SAFEARRAYBOUND rgsabound; rgsabound.cElements = ii.n; rgsabound.lLbound = 0;
+  //  auto psa = SafeArrayCreate(VT_UI4, 1, &rgsabound);
+  //  for (LONG i = 0; i < (LONG)ii.n; i++) SafeArrayPutElement(psa, &i, &ii.p[i]);
+  //  *p = psa; return 0;
+  //}
+  //HRESULT __stdcall get_Vertices(SAFEARRAY** p)
+  //{
+  //  SAFEARRAYBOUND rgsabound; rgsabound.cElements = pp.n * 3; rgsabound.lLbound = 0;
+  //  auto psa = SafeArrayCreate(VT_UI8, 1, &rgsabound);
+  //  for (LONG i = 0; i < (LONG)rgsabound.cElements; i++) SafeArrayPutElement(psa, &i, &((UINT64*)pp.p)[i]);
+  //  *p = psa; return 0;
+  //}
 };
 

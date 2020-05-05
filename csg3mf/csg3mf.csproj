@@ -107,10 +107,10 @@
     <None Include="Resources\app.ico" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\run.png" />
+    <None Include="Resources\rund.png" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\rund.png" />
+    <None Include="Resources\run.png" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\stepin.png" />

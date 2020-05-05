@@ -706,7 +706,7 @@ namespace csg3mf
     }
     protected override void OnMouseDown(MouseEventArgs e)
     {
-      base.OnMouseDown(e);
+      base.OnMouseDown(e); if (HasChildren) Focus();
       var textpos = PosFromPoint(e.Location);
       if (e.Button == System.Windows.Forms.MouseButtons.Left)
       {
@@ -815,7 +815,7 @@ namespace csg3mf
           break;
         case Keys.Up:
         case Keys.PageUp:
-          { 
+          {
             var dy = e.KeyCode == Keys.PageUp ? Height : linehight - 1;
             Point P = rcaret.Location; P.Y -= dy; if (lastx != 0) P.X = lastx;
             if ((e.Modifiers & Keys.Shift) != 0) Select(sela, PosFromPoint(P)); else Select(PosFromPoint(P));
@@ -827,7 +827,7 @@ namespace csg3mf
           {
             var dy = e.KeyCode == Keys.PageDown ? Height : linehight + 1;
             Point P = rcaret.Location; P.Y += dy; if (lastx != 0) P.X = lastx;
-            if ((e.Modifiers & Keys.Shift) != 0) Select(sela, PosFromPoint(P)); else Select(PosFromPoint(P)); 
+            if ((e.Modifiers & Keys.Shift) != 0) Select(sela, PosFromPoint(P)); else Select(PosFromPoint(P));
             ScrollVisible(); lastx = P.X;
           }
           break;
@@ -1328,7 +1328,6 @@ namespace csg3mf
         case 5105: return onprotect(test);
         case 5110: return onremusings(test);
         case 5111: return onsortusings(test);
-        case 1150: return onsave(test);
         //case 5201: return onstopexcept(test);
         case 2088: return onrename(test);
         case 2020: // OnCut
@@ -1363,52 +1362,32 @@ namespace csg3mf
       next = null;
       EndFlyer(); base.OnHandleDestroyed(e);
     }
-    internal void OnFinalize(CancelEventArgs e)
-    {
-      if (e.Cancel) return;
-      if (state == 7)
-      {
-        MessageBox.Show(this, "Can't Close in Debug. Stop Debug at first!", FindForm().Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        e.Cancel = true; return;
-      }
-      if (isrunning()) return;
-      if (!IsModified) return;
-      switch (MessageBox.Show(this, string.Format("Save changings in {0}?", (string)neuron.Invoke(2, null)), FindForm().Text, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Exclamation))
-      {
-        case DialogResult.No: return;
-        case DialogResult.Cancel: e.Cancel = true; return;
-        case DialogResult.Yes: __save(); return;
-      }
-    }
     void __save()
     {
       if (text.Length == 0) { setdata(neuron, null); return; }
       data[0] = new object[] { compress(text) };
       if (isdebug()) setspots(); setdata(neuron, data);
     }
-    int onsave(object test)
-    {
-      if (!IsModified || state == 7 || isrunning()) return 0;
-      if (test != null) return 1;
-      __save(); IsModified = false; return 1;
-    }
+
     int onrename(object test)
     {
-      return 0;
-      //if (base.ReadOnly || overid == 0 || (overid & 0xf) == 8) return 0;
-      //if (test != null) return 1;
-      //var a = typemap.Where(p => (p.v & ~0xf0) == overid);
-      //var f = a.FirstOrDefault(); if (f.n == 0) return 1;
-      //var s = text.Substring(f.i, f.n);
-      //var dlg = new CadRenameDlg(); dlg.textbox.Text = s;
-      //if (dlg.ShowDialog(this) != DialogResult.OK) return 1;
-      //var v = dlg.textbox.Text; if (s == v) return 1;
-      //Replace(a.Select(p => new Point(p.i, p.n)), v); return 1;
+      if (base.ReadOnly || overid == 0 || (overid & 0xf) == 8) return 0;
+      if (test != null) return 1;
+      var a = typemap.Where(p => (p.v & ~0xf0) == overid);
+      var f = a.FirstOrDefault(); if (f.n == 0) return 1;
+      var s = text.Substring(f.i, f.n); var r = Caret;
+      var tb = new TextBox { Text = s, Location = new Point(r.X, r.Bottom) };
+      Controls.Add(tb); tb.Focus();
+      tb.LostFocus += (_, e) => tb.Dispose();
+      tb.KeyDown += (_, e) =>
+      {
+        if (e.KeyCode == Keys.Escape) { tb.Dispose(); return; }
+        if (e.KeyCode != Keys.Return) return;
+        var ss = tb.Text; tb.Dispose(); e.Handled = true; if (ss == s) return;
+        Replace(a.Select(p => new Point(p.i, p.n)), ss);
+      };
+      return 1;
     }
-    //int onstopexcept(object test)
-    //{
-    //  return 3;
-    //}
     protected override void OnKeyPress(KeyPressEventArgs e)
     {
       if (flyer != null) { flyer.OnKeyPress(e); if (e.Handled) return; }
@@ -2362,21 +2341,18 @@ namespace csg3mf
       if (TypeHelper.IsComDisposed(obj)) yield break;
       var typo = obj.GetType();
       if (obj is IEnumerable<Item>) { foreach (var x in ((IEnumerable<Item>)obj).OrderBy(p => p.text)) yield return x; yield break; }
-      var type = info as Type ?? typo;
-
+      var type = info as Type ?? (info is FieldInfo fi ? fi.FieldType : info is PropertyInfo pi ? pi.PropertyType : typo);
       if (type.IsArray)
       {
         if (type.GetElementType().IsPointer) yield break; //todo: it works probably, enable after test
         var a = (Array)obj; for (int i = 0; i < a.Length; i++) yield return new Item { icon = 8, obj = a.GetValue(i), text = string.Format("[{0}]", i) }; yield break;
       }
-
       if (type.IsPointer)
       {
         var p = (UIntPtr)obj; if (p == UIntPtr.Zero) yield break;
         obj = Marshal.PtrToStructure(tointptr(p), type.GetElementType());
         yield return new Item { icon = 8, obj = obj, text = string.Format("[{0}]", 0) }; yield break;
       }
-
       //var dtp = type.GetCustomAttributes(typeof(DebuggerTypeProxyAttribute), true); //the MS approach
       if (info != null)
       {
@@ -2443,6 +2419,7 @@ namespace csg3mf
     {
       if (p == null) return "null"; if (TypeHelper.IsComDisposed(p)) return "disposed";
       var t = p.GetType();
+      if (t.IsCOMObject) return (rt as Type ?? (rt is FieldInfo fi ? fi.FieldType : rt is PropertyInfo pi ? pi.PropertyType : t)).FullName;
       //var dda = t.GetCustomAttributes(typeof(DebuggerDisplayAttribute), true).OfType<DebuggerDisplayAttribute>().FirstOrDefault();
       //if (dda != null) {  var aa = dda.Value.Split('{','}'); /}
       if (t.IsArray) { var s = TypeHelper.shortname(t); return s.Insert(s.IndexOf(']'), ((Array)p).Length.ToString()); }
