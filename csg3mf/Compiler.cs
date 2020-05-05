@@ -1475,13 +1475,26 @@ namespace csg3mf
     }
     void __operator(Token op, Type t1, Type t2, ref MethodInfo best)
     {
-      var a = t1.GetMember(__operator(op), BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod);
-      for (int i = 0; i < a.Length; i++)
+      foreach (var m in
+        t1.GetMember(__operator(op), BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod).Concat(
+        t2.GetMember(__operator(op), BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod)).OfType<MethodInfo>())
       {
-        var m = (MethodInfo)a[0];
-        if (best != null) Error(0, "todo: bestmatch '{0}'", op);
+        var pp = m.GetParameters(); if (pp.Length != 2) continue;
+        if (pp[0].ParameterType == t1 && pp[1].ParameterType == t2) { best = m; return; }
+        if (!__canconv(t1, pp[0].ParameterType) && opmeth(t1, pp[0].ParameterType, false) == null) continue;
+        if (!__canconv(t2, pp[1].ParameterType) && opmeth(t2, pp[1].ParameterType, false) == null) continue;
+        if (best != null) Warning(0, "todo: bestmatch '{0}'", op);
         best = m;
       }
+
+      //var a = t1.GetMember(__operator(op), BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod);
+      //var b = t2.GetMember(__operator(op), BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod);
+      //for (int i = 0; i < a.Length; i++)
+      //{
+      //  var m = (MethodInfo)a[0];
+      //  if (best != null) Error(0, "todo: bestmatch '{0}'", op);
+      //  best = m;
+      //}
     }
     Func<int, int> StartAccess(Block b, bool writeonly, out Type type)
     {
@@ -1681,7 +1694,7 @@ namespace csg3mf
             {
               var mc = opmeth(t1, t2, false) ?? opmeth(t2, t1, false);
               if (mc != null) mi = __operator(op, mc.ReturnType, mc.ReturnType);
-              if (mi == null) { __operator(op, t1, t2, ref mi); __operator(op, t2, t1, ref mi); }
+              if (mi == null) __operator(op, t1, t2, ref mi); //__operator(op, t2, t1, ref mi); }
             }
             if (mi != null)
             {
@@ -4232,7 +4245,7 @@ namespace csg3mf
         if (type.DeclaringMethod != null) return string.Format("``{0}", type.GenericParameterPosition);
         if (type.DeclaringType != null) return string.Format("`{0}", type.GenericParameterPosition);
       }
-      var ss = type.FullName.Replace('+','.');
+      var ss = type.FullName != null ? type.FullName.Replace('+', '.') : type.Name;
       if (type.IsGenericType && !type.IsGenericTypeDefinition) { int t = ss.LastIndexOf("`"); if (t >= 0) ss = ss.Substring(0, t); }
       if (type.IsGenericType) ss = string.Format("{0}{{{1}}}", ss, string.Join(",", type.GetGenericArguments().Select(t => tocref(t)).ToArray()));
       return ss;
@@ -4268,7 +4281,7 @@ namespace csg3mf
     }
     static Tuple<Type, string> tocref(object p)
     {
-      var type = p as Type; if (type != null) return Tuple.Create(type, "T:" + type.FullName.Replace('+','.'));
+      var type = p as Type; if (type != null) return Tuple.Create(type, "T:" + type.FullName.Replace('+', '.'));
       var mi = p as MethodInfo; if (mi != null) return mi.DeclaringType != null ? Tuple.Create(mi.DeclaringType, tocref(mi)) : null;
       var ci = p as ConstructorInfo; if (ci != null) return Tuple.Create(ci.DeclaringType, tocref(ci));
       var pi = p as MemberInfo;
@@ -4296,7 +4309,7 @@ namespace csg3mf
           //Debug.WriteLine("load: " + file);
           if (file != null) xml = XElement.Load(file);
           var s = (string)xml.Attribute("redirect");
-          if (s != null) 
+          if (s != null)
           {
             s = Environment.ExpandEnvironmentVariables(s);
             if (s.Contains('%')) s = Environment.ExpandEnvironmentVariables(s.Replace("DIR%", "(X86)%\\"));

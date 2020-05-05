@@ -288,7 +288,7 @@ namespace csg3mf
       public Node(string name) : this() { Name = name; }
       public Node(string name, uint color) : this(name)
       {
-        //Mesh = Factory.CreateMesh();
+        Mesh = Factory.CreateMesh();
         Materials = new Material[] { new Material { Color = color } };
       }
       public override string ToString()

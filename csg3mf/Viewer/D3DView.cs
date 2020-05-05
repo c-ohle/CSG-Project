@@ -176,7 +176,7 @@ namespace csg3mf.Viewer
 
     public override void Refresh()
     {
-      loop: OnTimer(); if (!inval) return;
+    loop: OnTimer(); if (!inval) return;
       if (rtv == IntPtr.Zero) sizebuffers();
       long t1; QueryPerformanceCounter(&t1);
       Begin(rtv, dsv, viewport, (uint)BackColor.ToArgb()); OnRender(dc);
@@ -2858,38 +2858,56 @@ namespace csg3mf.Viewer
         }
         SelectObject(hdcnull, po);
       }
-      //internal void glyphrun(Tess64 tess, string text, float flat)
-      //{
-      //  tess.SetNormal(); tess.SetWinding(Winding.Negative); tess.BeginBoundary(); tess.BeginPolygon();
-      //  var po = SelectObject(hdcnull, hfont); const float f = (1.0f / 0x10000);
-      //  float4 ma; var m2 = (int*)&ma; m2[0] = m2[3] = 0x10000; Glyph gm; float x = 0;
-      //  for (int i = 0; i < text.Length; i++)
-      //  {
-      //    if (i != 0) { if (kern.TryGetValue((((uint)text[i] << 16) | text[i - 1]), out float k)) x += k * size; }
-      //    var nc = GetGlyphOutlineW(hdcnull, text[i], 2, &gm, 1 << 20, StackPtr, m2); //GGO_NATIVE
-      //    var vv = (float2*)(StackPtr + nc);
-      //    for (var ph = StackPtr; ph - StackPtr < nc;) //TTPOLYGONHEADER 
-      //    {
-      //      var cb = ((int*)ph)[0]; //var dwType = ((int*)ph)[1]; //24
-      //      tess.BeginContour();
-      //      vv[0].x = x + ((int*)ph)[2] * f; vv[0].y = ((int*)ph)[3] * f; tess.AddVertex(vv[0]);
-      //      for (var pc = ph + 16; pc - ph < cb;) //TTPOLYCURVE
-      //      {
-      //        var wType = ((ushort*)pc)[0]; //TT_PRIM_LINE 1, TT_PRIM_QSPLINE 2, TT_PRIM_CSPLINE 3
-      //        var cpfx = ((ushort*)pc)[1]; var pp = (int*)(pc + 4);
-      //        for (int t = 0; t < cpfx; t++) { vv[t + 1].x = x + pp[t << 1] * f; vv[t + 1].y = pp[(t << 1) + 1] * f; }
-      //        if (wType == 2) tess.AddQSpline(vv, cpfx + 1, flat);
-      //        else if (wType == 3) tess.AddCSpline(vv, cpfx + 1, flat);
-      //        else for (int t = 0; t < cpfx; t++) tess.AddVertex(vv[t + 1]);
-      //        vv[0] = vv[cpfx]; pc += 4 + (cpfx << 3);
-      //      }
-      //      tess.EndContour(); ph += cb;
-      //    }
-      //    x += *(int*)&gm.incx;
-      //  }
-      //  SelectObject(hdcnull, po);
-      //  tess.EndPolygon(); tess.SetWinding(Winding.Positive); tess.EndBoundary(); tess.Compact();
-      //}
+      internal void glyphrun(CSG.ITesselator tess, string text, float flat)
+      {
+        var po = SelectObject(hdcnull, hfont); const float f = (1.0f / 0x10000);
+        float4 ma; var m2 = (int*)&ma; m2[0] = m2[3] = 0x10000; Glyph gm; float x = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+          if (i != 0) { if (kern.TryGetValue((((uint)text[i] << 16) | text[i - 1]), out float k)) x += k * size; }
+          var nc = GetGlyphOutlineW(hdcnull, text[i], 2, &gm, 1 << 20, StackPtr, m2); //GGO_NATIVE
+          var vv = (float2*)(StackPtr + nc);
+          for (var ph = StackPtr; ph - StackPtr < nc;) //TTPOLYGONHEADER 
+          {
+            var cb = ((int*)ph)[0]; //var dwType = ((int*)ph)[1]; //24
+            tess.BeginContour();
+            vv[0].x = x + ((int*)ph)[2] * f; vv[0].y = ((int*)ph)[3] * f; tess.AddVertex(new CSG.Variant(&vv[0].x, 2));
+            for (var pc = ph + 16; pc - ph < cb;) //TTPOLYCURVE
+            {
+              var wType = ((ushort*)pc)[0]; //TT_PRIM_LINE 1, TT_PRIM_QSPLINE 2, TT_PRIM_CSPLINE 3
+              var cpfx = ((ushort*)pc)[1]; var pp = (int*)(pc + 4);
+              for (int t = 0; t < cpfx; t++) { vv[t + 1].x = x + pp[t << 1] * f; vv[t + 1].y = pp[(t << 1) + 1] * f; }
+              if (wType == 2) qspline(tess, vv, cpfx + 1, flat);
+              else if (wType == 3) cspline(tess, vv, cpfx + 1, flat);
+              else for (int t = 0; t < cpfx; t++) tess.AddVertex(new CSG.Variant(&vv[t + 1].x, 2));
+              vv[0] = vv[cpfx]; pc += 4 + (cpfx << 3);
+            }
+            tess.EndContour(); ph += cb;
+          }
+          x += *(int*)&gm.incx;
+        }
+        SelectObject(hdcnull, po);
+      }
+      static void qspline(CSG.ITesselator tess, float2* pp, int np, float flat = 0.1f)
+      {
+        var t0 = pp[0]; Assert(np >= 3);
+        for (int i = 1; i < np;)
+        {
+          var t1 = pp[i++]; var t2 = i == np - 1 ? pp[i++] : (pp[i - 1] + pp[i]) * 0.5f;
+          void spline(float2 p1, float2 p2, float a, float b)
+          {
+            var t = (a + b) * 0.5f; var s = 1f - t;
+            var p = t0 * (s * s) + t1 * (t * s * 2) + t2 * (t * t);
+            var d = Math.Abs(normalize(p - p1) ^ normalize(p2 - p)); if (!(d > flat)) return;
+            spline(p1, p, a, t); tess.AddVertex(new CSG.Variant(&p.x, 2)); spline(p, p2, t, b);
+          }
+          spline(t0, t2, 0, 1); var tt = t0 = t2; tess.AddVertex(new CSG.Variant(&tt.x, 2));
+        }
+      }
+      static void cspline(CSG.ITesselator tess, float2* pp, int np, float flat = 0.1f)
+      {
+        Assert(np >= 4); //todo:...
+      }
     }
 
     public static Font GetFont((string s, int i, int n) name, float size, FontStyle style)

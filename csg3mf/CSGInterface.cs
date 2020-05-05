@@ -87,7 +87,7 @@ namespace csg3mf
       MeshCheck Check(MeshCheck m = 0);
       uint Generation { get; }
     }
-    
+
     public enum Op1 { Copy = 0, Neg = 1, TransPM = 2, Inv3x4 = 3, Dot2 = 4, Dot3 = 5, Norm3 = 6, Num = 7, Den = 8, Lsb = 9, Msb = 10, Trunc = 11, Floor = 12, Ceil = 13, Round = 14, Rnd10 = 15, Com = 16 }
     public enum Op2 { Add = 0, Sub = 1, Mul = 2, Div = 3, Mul3x4 = 4, PlaneP3 = 5, PlanePN = 6, Pow = 7 }
 
@@ -410,6 +410,8 @@ namespace csg3mf
     public static IEnumerable<Viewer.D3DView.float3> VerticesF3(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexF3(i); }
     public static IEnumerable<int> Indices(this IMesh mesh) { for (int i = 0, n = mesh.IndexCount; i < n; i++) yield return mesh.GetIndex(i); }
     public static IEnumerable<Rational.Plane> Planes(this IMesh mesh) { for (int i = 0, n = mesh.PlaneCount; i < n; i++) yield return mesh.GetPlaneR4(i); }
+    public static void AddTextConture(this ITesselator tess, string text, string font = "Arial", float pt = 32, FontStyle fstyle = FontStyle.Regular)
+      => Viewer.D3DView.GetFont(font, pt, fstyle).glyphrun(tess, text, 0.1f);
     #endregion
   }
 

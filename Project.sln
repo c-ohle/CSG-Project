@@ -23,6 +23,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "demos", "demos", "{BE1336B9
 		bin\demos\demo1.3mf = bin\demos\demo1.3mf
 		bin\demos\demo2.3mf = bin\demos\demo2.3mf
 		bin\demos\demo3.3mf = bin\demos\demo3.3mf
+		bin\demos\primitives.3cs = bin\demos\primitives.3cs
 	EndProjectSection
 EndProject
 Global
