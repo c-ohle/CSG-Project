@@ -109,4 +109,5 @@ class CTesselatorDbl : public ICSGTesselator
   HRESULT __stdcall Cut(ICSGMesh* a, CSGVAR plane) { return E_NOTIMPL; }
   HRESULT __stdcall Join(ICSGMesh* a, ICSGMesh* b, CSG_JOIN op) { return E_NOTIMPL; }
   HRESULT __stdcall AddGlyphContour(CSGVAR text, HFONT font, int flat);
+  HRESULT __stdcall Stretch(ICSGMesh* a, CSGVAR dir) { return E_NOTIMPL; }
 };

@@ -231,6 +231,10 @@ EXTERN_C const IID IID_ICSGTesselator;
             /* [in] */ HFONT font,
             /* [in] */ int flat) = 0;
         
+        virtual HRESULT STDMETHODCALLTYPE Stretch( 
+            /* [in] */ ICSGMesh *a,
+            /* [in] */ CSGVAR dir) = 0;
+        
     };
     
     
@@ -330,6 +334,11 @@ EXTERN_C const IID IID_ICSGTesselator;
             /* [in] */ HFONT font,
             /* [in] */ int flat);
         
+        HRESULT ( STDMETHODCALLTYPE *Stretch )( 
+            ICSGTesselator * This,
+            /* [in] */ ICSGMesh *a,
+            /* [in] */ CSGVAR dir);
+        
         END_INTERFACE
     } ICSGTesselatorVtbl;
 
@@ -406,6 +415,9 @@ EXTERN_C const IID IID_ICSGTesselator;
 
 #define ICSGTesselator_AddGlyphContour(This,text,font,flat)	\
     ( (This)->lpVtbl -> AddGlyphContour(This,text,font,flat) ) 
+
+#define ICSGTesselator_Stretch(This,a,dir)	\
+    ( (This)->lpVtbl -> Stretch(This,a,dir) ) 
 
 #endif /* COBJMACROS */
 

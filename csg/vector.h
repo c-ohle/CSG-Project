@@ -12,23 +12,23 @@ void conv(CSGVAR& v, const Rational* rr, UINT nr);
 void conv(double* rr, UINT nr, const CSGVAR& v);
 void conv(CSGVAR& v, const double* rr, UINT nr);
 
-struct Vector2F
-{
-  float x, y;
-  Vector2F() { x = y = 0; }
-  Vector2F(float x, float y) { this->x = x; this->y = y; }
-  operator CSGVAR() const { CSGVAR v; v.vt = CSG_TYPE_FLOAT; v.count = 2; *(const void**)&v.p = this;  return v; }
-  float operator[](int i) const { return i & 1 ? y : x; }
-  Vector2F operator -() const { return Vector2F(-x, -y); }
-  Vector2F operator ~() const { return Vector2F(-y, +x); }
-  Vector2F operator * (float b) const { return Vector2F(x * b, y * b); }
-  Vector2F operator + (const Vector2F& b) const { return Vector2F(x + b.x, y + b.y); }
-  Vector2F operator - (const Vector2F& b) const { return Vector2F(x - b.x, y - b.y); }
-  float operator ^ (const Vector2F& b) const { return x * b.y - y * b.x; }
-  float Dot() const { return x * x + y * y; }
-  float Length() const { return sqrtf(x * x + y * y); }
-  Vector2F Normal() const { return x != 0 || y != 0 ? *this * (1 / Length()) : Vector2F(0, 0); }
-};
+//struct Vector2F
+//{
+//  float x, y;
+//  Vector2F() { x = y = 0; }
+//  Vector2F(float x, float y) { this->x = x; this->y = y; }
+//  operator CSGVAR() const { CSGVAR v; v.vt = CSG_TYPE_FLOAT; v.count = 2; *(const void**)&v.p = this;  return v; }
+//  float operator[](int i) const { return i & 1 ? y : x; }
+//  Vector2F operator -() const { return Vector2F(-x, -y); }
+//  Vector2F operator ~() const { return Vector2F(-y, +x); }
+//  Vector2F operator * (float b) const { return Vector2F(x * b, y * b); }
+//  Vector2F operator + (const Vector2F& b) const { return Vector2F(x + b.x, y + b.y); }
+//  Vector2F operator - (const Vector2F& b) const { return Vector2F(x - b.x, y - b.y); }
+//  float operator ^ (const Vector2F& b) const { return x * b.y - y * b.x; }
+//  float Dot() const { return x * x + y * y; }
+//  float Length() const { return sqrtf(x * x + y * y); }
+//  Vector2F Normal() const { return x != 0 || y != 0 ? *this * (1 / Length()) : Vector2F(0, 0); }
+//};
 
 struct Vector2
 {
@@ -132,6 +132,7 @@ struct Vector3R
     return Vector3R(i == 0 ? s : x / l, i == 1 ? s : y / l, i == 2 ? s : z / l);
   }
   static Vector3R Ccw(const Vector3R& a, const Vector3R& b, const Vector3R& c) { return (b - a) ^ (c - a); }
+  static Rational Dot(const Vector3R& a, const Vector3R& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
   static int Inline(const Vector3R& a, const Vector3R& b, const Vector3R& c, int i = 0)
   {
     Rational::mach m = 0; // m.fetch(); ???

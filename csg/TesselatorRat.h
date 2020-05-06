@@ -316,6 +316,7 @@ class CTesselatorRat : public ICSGTesselator
   HRESULT __stdcall Cut(ICSGMesh* a, CSGVAR plane);
   HRESULT __stdcall Join(ICSGMesh* a, ICSGMesh* b, CSG_JOIN op);
   HRESULT __stdcall AddGlyphContour(CSGVAR text, HFONT font, int flat);
+  HRESULT __stdcall Stretch(ICSGMesh* a, CSGVAR dir);
   //CSG extension
   struct _csg
   {
@@ -395,4 +396,5 @@ class CTesselatorRat : public ICSGTesselator
   void outline(int* ii, int ni);
   int join(int ni, int fl);
 };
+
 

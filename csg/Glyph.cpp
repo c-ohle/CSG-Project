@@ -132,3 +132,49 @@ HRESULT CTesselatorRat::AddGlyphContour(CSGVAR text, HFONT font, int flat)
   return ::AddGlyphContour(this, &ss, text, font, flat);
 }
 
+HRESULT CTesselatorRat::Stretch(ICSGMesh* mesh, CSGVAR v)
+{
+  auto& m = *static_cast<CMesh*>(mesh);
+  m.resetee(); m.rtgen = getrtid();
+  Vector3R dir; conv(&dir.x, 3, v);
+  csg.dictpp(m.pp.n << 1);
+  UINT ni = 0, * ii = (UINT*)ss.getptr(m.ii.n);
+  beginsex();
+  for (UINT i = 0, k = 0; i < m.ii.n; i += 3, k++)
+  {
+    const auto& p1 = m.pp.p[m.ii.p[i + 0]];
+    const auto& p2 = m.pp.p[m.ii.p[i + 1]];
+    const auto& p3 = m.pp.p[m.ii.p[i + 2]];
+    auto s = 0 ^ Vector3R::Dot(dir, Vector3R::Ccw(p1, p2, p3));
+    //if (s == 0) continue;
+    if (s < 0)
+    {
+      ii[ni + 0] = csg.addpp(p1);
+      ii[ni + 1] = csg.addpp(p2);
+      ii[ni + 2] = csg.addpp(p3);
+      addsex(ii[ni + 0], ii[ni + 1]);
+      addsex(ii[ni + 1], ii[ni + 2]);
+      addsex(ii[ni + 2], ii[ni + 0]); ni += 3;
+    }
+    else
+    {
+      ii[ni + 0] = csg.addpp(p1 + dir);
+      ii[ni + 1] = csg.addpp(p2 + dir);
+      ii[ni + 2] = csg.addpp(p3 + dir); ni += 3;
+    }
+  }
+  for (int i = 0; i < this->ni; i++)
+  {
+    if (this->ii[i].a == -1) continue;
+    UINT i1, i2 = csg.addpp(csg.pp.p[i1 = this->ii[i].a] + dir);
+    UINT i3, i4 = csg.addpp(csg.pp.p[i3 = this->ii[i].b] + dir);
+    ii = (UINT*)ss.getptr(ni + 6);
+    ii[ni++] = i1; ii[ni++] = i2; ii[ni++] = i3;
+    ii[ni++] = i2; ii[ni++] = i4; ii[ni++] = i3;
+  }
+
+  m.pp.copy(csg.pp.p, csg.np);
+  m.ii.copy((UINT*)ii, ni);
+
+  return 0;
+}

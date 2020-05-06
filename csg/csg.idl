@@ -69,6 +69,7 @@ interface ICSGTesselator : IUnknown
   HRESULT Cut([in] ICSGMesh* a, [in] CSGVAR plane);
   HRESULT Join([in] ICSGMesh* a, [in] ICSGMesh* b, [in] CSG_JOIN op);
   HRESULT AddGlyphContour([in] CSGVAR text, [in] HFONT font, [in] int flat);
+  HRESULT Stretch([in] ICSGMesh* a, [in] CSGVAR dir);
 };
 
 typedef enum CSG_OP1
@@ -152,7 +153,6 @@ interface ICSGMesh : IUnknown
   HRESULT CreateBox([in] CSGVAR a, [in] CSGVAR b);
   HRESULT Check([in] CSG_MESH_CHECK check, [out] CSG_MESH_CHECK* p);
   [propget] HRESULT Generation([out, retval] UINT* p);
-  //[propget] HRESULT Indices([out, retval] SAFEARRAY(UINT) *p);
 };
 
 typedef enum CSG_UNIT

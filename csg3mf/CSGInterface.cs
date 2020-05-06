@@ -60,6 +60,7 @@ namespace csg3mf
       void Cut(IMesh a, Variant plane);
       void Join(IMesh a, IMesh b, JoinOp op);
       void AddGlyphContour(Variant s, IntPtr font, int flat = 8);
+      void Stretch(IMesh a, Variant v);
     }
 
     public enum JoinOp { Union = 0, Difference = 1, Intersection = 2 }
