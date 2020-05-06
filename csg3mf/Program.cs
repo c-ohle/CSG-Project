@@ -248,7 +248,6 @@ namespace csg3mf
     }
     int OnSave(object test, bool saveas)
     {
-      if (view.cont.Nodes.Count == 0) return 0;
       if (test != null) return 1;
       var s = path;
       if (saveas || s == null)

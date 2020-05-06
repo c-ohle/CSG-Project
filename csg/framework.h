@@ -111,7 +111,8 @@ struct sarray
   }
   T* getptr(UINT c, UINT s = 8)
   {
-    if (n < c) setsize(((c >> s) + 1) << s);
+    if (n < c) 
+      setsize(((c >> s) + 1) << s);
     return p;
   }
   void clear()

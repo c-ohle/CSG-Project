@@ -59,6 +59,7 @@ namespace csg3mf
       void Update(IMesh mesh, Variant z, int flags = 0);
       void Cut(IMesh a, Variant plane);
       void Join(IMesh a, IMesh b, JoinOp op);
+      void AddGlyphContour(Variant s, IntPtr font, int flat = 8);
     }
 
     public enum JoinOp { Union = 0, Difference = 1, Intersection = 2 }
@@ -410,8 +411,10 @@ namespace csg3mf
     public static IEnumerable<Viewer.D3DView.float3> VerticesF3(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexF3(i); }
     public static IEnumerable<int> Indices(this IMesh mesh) { for (int i = 0, n = mesh.IndexCount; i < n; i++) yield return mesh.GetIndex(i); }
     public static IEnumerable<Rational.Plane> Planes(this IMesh mesh) { for (int i = 0, n = mesh.PlaneCount; i < n; i++) yield return mesh.GetPlaneR4(i); }
-    public static void AddTextConture(this ITesselator tess, string text, string font = "Arial", float pt = 32, FontStyle fstyle = FontStyle.Regular)
-      => Viewer.D3DView.GetFont(font, pt, fstyle).glyphrun(tess, text, 0.1f);
+    public static void AddGlyphContour(this ITesselator tess, string text, Font font, int flat = 8)
+    {
+      var h = font.ToHfont(); try { fixed (char* p = text) tess.AddGlyphContour(new Variant(p, 1), h, flat); } finally { Native.DeleteObject(h); }
+    }
     #endregion
   }
 

@@ -24,7 +24,7 @@ class CTesselatorRat : public ICSGTesselator
   const int hash = 199;
   CSG_TESS mode = (CSG_TESS)(CSG_TESS_FILL | CSG_TESS_POSITIVE);
   int np = 0; carray<ts> pp; int snp;
-  int ns = 0, nl = 0, fi = 0; sarray<int> ss, ll;
+  int ns = 0, nl = 0, fi = 0; sarray<int> ss, ll; //keep order
   int mi = 0; sarray<int> dict;
   int ni = 0; sarray<ab> ii, kk;
   void resize(int c = 0)
@@ -315,6 +315,7 @@ class CTesselatorRat : public ICSGTesselator
   HRESULT __stdcall Update(ICSGMesh* mesh, CSGVAR z, UINT flags);
   HRESULT __stdcall Cut(ICSGMesh* a, CSGVAR plane);
   HRESULT __stdcall Join(ICSGMesh* a, ICSGMesh* b, CSG_JOIN op);
+  HRESULT __stdcall AddGlyphContour(CSGVAR text, HFONT font, int flat);
   //CSG extension
   struct _csg
   {

@@ -68,6 +68,7 @@ interface ICSGTesselator : IUnknown
   HRESULT Update([in] ICSGMesh* mesh, [in] CSGVAR v, [in] UINT flags);
   HRESULT Cut([in] ICSGMesh* a, [in] CSGVAR plane);
   HRESULT Join([in] ICSGMesh* a, [in] ICSGMesh* b, [in] CSG_JOIN op);
+  HRESULT AddGlyphContour([in] CSGVAR text, [in] HFONT font, [in] int flat);
 };
 
 typedef enum CSG_OP1

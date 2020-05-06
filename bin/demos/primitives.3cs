@@ -59,8 +59,7 @@ var segments = 50;
 Rational radius = 0.5, height = 1;
 tess.BeginPolygon();
 tess.BeginContour(); var f = 2 * System.Math.PI / segments;
-for (int i = 0; i < segments; i++)
-tess.AddVertex(Vector2.SinCos(i * f) * radius);
+for (int i = 0; i < segments; i++) tess.AddVertex(Vector2.SinCos(i * f) * radius);
 tess.EndContour();
 tess.EndPolygon();
 tess.Update(node.Mesh = Factory.CreateMesh(), height);
@@ -71,12 +70,10 @@ Nodes.Add(node = new Node("Pipe1", 0xffff8080));
 var innerradius = 0.4m;
 tess.BeginPolygon();
 tess.BeginContour();
-for (int i = 0; i < segments; i++)
-tess.AddVertex(Vector2.SinCos(i * f) * radius);
+for (int i = 0; i < segments; i++) tess.AddVertex(Vector2.SinCos(i * f) * radius);
 tess.EndContour();
 tess.BeginContour();
-for (int i = 0; i < segments; i++)
-tess.AddVertex(Vector2.SinCos(i * -f) * innerradius);
+for (int i = 0; i < segments; i++) tess.AddVertex(Vector2.SinCos(i * -f) * innerradius);
 tess.EndContour();
 tess.EndPolygon();
 tess.Update(node.Mesh = Factory.CreateMesh(), height);
@@ -122,8 +119,7 @@ void draw_halfcircle(ITesselator tess, Rational radius, Rational offsety, int se
   var f = System.Math.PI / segs; var v = new Vector2(0, offsety);
   tess.BeginPolygon();
   tess.BeginContour();
-  for (int i = 0; i <= segs; i++)
-  tess.AddVertex(Vector2.SinCos(i * f) * radius + v);
+  for (int i = 0; i <= segs; i++) tess.AddVertex(Vector2.SinCos(i * f) * radius + v);
   tess.EndContour();
   tess.EndPolygon();
 }
@@ -166,8 +162,7 @@ void draw_circle2(ITesselator tess, Rational radius, Rational offsety, int segs)
   var f = 2 * System.Math.PI / segs; var v = new Vector2(0, offsety);
   tess.BeginPolygon();
   tess.BeginContour();
-  for (int i = 0; i < segs; i++)
-  tess.AddVertex(Vector2.SinCos(i * f) * radius + v);
+  for (int i = 0; i < segs; i++) tess.AddVertex(Vector2.SinCos(i * f) * radius + v);
   tess.EndContour();
   tess.EndPolygon();
 }
@@ -192,10 +187,11 @@ node = new Node("text", 0xffffff00);
 node.Transform = Matrix.RotationX(System.Math.PI/2) * Matrix.Translation(-4, 0, 1);
 tess.Mode = Mode.Fill | Mode.Outline| Mode.Negative;
 tess.BeginPolygon();
-tess.AddTextConture("Ready", "Arial", 72);
+using(var font = new System.Drawing.Font("Arial", 72, System.Drawing.FontStyle.Regular))
+  tess.AddGlyphContour("Ready!", font);
 tess.EndPolygon();
-tess.Update(node.Mesh, 1);
-node.Mesh.Transform(Matrix.Scaling(0.02m, 0.02m, 0.3));
+tess.Update(node.Mesh, 0.3m);
+node.Mesh.Transform(Matrix.Scaling(0.02m / 0x10000, 0.02m / 0x10000, 1));
 Nodes.Add(node);
 node.Color = 0xffff0000;
 

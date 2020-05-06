@@ -3,67 +3,132 @@
 #include "TesselatorRat.h"
 #include "Mesh.h"
 
-/*
-struct float2 
-{ 
-  float x, y; 
-  float2(float x, float y) { this->x = x; this->y = y; }
-  float2 operator + (const float2& b) const { return float2(x + b.x, y + b.y); }
-  float2 operator * (double b) const { return float2(x * b, y * b); }
+//#define PIXELSIZE 	64  // 64 number of units per pixel. It has to be a power of two 
+#define ERRSHIFT 		4  	// 4 = 2log(ERRDIV), define only if ERRDIV is a power of 2  
+#define MAXGY 			5 	// 5
+#define MAXMAXGY 		8 	// 8 	related to MAXVECTORS  
+#define MAXVECTORS  257 // 257 must be at least 257  = (2 ^ MAXMAXGY) + 1  
+struct LPOINTFX { int x, y; };
+struct QS { LPOINTFX a, b, c; };
+struct CTX
+{
+  ICSGTesselator* tess; int x, pixelsize;
+  void AddVertex(LPOINTFX p)
+  {
+    auto l = ((INT64)x << 16) + p.x; if (l > INT_MAX) { Vector2 t((double)x * 0x10000 + p.x, p.y); tess->AddVertex(t); return; }
+    p.x = (int)l; CSGVAR v; v.vt = CSG_TYPE_INT; v.count = 2; *(const void**)&v.p = &p; tess->AddVertex(v);
+  }
 };
-
-void AddQSpline(ICSGTesselator* tess, float2* pp, int np, float flat = 0.1f)
+static void QSpline2Polyline(CTX& ctx, QS* qs)
 {
-  auto t0 = pp[0]; _ASSERT(np >= 3);
-  for (int i = 1; i < np;)
+  int Ax = qs->a.x >> 10;
+  int Ay = qs->a.y >> 10;
+  int Bx = qs->b.x >> 10;
+  int By = qs->b.y >> 10;
+  int Cx = qs->c.x >> 10;
+  int Cy = qs->c.y >> 10;
+  int GX = Bx; int DX, DDX = (DX = (Ax - GX)) - GX + Cx;
+  int GY = By; int DY, DDY = (DY = (Ay - GY)) - GY + Cy;
+  GX = DDX < 0 ? -DDX : DDX;
+  GY = DDY < 0 ? -DDY : DDY;
+  GX += GX > GY ? GX + GY : GY + GY;
+  for (GY = 1; GX > (ctx.pixelsize << (5 - ERRSHIFT)); GX >>= 2)  GY++;
+  if (GY > MAXMAXGY) 	GY = MAXMAXGY;
+  int i = 1 << GY;
+  if (GY > MAXGY)
   {
-    auto t1 = pp[i++]; auto t2 = i == np - 1 ? pp[i++] : (pp[i - 1] + pp[i]) * 0.5f;
-    void spline(ICSGTesselator * tess, float2 p1, float2 p2, float a, float b)
-    {
-      var t = (a + b) * 0.5f; var s = 1f - t;
-      var p = t0 * (s * s) + t1 * (t * s * 2) + t2 * (t * t);
-      var d = Math.Abs(normalize(p - p1) ^ normalize(p2 - p)); if (!(d > flat)) return;
-      spline(p1, p, a, t); AddVertex(p); spline(p, p2, t, b);
-    }
-    spline(t0, t2, 0, 1); tess->AddVertex(t0 = t2);
+    QS qs; DDX = GY - 1;
+    qs.a.x = Ax;
+    qs.a.y = Ay;
+    qs.b.x = (Ax + Bx + 1) >> 1;
+    qs.b.y = (Ay + By + 1) >> 1;
+    qs.c.x = (Ax + Bx + Bx + Cx + 2) >> 2;
+    qs.c.y = (Ay + By + By + Cy + 2) >> 2;
+    QSpline2Polyline(ctx, (QS*)&qs);
+    qs.a.x = qs.c.x;
+    qs.a.y = qs.c.y;
+    qs.b.x = (Cx + Bx + 1) >> 1;
+    qs.b.y = (Cy + By + 1) >> 1;
+    qs.c.x = Cx;
+    qs.c.y = Cy;
+    QSpline2Polyline(ctx, (QS*)&qs);
+    return;
   }
-}
-void AddCSpline(ICSGTesselator* tess, float2* pp, int np, float flat = 0.1f)
-{
+  int nsqs = GY + GY;
+  DX = DDX - (DX << ++GY); DDX += DDX;
+  DY = DDY - (DY << GY); DDY += DDY;
+  GY = (int)Ay << nsqs;
+  GX = (int)Ax << nsqs;
+  int tmp = 1L << (nsqs - 1);
+  do
+  {
+    GX += DX; DX += DDX; GY += DY; LPOINTFX p;
+    p.x = (((GX + tmp) >> nsqs) << 10);
+    p.y = (((GY + tmp) >> nsqs) << 10);
+    ctx.AddVertex(p);
+    DY += DDY;
+  } while (--i);
 }
 
-void GlyphRun(ICSGTesselator* tess, LPCSTR text, UINT length, HFONT hfont, float flat)
+HRESULT AddGlyphContour(ICSGTesselator* tess, sarray<int> buff[2], const CSGVAR& text, HFONT font, int flat)
 {
-  auto StackPtr = (BYTE*)_alloca(0x10000);
-  auto hdcnull = ::GetDC(0);
-  auto po = ::SelectObject(hdcnull, hfont); const float f = (1.0f / 0x10000);
-  MAT2 m2 = { 0 }; m2.eM11.value = m2.eM22.value = 1;
-  float x = 0;
-  for (int i = 0; i < length; i++)
+  if (text.vt != CSG_TYPE_STRING) return  E_INVALIDARG;
+  auto ss = (LPCWSTR)text.p; UINT ns = lstrlen(ss);
+  auto hdc = ::GetDC(0);
+  auto po = ::SelectObject(hdc, font);
+  GCP_RESULTSW re = { 0 }; re.lStructSize = sizeof(GCP_RESULTSW); re.lpDx = buff[1].getptr(ns); re.nGlyphs = ns;
+  auto hr = GetCharacterPlacementW(hdc, ss, ns, 0, &re, GCP_USEKERNING);
+  if (hr == 0) { ::SelectObject(hdc, po); return E_FAIL; }
+  CTX ctx; ctx.tess = tess; ctx.x = 0; ctx.pixelsize = 1 << flat;
+  GLYPHMETRICS gm; MAT2 m2 = { 0 }; m2.eM11.value = m2.eM22.value = 1;
+  for (UINT i = 0; i < ns; i++)
   {
-    //if (i != 0) { if (kern.TryGetValue((((uint)text[i] << 16) | text[i - 1]), out float k)) x += k * size; }
-    GLYPHMETRICS gm = { 0 };
-    auto nc = ::GetGlyphOutlineW(hdcnull, text[i], GGO_NATIVE, &gm, 1 << 20, StackPtr, &m2);
-    auto  vv = (float2*)(StackPtr + nc);
-    for (auto ph = StackPtr; ph - StackPtr < nc;) //TTPOLYGONHEADER 
+    auto ph = (TTPOLYGONHEADER*)buff[0].getptr(256);
+    int nc = ::GetGlyphOutlineW(hdc, ss[i], GGO_NATIVE, &gm, buff[0].n << 2, ph, &m2);
+    if (nc == GDI_ERROR)
     {
-      auto  cb = ((int*)ph)[0]; //auto  dwType = ((int*)ph)[1]; //24
-      tess->BeginContour();
-      vv[0].x = x + ((int*)ph)[2] * f; vv[0].y = ((int*)ph)[3] * f; tess->AddVertex(vv[0]);
-      for (auto pc = ph + 16; pc - ph < cb;) //TTPOLYCURVE
+      nc = ::GetGlyphOutlineW(hdc, ss[i], GGO_NATIVE, &gm, 0, 0, &m2);
+      buff[0].getptr(nc >> 1); i--; continue;
+    }
+    for (; ((BYTE*)ph - (BYTE*)buff[0].p) < nc; ph = (TTPOLYGONHEADER*)((BYTE*)ph + ph->cb))
+    {
+      tess->BeginContour(); ctx.AddVertex(*(LPOINTFX*)&ph->pfxStart);
+      auto pc = (TTPOLYCURVE*)(ph + 1);
+      for (; (BYTE*)pc < (BYTE*)ph + ph->cb; pc = (TTPOLYCURVE*)((BYTE*)pc + sizeof(TTPOLYCURVE) + (pc->cpfx - 1) * sizeof(POINTFX)))
       {
-        auto  wType = ((USHORT*)pc)[0]; //TT_PRIM_LINE 1, TT_PRIM_QSPLINE 2, TT_PRIM_CSPLINE 3
-        auto  cpfx = ((USHORT*)pc)[1]; auto  pp = (int*)(pc + 4);
-        for (int t = 0; t < cpfx; t++) { vv[t + 1].x = x + pp[t << 1] * f; vv[t + 1].y = pp[(t << 1) + 1] * f; }
-        if (wType == 2) AddQSpline(tess, vv, cpfx + 1, flat);
-        else if (wType == 3) AddCSpline(tess, vv, cpfx + 1, flat);
-        else for (int t = 0; t < cpfx; t++) tess->AddVertex(vv[t + 1]);
-        vv[0] = vv[cpfx]; pc += 4 + (cpfx << 3);
+        if (pc->wType == TT_PRIM_LINE) for (UINT t = 0; t < pc->cpfx; t++) ctx.AddVertex(*(LPOINTFX*)&pc->apfx[t]);
+        else if (pc->wType == TT_PRIM_QSPLINE)
+        {
+          LPOINTFX spline[3];
+          spline[0] = *(LPOINTFX*)(((BYTE*)pc) - sizeof(POINTFX));
+          for (UINT k = 0; k < pc->cpfx;)
+          {
+            spline[1] = *(LPOINTFX*)&pc->apfx[k++];
+            if (k == pc->cpfx - 1) spline[2] = *(LPOINTFX*)&pc->apfx[k++];
+            else
+            {
+              spline[2].x = (*(int*)&pc->apfx[k - 1].x + *(int*)&pc->apfx[k].x) >> 1;
+              spline[2].y = (*(int*)&pc->apfx[k - 1].y + *(int*)&pc->apfx[k].y) >> 1;
+            }
+            QSpline2Polyline(ctx, (QS*)spline); //ctx.AddVertex(spline[2]); 
+            spline[0] = spline[2];
+          }
+        }
       }
-      tess->EndContour(); ph += cb;
+      tess->EndContour();
     }
-    x += gm.gmCellIncX;
+    ctx.x += re.lpDx[i];
   }
-  ::SelectObject(hdcnull, po);
+  ::SelectObject(hdc, po);
+  return 0;
 }
-*/
+
+HRESULT CTesselatorDbl::AddGlyphContour(CSGVAR text, HFONT font, int flat)
+{
+  return ::AddGlyphContour(this, &ss, text, font, flat);
+}
+HRESULT CTesselatorRat::AddGlyphContour(CSGVAR text, HFONT font, int flat)
+{
+  return ::AddGlyphContour(this, &ss, text, font, flat);
+}
+

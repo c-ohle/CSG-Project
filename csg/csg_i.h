@@ -226,6 +226,11 @@ EXTERN_C const IID IID_ICSGTesselator;
             /* [in] */ ICSGMesh *b,
             /* [in] */ CSG_JOIN op) = 0;
         
+        virtual HRESULT STDMETHODCALLTYPE AddGlyphContour( 
+            /* [in] */ CSGVAR text,
+            /* [in] */ HFONT font,
+            /* [in] */ int flat) = 0;
+        
     };
     
     
@@ -319,6 +324,12 @@ EXTERN_C const IID IID_ICSGTesselator;
             /* [in] */ ICSGMesh *b,
             /* [in] */ CSG_JOIN op);
         
+        HRESULT ( STDMETHODCALLTYPE *AddGlyphContour )( 
+            ICSGTesselator * This,
+            /* [in] */ CSGVAR text,
+            /* [in] */ HFONT font,
+            /* [in] */ int flat);
+        
         END_INTERFACE
     } ICSGTesselatorVtbl;
 
@@ -392,6 +403,9 @@ EXTERN_C const IID IID_ICSGTesselator;
 
 #define ICSGTesselator_Join(This,a,b,op)	\
     ( (This)->lpVtbl -> Join(This,a,b,op) ) 
+
+#define ICSGTesselator_AddGlyphContour(This,text,font,flat)	\
+    ( (This)->lpVtbl -> AddGlyphContour(This,text,font,flat) ) 
 
 #endif /* COBJMACROS */
 
@@ -1143,10 +1157,20 @@ unsigned char * __RPC_USER  BSTR_UserMarshal(  unsigned long *, unsigned char *,
 unsigned char * __RPC_USER  BSTR_UserUnmarshal(unsigned long *, unsigned char *, BSTR * ); 
 void                      __RPC_USER  BSTR_UserFree(     unsigned long *, BSTR * ); 
 
+unsigned long             __RPC_USER  HFONT_UserSize(     unsigned long *, unsigned long            , HFONT * ); 
+unsigned char * __RPC_USER  HFONT_UserMarshal(  unsigned long *, unsigned char *, HFONT * ); 
+unsigned char * __RPC_USER  HFONT_UserUnmarshal(unsigned long *, unsigned char *, HFONT * ); 
+void                      __RPC_USER  HFONT_UserFree(     unsigned long *, HFONT * ); 
+
 unsigned long             __RPC_USER  BSTR_UserSize64(     unsigned long *, unsigned long            , BSTR * ); 
 unsigned char * __RPC_USER  BSTR_UserMarshal64(  unsigned long *, unsigned char *, BSTR * ); 
 unsigned char * __RPC_USER  BSTR_UserUnmarshal64(unsigned long *, unsigned char *, BSTR * ); 
 void                      __RPC_USER  BSTR_UserFree64(     unsigned long *, BSTR * ); 
+
+unsigned long             __RPC_USER  HFONT_UserSize64(     unsigned long *, unsigned long            , HFONT * ); 
+unsigned char * __RPC_USER  HFONT_UserMarshal64(  unsigned long *, unsigned char *, HFONT * ); 
+unsigned char * __RPC_USER  HFONT_UserUnmarshal64(unsigned long *, unsigned char *, HFONT * ); 
+void                      __RPC_USER  HFONT_UserFree64(     unsigned long *, HFONT * ); 
 
 /* end of Additional Prototypes */
 

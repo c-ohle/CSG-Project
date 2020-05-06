@@ -23,7 +23,7 @@ class CTesselatorDbl : public ICSGTesselator
   const double kill = 1.0 / 128;
   const int hash = 199;
   CSG_TESS mode = (CSG_TESS)(CSG_TESS_FILL | CSG_TESS_POSITIVE);
-  int ns = 0, nl = 0, fi = 0; sarray<int> ss, ll;
+  int ns = 0, nl = 0, fi = 0; sarray<int> ss, ll; //keep order
   int np = 0; sarray<ts> pp;
   int mi = 0; sarray<int> dict;
   int ni = 0; sarray <ab> ii, kk;
@@ -108,4 +108,5 @@ class CTesselatorDbl : public ICSGTesselator
   HRESULT __stdcall Update(ICSGMesh* mesh, CSGVAR z, UINT flags);
   HRESULT __stdcall Cut(ICSGMesh* a, CSGVAR plane) { return E_NOTIMPL; }
   HRESULT __stdcall Join(ICSGMesh* a, ICSGMesh* b, CSG_JOIN op) { return E_NOTIMPL; }
+  HRESULT __stdcall AddGlyphContour(CSGVAR text, HFONT font, int flat);
 };
