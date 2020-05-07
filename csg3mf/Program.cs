@@ -14,8 +14,8 @@ using System.Security;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using csg3mf.Properties;
-using csg3mf.Viewer;
-using static csg3mf.Viewer.D3DView;
+using csg3mf;
+using static csg3mf.D3DView;
 
 namespace csg3mf
 {
@@ -24,9 +24,6 @@ namespace csg3mf
     [STAThread]
     static void Main()
     {
-      var p = CSG.Factory.CreateVector(3);
-      var s = p.ToString();
-     
       Native.SetProcessDPIAware();
       Application.EnableVisualStyles();
       Application.SetCompatibleTextRenderingDefault(false);

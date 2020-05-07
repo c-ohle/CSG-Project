@@ -364,7 +364,7 @@ namespace csg3mf
         internal void GetValues(Variant v) => m.p.GetValue(m.i, ref v);
         internal void SetValues(Variant v) => m.p.SetValue(m.i, v);
         internal void SetIdentity() { var v = stackalloc int[12] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 }; m.p.SetValue(m.i, new Variant(v, 12)); }
-        public static explicit operator Viewer.D3DView.float3x4(Matrix m) { Viewer.D3DView.float3x4 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
+        public static explicit operator D3DView.float3x4(Matrix m) { D3DView.float3x4 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
         //public void Save()
         //{
         //  var str = COM.SHCreateMemStream();
@@ -398,9 +398,9 @@ namespace csg3mf
     {
       var p = new Rational.Vector3(0); mesh.GetVertex(i, p); return p;
     }
-    public static Viewer.D3DView.float3 GetVertexF3(this IMesh mesh, int i)
+    public static D3DView.float3 GetVertexF3(this IMesh mesh, int i)
     {
-      Viewer.D3DView.float3 p; mesh.GetVertex(i, new Variant((float*)&p, 3)); return p;
+      D3DView.float3 p; mesh.GetVertex(i, new Variant((float*)&p, 3)); return p;
     }
     public static Rational.Plane GetPlaneR4(this IMesh mesh, int i)
     {
@@ -409,7 +409,7 @@ namespace csg3mf
     public static IMesh Clone(this IMesh p) { var d = Factory.CreateMesh(); p.CopyTo(d); return d; }
     public static void InitPlanes(this IMesh mesh) => Tesselator.Cut(mesh, new Variant());
     public static IEnumerable<Rational.Vector3> Vertices(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexR3(i); }
-    public static IEnumerable<Viewer.D3DView.float3> VerticesF3(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexF3(i); }
+    public static IEnumerable<D3DView.float3> VerticesF3(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexF3(i); }
     public static IEnumerable<int> Indices(this IMesh mesh) { for (int i = 0, n = mesh.IndexCount; i < n; i++) yield return mesh.GetIndex(i); }
     public static IEnumerable<Rational.Plane> Planes(this IMesh mesh) { for (int i = 0, n = mesh.PlaneCount; i < n; i++) yield return mesh.GetPlaneR4(i); }
     public static void AddGlyphContour(this ITesselator tess, string text, Font font, int flat = 8)

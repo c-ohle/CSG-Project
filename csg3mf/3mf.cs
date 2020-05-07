@@ -7,7 +7,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using static csg3mf.CSG;
-using static csg3mf.Viewer.D3DView;
+using static csg3mf.D3DView;
 
 namespace csg3mf
 {
@@ -225,12 +225,13 @@ namespace csg3mf
               var texture2dgroup = new XElement(ms + "texture2dgroup"); resources.Add(texture2dgroup);
               texture2dgroup.SetAttributeValue("id", texgid = uid++);
               texture2dgroup.SetAttributeValue("texid", texid);
-              foreach (var p in group.Texcoords)
-              {
-                var tex2coord = new XElement(ms + "tex2coord"); texture2dgroup.Add(tex2coord);
-                tex2coord.SetAttributeValue("u", +p.x);
-                tex2coord.SetAttributeValue("v", -p.y);
-              }
+              if (group.Texcoords != null)
+                foreach (var p in group.Texcoords)
+                {
+                  var tex2coord = new XElement(ms + "tex2coord"); texture2dgroup.Add(tex2coord);
+                  tex2coord.SetAttributeValue("u", +p.x);
+                  tex2coord.SetAttributeValue("v", -p.y);
+                }
             }
             for (int i = 0; i < ma.IndexCount; i += 3)
             {
@@ -310,14 +311,22 @@ namespace csg3mf
       public string Name;
       public Rational.Matrix Transform;
       public IMesh Mesh;
-      public float2[] Texcoords;
+      public float2[] Texcoords
+      {
+        get => texcoords;
+        set { texcoords = value; mgen = 0; }
+      }
       public Material[] Materials;
       public struct Material
       {
         public int StartIndex, IndexCount;
         public uint Color;
-        public byte[] Texture;
-        public Texture texture;
+        public byte[] Texture
+        {
+          get => bin;
+          set { bin = value; if (texture != null) { texture.Release(); texture = null; } }
+        }
+        byte[] bin; internal Texture texture;
       }
       public uint Color
       {
@@ -345,7 +354,7 @@ namespace csg3mf
       public Rational.Plane[] Planes => Mesh != null ? Mesh.Planes().ToArray() : null;
       internal float3x4 transform;
       internal VertexBuffer vertexbuffer; uint mgen;
-      internal IndexBuffer indexbuffer;
+      internal IndexBuffer indexbuffer; float2[] texcoords;
       internal float3x4 gettrans(Node rel = null)
       {
         var m = transform;
@@ -384,6 +393,11 @@ namespace csg3mf
           }
           return;
         }
+        for (int i = 0; i < Materials.Length; i++)
+        {
+          ref var m = ref Materials[i];
+          if (m.Texture != null && m.texture == null) m.texture = GetTexture(m.Texture);
+        }
         if (mgen == Mesh.Generation) return; mgen = Mesh.Generation;
         int nv = Mesh.VertexCount, ni = Mesh.IndexCount;
         if (Materials == null || Materials.Length == 0) Materials = new Material[] { new Material { Color = 0xffa0a0a0 } };
@@ -394,12 +408,7 @@ namespace csg3mf
         Mesh.CopyBuffer(0, 0, new Variant(&vv->x, 3, nv));
         Mesh.CopyBuffer(1, 0, new Variant(ii, 1, ni));
         for (int i = 0; i < ni; i++) ((ushort*)ii)[i] = (ushort)ii[i];
-        for (int i = 0; i < Materials.Length; i++)
-        {
-          ref var m = ref Materials[i];
-          if (m.Texture != null && m.texture == null) m.texture = GetTexture(m.Texture);
-        }
-        if (Texcoords != null) fixed (float2* tt = Texcoords) GetMesh(ref vertexbuffer, ref indexbuffer, vv, nv, (ushort*)ii, ni, 0.3f, tt, 2);
+        var tt = Texcoords; if (tt != null && tt.Length >= ni) fixed (float2* pt = tt) GetMesh(ref vertexbuffer, ref indexbuffer, vv, nv, (ushort*)ii, ni, 0.3f, pt, 2);
         else GetMesh(ref vertexbuffer, ref indexbuffer, vv, nv, (ushort*)ii, ni, 0.3f);
         StackPtr = (byte*)vv;
       }

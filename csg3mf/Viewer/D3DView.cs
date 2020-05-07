@@ -15,9 +15,9 @@ using System.Security;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using static csg3mf.Viewer.D3DView;
+using static csg3mf.D3DView;
 
-namespace csg3mf.Viewer
+namespace csg3mf
 {
   public unsafe partial class D3DView : UserControl, D3DView.IDisplay, D3DView.ISelector
   {

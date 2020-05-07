@@ -21,7 +21,7 @@ namespace csg3mf
     Type[] types; int nextid, nglob, lastprop, boxc1, boxc2; FieldInfo fidata; MethodInfo dbgstp, dbgstk;
     List<Token> tokens = new List<Token>(); List<Block> blocks = new List<Block>();
     List<ab> stack = new List<ab>(), marks = new List<ab>(); List<object> dms = new List<object>();
-    List<Block> attris = new List<Block>();
+    List<Block> attris = new List<Block>(); List<int> inlocs = new List<int>();
     StateMachine mb = new StateMachine(); Type rettype; DynamicMethod chkdm;
     int @return, @continue, @break, @try, @throw, head; Func<int, int> accessor; bool retok, end;
     List<Tuple<DynamicMethod, Block[]>> funsat = new List<Tuple<DynamicMethod, Block[]>>();
@@ -321,10 +321,11 @@ namespace csg3mf
     }
     internal void Reset()
     {
+      Debug.WriteLineIf(inlocs.Count != 0, "todo: inlocs.Count " + inlocs.Count);
       nextid = maxerror = nglob = lastprop = 0; types = null; code = null;
       for (int i = 0, n = tokens.Count; i < n; i++) { pmap[i] = null; vmap[i] = 0; }
       tokens.Clear(); blocks.Clear(); usings.Clear(); usingst.Clear(); usingsuse.Clear(); errors.Clear(); funcs.Clear(); funsat.Clear(); attris.Clear(); elsestack.Clear(); //constids.Clear();
-      stack.Clear(); marks.Clear(); spots.Clear(); dms.Clear(); compiler = null; accessor = null; chkdm = null;
+      stack.Clear(); marks.Clear(); spots.Clear(); dms.Clear(); inlocs.Clear(); compiler = null; accessor = null; chkdm = null;
     }
     int __tokenmap(int i)
     {
@@ -1197,6 +1198,7 @@ namespace csg3mf
             if ((fl & 2) != 0) mb.Ldloc(x); accessor = __Stloc(x, id); return type;
           }
           if (b.Length > 1 && type.IsValueType) { mb.Ldloca(x); return type.MakeByRefType(); }
+          if (wt != null && wt.IsByRef && wt.GetElementType() == type) { mb.Ldloca(x); return wt; } //in params
           mb.Ldloc(x); return type;
         }
         if (ke == 5)
@@ -1475,26 +1477,20 @@ namespace csg3mf
     }
     void __operator(Token op, Type t1, Type t2, ref MethodInfo best)
     {
-      foreach (var m in
-        t1.GetMember(__operator(op), BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod).Concat(
-        t2.GetMember(__operator(op), BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod)).OfType<MethodInfo>())
+      var so = __operator(op);
+      var mm = t1.GetMember(so, BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod).OfType<MethodInfo>();
+      if (t1 != t2) mm = mm.Concat(t2.GetMember(so, BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod).OfType<MethodInfo>());
+      foreach (var m in mm)
       {
-        var pp = m.GetParameters(); if (pp.Length != 2) continue;
+        var pp = TypeHelper.GetParametersNoCopy(m); if (pp.Length != 2) continue;
         if (pp[0].ParameterType == t1 && pp[1].ParameterType == t2) { best = m; return; }
-        if (!__canconv(t1, pp[0].ParameterType) && opmeth(t1, pp[0].ParameterType, false) == null) continue;
-        if (!__canconv(t2, pp[1].ParameterType) && opmeth(t2, pp[1].ParameterType, false) == null) continue;
+        var a1 = pp[0].ParameterType; if (pp[0].IsIn && a1.IsByRef) { a1 = a1.GetElementType(); if (a1 != t1) continue; }
+        if (!__canconv(t1, a1) && opmeth(t1, a1, false) == null) continue;
+        var a2 = pp[1].ParameterType; if (pp[1].IsIn && a2.IsByRef) { a2 = a2.GetElementType(); if (a2 != t2) continue; }
+        if (!__canconv(t2, a2) && opmeth(t2, a2, false) == null) continue;
         if (best != null) Warning(0, "todo: bestmatch '{0}'", op);
         best = m;
       }
-
-      //var a = t1.GetMember(__operator(op), BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod);
-      //var b = t2.GetMember(__operator(op), BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod);
-      //for (int i = 0; i < a.Length; i++)
-      //{
-      //  var m = (MethodInfo)a[0];
-      //  if (best != null) Error(0, "todo: bestmatch '{0}'", op);
-      //  best = m;
-      //}
     }
     Func<int, int> StartAccess(Block b, bool writeonly, out Type type)
     {
@@ -1698,7 +1694,12 @@ namespace csg3mf
             }
             if (mi != null)
             {
-              if (wt != null) { var pp = TypeHelper.GetParametersNoCopy(mi); ParseStrong(a, pp[0].ParameterType); ParseStrong(c, pp[1].ParameterType); mb.Call(mi); }
+              if (wt != null)
+              {
+                var tc = inlocs.Count;
+                var pp = TypeHelper.GetParametersNoCopy(mi); ParseStrong(a, pp[0].ParameterType); ParseStrong(c, pp[1].ParameterType); mb.Call(mi);
+                reinlocs(tc);
+              }
               return mi.ReturnType;
             }
           }
@@ -2344,7 +2345,18 @@ namespace csg3mf
     Type ParseStrong(Block b, Type wt)
     {
       var t = Parse(b, wt); if (t == null || t == wt) return wt;
-      if (__isgen(wt)) return t; return Cast(b, t, wt);
+      if (__isgen(wt)) return t;
+      if (wt != null && wt.IsByRef && !t.IsByRef && wt.GetElementType() == t) //in support
+      {
+        var x = mb.GetLocal(t); mb.Stloc(x); mb.Ldloca(x); inlocs.Add(x); return wt;
+      }
+      return Cast(b, t, wt);
+    }
+    void reinlocs(int t)
+    {
+      if (t == inlocs.Count) return;
+      for (int i = t; i < inlocs.Count; i++) mb.ReleaseLocal(inlocs[i]);
+      inlocs.RemoveRange(t, inlocs.Count - t);
     }
     int shareid(object p, int id)
     {

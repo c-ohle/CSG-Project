@@ -27,6 +27,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "demos", "demos", "{BE1336B9
 		bin\demos\primitives.3mf = bin\demos\primitives.3mf
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "textures", "textures", "{F504DF33-21FF-44DA-B495-D422AA8CFA75}"
+	ProjectSection(SolutionItems) = preProject
+		bin\textures\bricks1.png = bin\textures\bricks1.png
+		bin\textures\rooftiles1.png = bin\textures\rooftiles1.png
+		bin\textures\wood1.png = bin\textures\wood1.png
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -77,6 +84,7 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{BE1336B9-3BC7-4D40-ABE4-17105DB1EF47} = {59E52018-3128-4454-91C5-B89C0D9C716F}
+		{F504DF33-21FF-44DA-B495-D422AA8CFA75} = {59E52018-3128-4454-91C5-B89C0D9C716F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {7FC8D76C-00FC-4ADC-B7E2-BF6AA82F7091}
