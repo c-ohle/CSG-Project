@@ -360,6 +360,7 @@ HRESULT CTesselatorRat::Cut(ICSGMesh* mesh, CSGVAR vplane)
 
 HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
 {
+  if (!pb) { memset(pb = (CMesh*)_alloca(sizeof(CMesh)), 0, sizeof(CMesh)); op = (CSG_JOIN)(op | 0x10); }
   auto& a = *static_cast<CMesh*>(pa);
   auto& b = *static_cast<CMesh*>(pb);
   if (!a.ee.n) initplanes(a);
@@ -466,7 +467,8 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
           }
           continue;
         }
-        if (f == (7 & ~d3)) continue; if ((op & 0x20) != 0) continue; //pure plane retess
+        if (f == (7 & ~d3)) continue; 
+        if ((op & 0x20) != 0) continue; //pure plane retess
         int ns = 0, s = 0; for (; csg.dot(e, tt[d + m.ii[i + s]]) != d3; s++);
         for (int k = 0, u, v; k < 3; k++)
         {
@@ -630,7 +632,7 @@ int CTesselatorRat::join(int ni, int fl)
       }
     }
     if (swap == 0)
-      return 0x8C066002;
+      return -1;
     swap = 0;
   }
   return ni;

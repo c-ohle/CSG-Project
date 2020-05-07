@@ -5,7 +5,7 @@
 
 static int __sizeof(CSG_TYPE t)
 {
-  return t <= CSG_TYPE_FLOAT ? 4 : t == CSG_TYPE_DOUBLE || t == CSG_TYPE_RATIONAL ? 8 : t == CSG_TYPE_DECIMAL ? 16 : sizeof(void*);
+  return t <= CSG_TYPE_FLOAT ? 4 : t == CSG_TYPE_DOUBLE || t == CSG_TYPE_RATIONAL ? 8 : t == CSG_TYPE_DECIMAL ? 16 : t == CSG_TYPE_STRING ? 0 : sizeof(void*);
 }
 void conv(Rational* rr, UINT nr, const CSGVAR& v);
 void conv(CSGVAR& v, const Rational* rr, UINT nr);

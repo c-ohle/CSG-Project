@@ -80,9 +80,19 @@ namespace csg3mf
           var triangles = mesh.Element(ns + "triangles").Elements(ns + "triangle");
           var kk = triangles.OrderBy(p => p.Attribute("pid")?.Value).ToArray();
           var mm = kk.Select(p => p.Attribute("pid")?.Value).Distinct().ToArray();
-          var ii = (int*)StackPtr;
+          var ii = (int*)StackPtr; var ni = kk.Length * 3;
           for (int i = 0, k = 0; i < kk.Length; i++) { var p = kk[i]; ii[k++] = (int)p.Attribute("v1"); ii[k++] = (int)p.Attribute("v2"); ii[k++] = (int)p.Attribute("v3"); }
-          var me = Factory.CreateMesh(); me.Update(vertices.Count(), new Variant(ii, 1, kk.Length * 3));
+#if(true)       
+          var ss = (char*)(ii + ni); var cs = 0; var pw = ss;
+          foreach (var p in vertices)
+            for (int j = 0; j < 3; j++, cs++)
+            {
+              var s = p.Attribute(j == 0 ? "x" : j == 1 ? "y" : "z").Value;
+              for (int l = 0; l < s.Length; l++) *pw++ = s[l]; *pw++ = ' ';
+            }
+          var me = Factory.CreateMesh(); me.Update(new Variant(ss, 3, cs / 3), new Variant(ii, 1, ni));
+#else
+         var me = Factory.CreateMesh(); me.Update(vertices.Count(), new Variant(ii, 1, ni));
 #if (true)
           int strcpy(char* p, string s) { int n = s.Length; for (int i = 0; i < n; i++) p[i] = s[i]; return n; }
           int l = 0; var ss = (char*)StackPtr;
@@ -98,6 +108,7 @@ namespace csg3mf
           foreach (var p in vertices)
             fixed (char* t = $"{p.Attribute("x").Value} {p.Attribute("y").Value} {p.Attribute("z").Value}")
               me.SetVertex(l++, new Variant(t, 3));
+#endif
 #endif
           node.Mesh = me; node.Materials = new Node.Material[mm.Length];
           var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
@@ -308,10 +319,10 @@ namespace csg3mf
         public byte[] Texture;
         public Texture texture;
       }
-      public uint Color 
-      { 
-        get => Materials != null ? Materials[0].Color : 0; 
-        set => (Materials ?? (Materials = new Material[1]))[0].Color = value; 
+      public uint Color
+      {
+        get => Materials != null ? Materials[0].Color : 0;
+        set => (Materials ?? (Materials = new Material[1]))[0].Color = value;
       }
       public void Cut(Node b)
       {

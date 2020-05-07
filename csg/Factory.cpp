@@ -55,7 +55,7 @@ void conv(Rational* rr, UINT nr, const CSGVAR& v)
     case CSG_TYPE_STRING:
     {
       auto p = (LPCWSTR)s; UINT n = 0;  for (; !(p[n] > ' ' && p[n + 1] <= ' '); n++) if (!p[n]) goto ex;
-      rr[i] = Rational::Parse(p, n + 1); s = p + n + 2; continue;
+      rr[i] = Rational::Parse(p, n + 1); s = p + n + 2; *(LPWSTR*)&v.p = (LPWSTR)s; continue;
     }
     }
 ex: for (; count < nr; count++) rr[count] = 0;

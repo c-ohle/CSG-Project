@@ -335,8 +335,8 @@ private:
     {
       maxct = ct[-1];
       TRACE(L"maxct %i\n", maxct);
+    }
   }
-}
 #else
   __forceinline void checkct(UINT* ct) {}
 #endif
@@ -639,7 +639,7 @@ public:
   }
   static int write(IStream* str, const Rational* pp, UINT np)
   {
-    UINT ts = min(np, 1024), * ht = (UINT*)_alloca(ts * sizeof(UINT)); memset(ht, 0, ts * sizeof(UINT));
+    UINT ts = min(max(32, np), 1024), * ht = (UINT*)_alloca(ts * sizeof(UINT)); memset(ht, 0, ts * sizeof(UINT));
     for (UINT i = 0, k; i < np; i++)
     {
       const auto& p = pp[i];
@@ -665,6 +665,20 @@ public:
       if (hr >= 8) pp[i] = pp[hr - 8];
     }
     return 0;
+  }
+  static void compact(Rational* pp, UINT np)
+  {
+    UINT ts = min(max(32, np), 1024), * ht = (UINT*)_alloca(ts * sizeof(UINT)); memset(ht, 0, ts * sizeof(UINT));
+    for (UINT i = 0, k; i < np; i++)
+    {
+      auto& p = pp[i]; if (p.den & 1) continue;
+      UINT& hc = ht[p.GetHashCode() % ts];
+      if (!hc) { hc = i + 1; continue; }
+      for (k = hc - 1; k < i && !p.Equals(pp[k]); k++);
+      if (k == i) continue;
+      if(*(UINT64*)&p == *(UINT64*)&pp[k]) continue;
+      p = pp[k];
+    }
   }
   friend struct CVector;
   struct mach

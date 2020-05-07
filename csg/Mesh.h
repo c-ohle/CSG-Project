@@ -112,6 +112,7 @@ struct CMesh : public ICSGMesh
       pp.setsize(vertices.length); if (vertices.vt == CSG_TYPE_RATIONAL) vertices.length = 0;
       auto d = vertices.count * __sizeof((CSG_TYPE)vertices.vt);
       for (UINT i = 0; i < pp.n; i++, vertices.p += d) conv(&pp.p[i].x, 3, vertices);
+      Rational::compact(&pp.p->x, pp.n * 3); //todo: check optional?
     }
     if (*(USHORT*)&indices.vt == CSG_TYPE_INT) ii.setsize(*(UINT*)&indices.p);
     else ii.copy((UINT*)indices.p, indices.length);
