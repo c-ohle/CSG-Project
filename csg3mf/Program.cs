@@ -211,13 +211,10 @@ namespace csg3mf
       if (path == null) { view.cont = new Container(); script = "using static csg3mf.CSG;\n"; }
       else if (path != null && path.EndsWith(".3cs", true, null)) { view.cont = new Container(); script = File.ReadAllText(path); }
       else view.cont = csg3mf.Container.Import3MF(path, out script);
-      var neuron = view.cont; //var neuron = new Neuron(); 
-      NeuronEditor.InitNeuron(neuron, script ?? "");
-      var e = new NeuronEditor { Dock = DockStyle.Fill, Tag = neuron };
-      splitter.Panel1.SuspendLayout();
-      splitter.Panel1.Controls.Add(e); e.BringToFront();
+      NeuronEditor.InitNeuron(view.cont, script ?? "");
+      var e = new NeuronEditor { Dock = DockStyle.Fill, Tag = view.cont };
+      splitter.Panel1.Controls.Add(e); e.BringToFront(); splitter.Panel1.Update();
       if (this.edit != null) this.edit.Dispose(); this.edit = e;
-      splitter.Panel1.ResumeLayout();
       Neuron.Debugger = (p, v) => this.edit.Show(v);
       view.cont.update();
       view.setcamera(); view.Invalidate();

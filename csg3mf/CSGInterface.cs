@@ -11,7 +11,7 @@ using System.Xml.Linq;
 namespace csg3mf
 {
   public unsafe static class CSG
-  {
+  { 
     public static readonly IFactory Factory = COM.CreateInstance<IFactory>(IntPtr.Size == 8 ? (COM.NDEBUG ? "csg64d.dll" : "csg64.dll") : (COM.NDEBUG ? "csg32d.dll" : "csg32.dll"), typeof(CFactory).GUID);
     //public static readonly IFactory Factory = (IFactory)new CFactory(); //alternative from registry
     public static ITesselator Tesselator => tess ?? (tess = Factory.CreateTessalator(Unit.Rational));

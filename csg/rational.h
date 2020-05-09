@@ -348,14 +348,15 @@ private:
   __forceinline void addref() const
   {
     if (den & 1) return;
-    getptr()[-2]++;
+    auto p = getptr() - 2;
+    InterlockedIncrement(p); //p[-2]++;
   }
   __forceinline void release() const
   {
     if (den & 1) return;
-    auto p = getptr();
-    if (p[-2]-- == 0)
-      ::free(p - 2);
+    auto p = getptr() - 2;
+    if (InterlockedDecrement(p) == -1) //if (p[-2]-- == 0) 
+      ::free(p);
   }
 
   static UINT* gcd(UINT* a, UINT* b)
@@ -676,7 +677,7 @@ public:
       if (!hc) { hc = i + 1; continue; }
       for (k = hc - 1; k < i && !p.Equals(pp[k]); k++);
       if (k == i) continue;
-      if(*(UINT64*)&p == *(UINT64*)&pp[k]) continue;
+      if (*(UINT64*)&p == *(UINT64*)&pp[k]) continue;
       p = pp[k];
     }
   }

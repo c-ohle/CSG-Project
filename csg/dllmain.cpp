@@ -12,5 +12,5 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpRes
   if(dwReason == DLL_PROCESS_ATTACH)
     _CrtSetDbgFlag(_CrtSetDbgFlag(_CRTDBG_REPORT_FLAG) | _CRTDBG_LEAK_CHECK_DF);
 #endif
-	return _AtlModule.DllMain(dwReason, lpReserved);
+  return _AtlModule.DllMain(dwReason, lpReserved);
 }

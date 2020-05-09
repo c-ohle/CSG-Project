@@ -393,6 +393,7 @@ namespace csg3mf
           }
           return;
         }
+        if (Materials == null || Materials.Length == 0) Materials = new Material[] { new Material { Color = 0xffa0a0a0 } };
         for (int i = 0; i < Materials.Length; i++)
         {
           ref var m = ref Materials[i];
@@ -400,7 +401,6 @@ namespace csg3mf
         }
         if (mgen == Mesh.Generation) return; mgen = Mesh.Generation;
         int nv = Mesh.VertexCount, ni = Mesh.IndexCount;
-        if (Materials == null || Materials.Length == 0) Materials = new Material[] { new Material { Color = 0xffa0a0a0 } };
         if (Materials.Length == 1) { ref var p = ref Materials[0]; p.StartIndex = 0; p.IndexCount = ni; }
         else { } //todo: ...
         var vv = (double3*)StackPtr; StackPtr += nv * sizeof(double3);

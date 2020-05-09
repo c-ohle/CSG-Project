@@ -180,7 +180,7 @@ struct Vector4R
   {
     return x * p.x + y * p.y + z * p.z + w;
   }
-  Vector3R Intersect(const Vector3R& a, const Vector3R& b)
+  Vector3R Intersect(const Vector3R& a, const Vector3R& b) const
   {
     auto u = x * a.x + y * a.y + z * a.z;
     auto v = x * b.x + y * b.y + z * b.z; auto w = (u + this->w) / (u - v);

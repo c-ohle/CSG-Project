@@ -137,6 +137,8 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <SDLCheck>true</SDLCheck>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <EnableFiberSafeOptimizations>
+      </EnableFiberSafeOptimizations>
     </ClCompile>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>

@@ -18,6 +18,9 @@
 
 #include <corecrt_math_defines.h>
 
+#pragma warning(disable:4530)
+#include <ppl.h>
+
 #if _DEBUG
 const bool Debug = true;
 #else

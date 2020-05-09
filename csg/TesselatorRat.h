@@ -6,6 +6,16 @@
 
 class CTesselatorRat : public ICSGTesselator
 {
+//public:
+//  CTesselatorRat() 
+//  { 
+//    TRACE(L"CTesselatorRat() %i %p\n", GetCurrentThreadId(), this);
+//  }
+//  ~CTesselatorRat() 
+//  { 
+//    TRACE(L"~CTesselatorRat() %i %p\n", GetCurrentThreadId(), this);
+//  }
+//private:
   struct ts { int next, ic, line, fl, t1, t2; Rational x, y, z, a, f, x1, x2; };
   struct ab
   {
@@ -280,6 +290,7 @@ class CTesselatorRat : public ICSGTesselator
     return true;
   }
   UINT refcount = 1;
+public:
   HRESULT __stdcall QueryInterface(REFIID riid, void** p)
   {
     if (riid == __uuidof(IUnknown) || riid == __uuidof(ICSGTesselator) || riid == __uuidof(IAgileObject))
@@ -317,11 +328,12 @@ class CTesselatorRat : public ICSGTesselator
   HRESULT __stdcall Join(ICSGMesh* a, ICSGMesh* b, CSG_JOIN op);
   HRESULT __stdcall AddGlyphContour(CSGVAR text, HFONT font, int flat);
   HRESULT __stdcall Stretch(ICSGMesh* a, CSGVAR dir);
+private:
   //CSG extension
   struct _csg
   {
     sarray<int> ff, ii, dd, tt, tab; UINT nb = 0;
-    carray<Vector3R> pp; UINT np;
+    carray<Vector3R> pp; UINT np; carray<Vector3R> _pp_;
     carray<Vector4R> ee; UINT ne;
     void dictee(UINT n)
     {
@@ -349,6 +361,12 @@ class CTesselatorRat : public ICSGTesselator
       if (pp.n == np) { pp.setsize(np << 1); if (dd.n < 1103 + pp.n) dd.setsize(1103 + pp.n); }
       pp[i = np++] = v; dd[1103 + i] = dd[h]; dd[h] = i + 1; return i;
     }
+    //int getpp(const Vector3R& v)
+    //{
+    //  int h = (int)((UINT)v.GetHashCode() % 1103), i = dd[h] - 1;
+    //  for (; i != -1; i = dd[1103 + i] - 1) if (pp[i].Equals(v)) return i;
+    //  return -1;
+    //}
     void clearab()
     {
       nb = 0; if (tab.n == 0) tab.setsize(64);
@@ -374,9 +392,22 @@ class CTesselatorRat : public ICSGTesselator
     int dot(int e, int p)
     {
       int x = e * dotx + (p >> 4), y = (p & 0xf) << 2, v = (int)(dots[x] >> y) & 0xf;
-      if (v == 0) dots[x] |= (ULONGLONG)(v = 1 << (1 + (0 ^ ee[e].DotCoord(pp[p])))) << y;
+      if (v == 0) dots.p[x] |= (ULONGLONG)(v = 1 << (1 + (0 ^ ee[e].DotCoord(pp[p])))) << y;  
+      return v;
+    } 
+    int _dot_(int e, int p)
+    {
+      int x = e * dotx + (p >> 4), y = (p & 0xf) << 2; 
+      volatile auto t = dots.p + x; int v = (int)(*t >> y) & 0xf;
+      //int v = (int)(InterlockedOr64((LONG64*)t, 0) >> y) & 0xf;
+      if (v == 0)
+      { 
+        auto f = (ULONGLONG)(v = 1 << (1 + (0 ^ ee.p[e].DotCoord(_pp_.p[p])))) << y;
+        InterlockedOr64((LONG64*)t, f);
+      }
       return v;
     }
+
     void trim(UINT ni)
     {
       ff.getptr(np); memset(ff.p, 0, np * sizeof(int));

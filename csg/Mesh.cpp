@@ -358,6 +358,9 @@ HRESULT CTesselatorRat::Cut(ICSGMesh* mesh, CSGVAR vplane)
   return 0;
 }
 
+concurrency::combinable<ATL::CComPtr<CTesselatorRat>> __tess;
+concurrency::critical_section __crit;
+
 HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
 {
   if (!pb) { memset(pb = (CMesh*)_alloca(sizeof(CMesh)), 0, sizeof(CMesh)); op = (CSG_JOIN)(op | 0x10); }
@@ -366,9 +369,9 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
   if (!a.ee.n) initplanes(a);
   if (!b.ee.n) initplanes(b);
   UINT ni = 0, ne = 0, an = a.pp.n, bn = b.pp.n, cn, dz, mp = op & 3;
-  auto ii = csg.ii.getptr(a.ii.n + b.ii.n); int ss[2];
+  auto ii = csg.ii.getptr(a.ii.n + b.ii.n);
   auto tt = csg.tt.getptr((cn = an + bn) + b.ee.n);
-  auto ff = csg.ff.getptr(dz = a.ee.n + b.ee.n); memset(ff, 0, dz * sizeof(int));
+  auto ff = csg.ff.getptr((dz = a.ee.n + b.ee.n) << 1); memset(ff, 0, dz * sizeof(int)); auto fm = ff + dz;
   csg.dictee(a.ee.n + b.ee.n);
   for (UINT i = 0; i < a.ee.n; i++) csg.addee(a.ee[i]);
   for (UINT i = 0; i < b.ee.n; i++) if ((tt[cn + i] = csg.addee(mp == 1 ? -b.ee[i] : b.ee[i])) < (int)a.ee.n) ff[tt[cn + i]] = 8;
@@ -434,6 +437,84 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
     if (mp != 1) { a.rtgen = getrtid(); a.clear(); } return 0;
   }
   mode = (CSG_TESS)((mp == 0 ? CSG_TESS_POSITIVE : mp == 1 ? CSG_TESS_ABSGEQTWO : CSG_TESS_GEQTHREE) | CSG_TESS_FILL | CSG_TESS_NOTRIM);
+#if(1)
+  csg._pp_.copy(csg.pp.p, csg.np);
+  concurrency::parallel_for(size_t(0), size_t(csg.ne), [&](size_t _i)
+    {
+      auto e = (UINT)_i; auto hh = 0;
+      switch (ff[e])
+      {
+      case 1: return;
+      case 2: __crit.lock(); goto ta;
+      case 3: __crit.lock(); goto tb;
+      }
+      auto& rt = __tess.local(); if (!rt.p) rt.p = new CTesselatorRat(); auto& tess = *rt.p;
+      tess.mode = mode;
+      tess.csg.dictpp(32);
+      tess.beginsex();
+      const auto& plane = csg.ee[e];
+      for (int r = 0; r < 2; r++)
+      {
+        auto& m = r == 0 ? a : b; auto d = r == 0 ? 0 : an;
+        auto d1 = mp == 1 ? r == 1 : false;
+        auto d2 = mp == 0 ? 0 : d1 ? 1 : 0;
+        auto d3 = mp == 0 ? 4 : 1; tess.csg.clearab();
+        for (int i = 0, o = -1, j; i < (int)m.ii.n; i += 3)
+        {
+          if (decode(m.ii.p + i)) o++;
+          auto f = csg._dot_(e, tt[d + m.ii[i + 0]]) | csg._dot_(e, tt[d + m.ii[i + 1]]) | csg._dot_(e, tt[d + m.ii[i + 2]]);
+          if (f == 1 || f == 4) continue;
+          if (f == 2)
+          {
+            for (j = i; i + 3 < (int)m.ii.n && !decode(m.ii.p + i + 3); i += 3);
+            if (e != (r == 0 ? o : tt[cn + o])) continue;
+            for (int i0, i1, i2; j <= i; j += 3)
+            {
+              tess.addsex(i0 = tt[d + m.ii[j + 0]], i1 = tt[d + m.ii[j + (d1 ? 2 : 1)]]);
+              tess.addsex(i1, i2 = tt[d + m.ii[j + (d1 ? 1 : 2)]]); tess.addsex(i2, i0);
+            }
+            continue;
+          }
+          if (f == (7 & ~d3)) continue;
+          if ((op & 0x20) != 0) continue; //pure plane retess
+          int ss[2], ns = 0, s = 0; for (; csg._dot_(e, tt[d + m.ii[i + s]]) != d3; s++);
+          for (int k = 0, u, v; k < 3; k++)
+          {
+            auto f1 = csg._dot_(e, tt[d + m.ii[u = i + (k + s) % 3]]);
+            if (f1 == 2) { ss[ns++] = tt[d + m.ii[u]]; continue; }
+            auto f2 = csg._dot_(e, tt[d + m.ii[v = i + (k + s + 1) % 3]]); if (f1 == f2 || ((f1 | f2) & 2) != 0) continue;
+            int t = tess.csg.getab(m.ii[u], m.ii[v]); if (t != -1) { ss[ns++] = t; continue; }
+            auto sp = 0 | plane.Intersect(m.pp[m.ii[u]], m.pp[m.ii[v]]);
+            ss[ns++] = cn + tess.csg.addpp(sp);
+            tess.csg.setab(m.ii[v], m.ii[u], ss[ns - 1]);
+          }
+          if (ns == 2) tess.addsex(ss[d2 ^ 1], ss[d2]);
+        }
+      }
+      tess.endsex(); auto nnl = tess.nl;
+      tess.setnormal(*(const Vector3R*)&plane);
+      tess.BeginPolygon();
+      for (int i = 0, f = 0, n = tess.nl; i < n; i++)
+      {
+        if (f == 0) { tess.BeginContour(); f = 1; }
+        UINT k = tess.ll[i], j = k & 0x0fffffff; tess.addvertex(j < cn ? csg._pp_[j] : tess.csg.pp[j - cn]);
+        if ((k & 0x40000000) != 0) { tess.EndContour(); f = 0; }
+      }
+      tess.EndPolygon();
+      auto ic = tess.ns; if (ic == 0) return;
+      __crit.lock(); ii = csg.ii.getptr(ni + ic); auto at = ni;
+      //for (int i = 0; i < ic; i++) ii[ni++] = csg.addpp(*(const Vector3R*)&tess.pp[tess.ss[i]].x);
+      for (int i = 0; i < tess.np; i++) tess.pp.p[i].ic = -1;
+      for (int i = 0; i < ic; i++) { auto& r = tess.pp[tess.ss[i]]; ii[ni++] = r.ic != -1 ? r.ic : (r.ic = csg.addpp(*(const Vector3R*)&r.x)); }     
+      goto encode; tb: hh = 1; ta: auto& c = hh == 0 ? a : b;
+      int i1 = 0, i0 = 0, i2; for (; i1 < (int)c.ii.n && !(decode(c.ii.p + i1) && (e == (hh == 0 ? i0++ : tt[cn + i0++]))); i1 += 3);
+      for (i2 = i1; ;) { i2 += 3; if (i2 == c.ii.n || decode(c.ii.p + i2)) break; }
+      ii = csg.ii.getptr(ni + (i2 - i1)); auto of = hh == 0 ? 0 : an; at = ni;
+      for (int i = i1; i < i2; i++) ii[ni++] = tt[of + c.ii[i]]; encode: _ASSERT(at != ni);
+      for (int i = at; i < (int)ni; i += 3) encode((UINT*)ii + i, i == at); fm[ne++] = e;
+      __crit.unlock();
+    });//, concurrency::static_partitioner());
+#else
   for (int e = 0, i0, i1, i2; e < (int)csg.ne; e++)
   {
     auto hh = 0;
@@ -443,7 +524,7 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
     case 2: goto ta;
     case 3: goto tb;
     }
-    auto& p = csg.ee[e];
+    auto& plane = csg.ee[e];
     beginsex();
     for (int r = 0; r < 2; r++)
     {
@@ -467,23 +548,23 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
           }
           continue;
         }
-        if (f == (7 & ~d3)) continue; 
+        if (f == (7 & ~d3)) continue;
         if ((op & 0x20) != 0) continue; //pure plane retess
-        int ns = 0, s = 0; for (; csg.dot(e, tt[d + m.ii[i + s]]) != d3; s++);
+        int ss[2], ns = 0, s = 0; for (; csg.dot(e, tt[d + m.ii[i + s]]) != d3; s++);
         for (int k = 0, u, v; k < 3; k++)
         {
           auto f1 = csg.dot(e, tt[d + m.ii[u = i + (k + s) % 3]]);
           if (f1 == 2) { ss[ns++] = tt[d + m.ii[u]]; continue; }
           auto f2 = csg.dot(e, tt[d + m.ii[v = i + (k + s + 1) % 3]]); if (f1 == f2 || ((f1 | f2) & 2) != 0) continue;
           int t = csg.getab(m.ii[u], m.ii[v]); if (t != -1) { ss[ns++] = t; continue; }
-          ss[ns++] = csg.addpp(0 | p.Intersect(m.pp[m.ii[u]], m.pp[m.ii[v]]));
+          ss[ns++] = csg.addpp(0 | plane.Intersect(m.pp[m.ii[u]], m.pp[m.ii[v]]));
           csg.setab(m.ii[v], m.ii[u], ss[ns - 1]);
         }
         if (ns == 2) addsex(ss[d2 ^ 1], ss[d2]);
       }
     }
-    endsex();
-    setnormal(*(const Vector3R*)&p); auto nc = this->nl;
+    endsex(); auto nc = this->nl;
+    setnormal(*(const Vector3R*)&plane);
     filloutlines();
     auto ic = this->ns; if (ic == 0) { ff[e] = 1; continue; }
     ii = csg.ii.getptr(ni + ic); auto at = ni;
@@ -493,15 +574,15 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
     for (i2 = i1; ;) { i2 += 3; if (i2 == c.ii.n || decode(c.ii.p + i2)) break; }
     ii = csg.ii.getptr(ni + (i2 - i1)); auto of = hh == 0 ? 0 : an; at = ni;
     for (int i = i1; i < i2; i++) ii[ni++] = tt[of + c.ii[i]]; encode: _ASSERT(at != ni);
-    for (int i = at; i < (int)ni; i += 3) encode((UINT*)ii + i, i == at); ne++;
+    for (int i = at; i < (int)ni; i += 3) encode((UINT*)ii + i, i == at); fm[ne++] = e;
   }
+#endif
   if ((op & 0x40) == 0 && (ni = join(ni, 0)) == -1)
   {
     if (op == 0x10) { Join(pa, pb, (CSG_JOIN)(0x20 | 0x40)); return Join(pa, pb, (CSG_JOIN)0x80); }
     return 0x8C066001; //degenerated input mesh
   }
-  UINT nx = 0; for (UINT i = 0; i < csg.ne; i++) if (ff[i] != 1) nx++;
-  a.ee.setsize(nx); for (UINT i = 0, k = 0; i < csg.ne; i++) if (ff[i] != 1) a.ee[k++] = csg.ee[i];
+  a.ee.setsize(ne); for (UINT i = 0; i < ne; i++) a.ee[i] = csg.ee[fm[i]];
   csg.trim(ni);
   a.pp.copy(csg.pp.p, csg.np);
   a.ii.copy((const UINT*)csg.ii.p, ni); a.rtgen = getrtid();
