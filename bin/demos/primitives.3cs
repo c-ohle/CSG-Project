@@ -22,11 +22,6 @@ var roof = new float2[][][] {
     new float2[] { new float2(0, 0), new float2(0, 45) },
     new float2[] { new float2(2, 0), new float2(0, 45) },
     new float2[] { new float2(2, 1), new float2(0, 45) },
-    new float2[] { new float2(0, 1), new float2(0, 45) } },
-  new float2[][] {
-    new float2[] { new float2(0, 0), new float2(0, 45) },
-    new float2[] { new float2(2, 0), new float2(0, 45) },
-    new float2[] { new float2(2, 1), new float2(0, 45) },
     new float2[] { new float2(0, 1), new float2(0, 45) } } };
 Tesselator.Skeleton(node.Mesh, roof);
 
