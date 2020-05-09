@@ -328,6 +328,7 @@ public:
   HRESULT __stdcall Join(ICSGMesh* a, ICSGMesh* b, CSG_JOIN op);
   HRESULT __stdcall AddGlyphContour(CSGVAR text, HFONT font, int flat);
   HRESULT __stdcall Stretch(ICSGMesh* a, CSGVAR dir);
+  HRESULT __stdcall Skeleton(ICSGMesh* mesh, CSGVAR data);
 private:
   //CSG extension
   struct _csg
@@ -407,7 +408,6 @@ private:
       }
       return v;
     }
-
     void trim(UINT ni)
     {
       ff.getptr(np); memset(ff.p, 0, np * sizeof(int));

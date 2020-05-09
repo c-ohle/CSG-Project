@@ -235,6 +235,10 @@ EXTERN_C const IID IID_ICSGTesselator;
             /* [in] */ ICSGMesh *a,
             /* [in] */ CSGVAR dir) = 0;
         
+        virtual HRESULT STDMETHODCALLTYPE Skeleton( 
+            /* [in] */ ICSGMesh *a,
+            /* [in] */ CSGVAR data) = 0;
+        
     };
     
     
@@ -339,6 +343,11 @@ EXTERN_C const IID IID_ICSGTesselator;
             /* [in] */ ICSGMesh *a,
             /* [in] */ CSGVAR dir);
         
+        HRESULT ( STDMETHODCALLTYPE *Skeleton )( 
+            ICSGTesselator * This,
+            /* [in] */ ICSGMesh *a,
+            /* [in] */ CSGVAR data);
+        
         END_INTERFACE
     } ICSGTesselatorVtbl;
 
@@ -418,6 +427,9 @@ EXTERN_C const IID IID_ICSGTesselator;
 
 #define ICSGTesselator_Stretch(This,a,dir)	\
     ( (This)->lpVtbl -> Stretch(This,a,dir) ) 
+
+#define ICSGTesselator_Skeleton(This,a,data)	\
+    ( (This)->lpVtbl -> Skeleton(This,a,data) ) 
 
 #endif /* COBJMACROS */
 

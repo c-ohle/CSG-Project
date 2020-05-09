@@ -70,6 +70,7 @@ interface ICSGTesselator : IUnknown
   HRESULT Join([in] ICSGMesh* a, [in] ICSGMesh* b, [in] CSG_JOIN op);
   HRESULT AddGlyphContour([in] CSGVAR text, [in] HFONT font, [in] int flat);
   HRESULT Stretch([in] ICSGMesh* a, [in] CSGVAR dir);
+  HRESULT Skeleton([in] ICSGMesh* a, [in] CSGVAR data);
 };
 
 typedef enum CSG_OP1

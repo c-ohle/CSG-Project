@@ -11,7 +11,7 @@ using System.Xml.Linq;
 namespace csg3mf
 {
   public unsafe static class CSG
-  { 
+  {
     public static readonly IFactory Factory = COM.CreateInstance<IFactory>(IntPtr.Size == 8 ? (COM.NDEBUG ? "csg64d.dll" : "csg64.dll") : (COM.NDEBUG ? "csg32d.dll" : "csg32.dll"), typeof(CFactory).GUID);
     //public static readonly IFactory Factory = (IFactory)new CFactory(); //alternative from registry
     public static ITesselator Tesselator => tess ?? (tess = Factory.CreateTessalator(Unit.Rational));
@@ -61,6 +61,7 @@ namespace csg3mf
       void Join(IMesh a, IMesh b, JoinOp op);
       void AddGlyphContour(Variant s, IntPtr font, int flat = 8);
       void Stretch(IMesh a, Variant v);
+      void Skeleton(IMesh a, Variant v);
     }
 
     public enum JoinOp { Union = 0, Difference = 1, Intersection = 2 }
@@ -415,6 +416,21 @@ namespace csg3mf
     public static void AddGlyphContour(this ITesselator tess, string text, Font font, int flat = 8)
     {
       var h = font.ToHfont(); try { fixed (char* p = text) tess.AddGlyphContour(new Variant(p, 1), h, flat); } finally { Native.DeleteObject(h); }
+    }
+    public static void Skeleton(this ITesselator tess, IMesh mesh, D3DView.float2[][][] pp)
+    {
+      tess.BeginPolygon();
+      for (int i = 0; i < pp.Length; i++)
+      {
+        tess.BeginContour(); var a = pp[i];
+        for (int k = 0; k < a.Length; k++)
+        {
+          var b = a[k]; tess.AddVertex(b[0].x, b[0].y);
+          for (int l = 1; l < b.Length; l++) { var e = b[l]; tess.Skeleton(null, new Variant(&e.x, 2)); }
+        }
+        tess.EndContour();
+      }
+      tess.Skeleton(mesh, new Variant());
     }
     #endregion
   }

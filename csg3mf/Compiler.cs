@@ -594,7 +594,7 @@ namespace csg3mf
       MakeBlocks(b, outer); ParseBlock(t2);
       blocks.RemoveRange(t2, blocks.Count - t2);
     }
-    bool iskeyword(Token t)
+    static bool iskeyword(Token t)
     {
       for (int i = 0; i < keywords.Length; i++) if (t.Equals(keywords[i])) return true; return false;
     }
@@ -2615,13 +2615,12 @@ namespace csg3mf
       internal Block TakeType()
       {
         var b = this;
-        for (; ; )
+        for (int t = 0; ; t++)
         {
           var a = b.Next();
-          if (a.Length != 1 || !a[0].IsWord) break;
+          if (a.Length != 1 || !a[0].IsWord || (t != 0 && iskeyword(a[0]))) break;
           if (b.Take('.')) continue;
           if (b.StartsWith('<')) b.Next(0xf);
-          //if (b.StartsWith('[')) b.Next();
           while (b.StartsWith('[')) b.Next();
           while (b.Take('*')) { }
           if (b.Take('?')) { }

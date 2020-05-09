@@ -142,9 +142,9 @@ HRESULT CTesselatorRat::Stretch(ICSGMesh* mesh, CSGVAR v)
   UINT ni, * ii = (UINT*)ss.getptr(ni = m.ii.n);
   beginsex(); int sig = 0;
   for (UINT i = 0, k = 0, e = -1; i < m.ii.n; i += 3, k++)
-  { 
-    sig = (m.flags & 1) && !decode(m.ii.p + i) ? sig : 0 ^ Vector3R::Dot(dir, 
-      m.ee.n ? *(Vector3R*)&m.ee[++e].x : 
+  {
+    sig = (m.flags & 1) && !decode(m.ii.p + i) ? sig : 0 ^ Vector3R::Dot(dir,
+      m.ee.n ? *(Vector3R*)&m.ee[++e].x :
       Vector3R::Ccw(m.pp.p[m.ii.p[i + 0]], m.pp.p[m.ii.p[i + 1]], m.pp.p[m.ii.p[i + 2]]));
     for (int j = 0, h; j < 3; j++)
     {
@@ -156,7 +156,7 @@ HRESULT CTesselatorRat::Stretch(ICSGMesh* mesh, CSGVAR v)
       addsex(m.ii.p[i + 0], m.ii.p[i + 1]);
       addsex(m.ii.p[i + 1], m.ii.p[i + 2]);
       addsex(m.ii.p[i + 2], m.ii.p[i + 0]);
-    } 
+    }
   }
   for (int i = 0; i < this->ni; i++)
   {
@@ -173,3 +173,4 @@ HRESULT CTesselatorRat::Stretch(ICSGMesh* mesh, CSGVAR v)
   m.resetee(); m.rtgen = getrtid();
   return 0;
 }
+

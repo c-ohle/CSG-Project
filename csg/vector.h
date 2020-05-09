@@ -67,6 +67,15 @@ struct Vector2R
   Vector2R() {}
   Vector2R(const Rational x, const Rational y) : x(x), y(y) {}
   Vector2R(const double* p) : x(p[0]), y(p[1]) {}
+  Vector2R operator -(const Vector2R& b) const { return Vector2R(x - b.x, y - b.y); }
+  Rational operator ^(const Vector2R& b) const { return x * b.y - y * b.x; }
+  Rational operator &(const Vector2R& b) const { return x * b.x + y * b.y; }
+  Vector2R Normalize()
+  {
+    int i = (x.sign() < 0 ? -x : x).CompareTo(y.sign() < 0 ? -y : y) >= 0 ? 0 : 1;
+    Rational l = i == 0 ? x : y, s = l.sign(); if (l.sign() < 0) l = -l;
+    return Vector2R(i == 0 ? s : x / l, i == 1 ? s : y / l);
+  }
   static Vector2R SinCos(double a, int prec)
   {
     auto x = cos(a); if (abs(x) == 1) return Vector2R(x < 0 ? -1 : +1, 0);
@@ -107,10 +116,12 @@ struct Vector3R
     return (int)h1;
   }
   bool Equals(const Vector3R& b) const { return x.Equals(b.x) && y.Equals(b.y) && z.Equals(b.z); }
+  Vector3R operator -() const { return Vector3R(-x, -y, -z); }
   Vector3R operator +(const Vector3R& b) const { return Vector3R(x + b.x, y + b.y, z + b.z); }
   Vector3R operator -(const Vector3R& b) const { return Vector3R(x - b.x, y - b.y, z - b.z); }
   Vector3R operator *(const Rational& b) const { return Vector3R(x + b, y + b, z + b); }
   Vector3R operator ^(const Vector3R& b) const { return Vector3R(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x); }
+  Rational operator &(const Vector3R& b) const { return x * b.x + y * b.y + z * b.z; }
   void operator +=(const Vector3R& b) { x = x + b.x; y = y + b.y; z = z + b.z; }
   void operator -=(const Vector3R& b) { x = x - b.x; y = y - b.y; z = z - b.z; }
   void operator *=(const Rational& b) { x = x * b; y = y * b; z = z * b; }

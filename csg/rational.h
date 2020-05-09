@@ -713,6 +713,3 @@ public:
 
 __forceinline Rational& operator |(const Rational::mach& a, Rational& b) { return Rational::mach::fetch(a, b); }
 __forceinline int operator ^(const Rational::mach& a, const Rational& b) { return Rational::mach::fetchsign(a, b); }
-
-
-

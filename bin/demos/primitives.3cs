@@ -1,5 +1,6 @@
 using csg3mf;
 using System.Linq;
+using static csg3mf.D3DView;
 using static csg3mf.CSG;
 using static csg3mf.CSG.Rational;
 
@@ -14,6 +15,20 @@ node.Color = 0xff0000ff; //set a display color
 //use IMesh.CreateBox to create a ground plate
 node.Name = "ground plate"; node.Color = 0xffaaff80;
 node.Mesh.CreateBox(new Vector3(-2, -2, 0), new Vector3(+2, +2, -0.1f));
+
+Nodes.Add(node = new Node("Roof", 0xff800000));
+var roof = new float2[][][] { 
+  new float2[][] {
+    new float2[] { new float2(0, 0), new float2(0, 45) },
+    new float2[] { new float2(2, 0), new float2(0, 45) },
+    new float2[] { new float2(2, 1), new float2(0, 45) },
+    new float2[] { new float2(0, 1), new float2(0, 45) } },
+  new float2[][] {
+    new float2[] { new float2(0, 0), new float2(0, 45) },
+    new float2[] { new float2(2, 0), new float2(0, 45) },
+    new float2[] { new float2(2, 1), new float2(0, 45) },
+    new float2[] { new float2(0, 1), new float2(0, 45) } } };
+Tesselator.Skeleton(node.Mesh, roof);
 
 //new node as second object
 Nodes.Add(node = new Node("Box1"));
@@ -64,6 +79,7 @@ tess.EndContour();
 tess.EndPolygon();
 tess.Update(node.Mesh = Factory.CreateMesh(), height);
 node.Transform = Matrix.Translation(+1, -1, 0);
+//tess.Stretch(node.Mesh, new Vector3(0.3m, 0, 0.3m));
 
 //create a pipe
 Nodes.Add(node = new Node("Pipe1", 0xffff8080));
@@ -152,9 +168,9 @@ Infos.Add("Errors: " + node.Mesh.Check());
 //move away
 node.Mesh.Transform(Matrix.Scaling(0.5));
 node.Transform *= Matrix.Translation(3, -1, -1.5/2);
-
+  
 //same procedure for torus
-Nodes.Add(node = new Node("bNode", 0xffffff00));
+Nodes.Add(node = new Node("Torus", 0xffffff00));
 node.Transform = Matrix.Translation(-2, -2, 1.5);
 draw_circle2(tess, 0.3, 1, 20);
 void draw_circle2(ITesselator tess, Rational radius, Rational offsety, int segs)
@@ -182,13 +198,51 @@ t2 = t1.Transform;
 t1.Transform = Matrix.Translation(-3, -2, 0.3);
 node.Difference(t1); t1.Transform = t2;
 
+if(true)
+{
+  var aNode = Nodes.First(p => p.Name == "aNode");
+  node = new Node { Name = "aCopy", Color = 0xffff80ff, Mesh = aNode.Mesh.Clone() };
+  Nodes.Add(node);
+  node.Transform *= Matrix.Translation(-0.5, -2, 0.5m);
+  node.Mesh.Transform(Matrix.Scaling(0.2m));
+  tess.Stretch(node.Mesh, new Vector3(0, 0, 1.25m));
+  tess.Stretch(node.Mesh, new Vector3(0.5, 0, 0));
+  tess.Stretch(node.Mesh, new Vector3(0, 0.8, 0)); 
+  //tess.Join(node.Mesh, null, JoinOp.Union); //retess
+}
+
+if(true) //textures
+{
+  node = new Node("Texture demo", 0xffffffff); Nodes.Add(node);
+  CreateSphere(node, 0.2m, 15);
+  node.Transform = Matrix.Translation(-2,-2,0.2);
+  //CreateBox(node, 0.2, 0.2, 0.2);
+  //node.Mesh.InitPlanes();
+  tess.Stretch(node.Mesh, new Vector3(0, 0, 1));
+  tess.Join(node.Mesh, null, 0);
+   
+  var tt = new float2[node.Mesh.IndexCount];
+  var ma = scale(3, 3, 3) * LookAt(new float3(1,1,1),new float3(),new float3(0,0,1)); 
+  for(int i = 0; i < tt.Length; i++)
+  {
+    var v = node.Mesh.GetVertexF3(node.Mesh.GetIndex(i));
+    tt[i] = (float2)(v * ma);
+  }
+  node.Texcoords = tt;
+  try 
+  {
+    node.Materials[0].Texture = System.IO.File.ReadAllBytes("textures\\wood1.png");
+    node.Materials[0].Texture = System.IO.File.ReadAllBytes("textures\\bricks1.png");
+  } catch(System.Exception e) { System.Windows.Forms.MessageBox.Show(e.Message); } 
+}
+
 //some text
 node = new Node("text", 0xffffff00);
 node.Transform = Matrix.RotationX(System.Math.PI/2) * Matrix.Translation(-4, 0, 1);
 tess.Mode = Mode.Fill | Mode.Outline| Mode.Negative;
 tess.BeginPolygon();
 using(var font = new System.Drawing.Font("Arial", 72, System.Drawing.FontStyle.Regular))
-  tess.AddGlyphContour("Ready!", font);
+tess.AddGlyphContour("Ready!", font);
 tess.EndPolygon();
 tess.Update(node.Mesh, 0.3m);
 node.Mesh.Transform(Matrix.Scaling(0.02m / 0x10000, 0.02m / 0x10000, 1));
@@ -196,3 +250,19 @@ Nodes.Add(node);
 node.Color = 0xffff0000;
 
 return; //ready
+
+
+void CreateSphere(Node node, Rational r, int segs)
+{
+  var t = Tesselator;
+  t.Mode = Mode.NonZero | Mode.Outline;
+  t.BeginPolygon();
+  t.BeginContour();
+  for (int i = 0; i <= segs; i++)
+  t.AddVertex(Rational.Vector2.SinCos(i * (System.Math.PI / segs)) * r);
+  t.EndContour();
+  t.EndPolygon();
+  if(node.Mesh == null) node.Mesh = Factory.CreateMesh();
+  t.Update(node.Mesh, 0, (1 << 16) | (segs - 1));
+}
+
