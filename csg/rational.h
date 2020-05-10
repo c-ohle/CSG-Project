@@ -160,7 +160,10 @@ struct Rational
   }
   Rational operator -() const
   {
-    auto b = *this; b.neg(); return b;
+    //auto b = *this; b.neg(); return b;
+    UINT64 t = *(UINT64*)this;
+    ((Rational*)&t)->neg();
+    return *(Rational*)&t;
   }
   const Rational& operator =(const Rational& b)
   {
@@ -187,8 +190,9 @@ struct Rational
   }
   Rational operator -(const Rational& b) const
   {
-    auto t = b; t.neg();
-    return *this + t;
+    //auto t = b; t.neg(); return *this + t;
+    UINT64 t = *(UINT64*)&b; ((Rational*)&t)->neg();
+    return *this + *(Rational*)&t;
   }
   Rational operator *(const Rational& b) const
   {

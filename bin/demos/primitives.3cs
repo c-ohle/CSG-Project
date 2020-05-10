@@ -19,7 +19,7 @@ node.Mesh.CreateBox(new Vector3(-2, -2, 0), new Vector3(+2, +2, -0.1f));
 Nodes.Add(node = new Node("Roof", 0xff800000));
 var roof = new float2[][][] { 
   new float2[][] {
-    new float2[] { new float2(0, 0), new float2(0, 45) },
+    new float2[] { new float2(0.1f, 0.1f), new float2(0, 45) },
     new float2[] { new float2(2, 0), new float2(0, 45) },
     new float2[] { new float2(2, 1), new float2(0, 45) },
     new float2[] { new float2(0, 1), new float2(0, 45) } } };

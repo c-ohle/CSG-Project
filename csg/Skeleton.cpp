@@ -34,7 +34,7 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
   int ni = 0; auto ii = csg.ii.getptr(128);
   int ne = 0; auto ee = csg.ee.getptr(32);
   int nf = 0; auto ff = csg.ff.getptr(128);
-  mode = (CSG_TESS)(CSG_TESS_POSITIVE | CSG_TESS_OUTLINEPRECISE);
+  mode = (CSG_TESS)(CSG_TESS_POSITIVE | CSG_TESS_OUTLINEPRECISE | CSG_TESS_NOTRIM);
   for (; ; )
   {
     for (int i = 0; i < ni; i++)
@@ -78,17 +78,17 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
       {
         int i1 = at + k, i2 = at + (k + 1) % dn;
         if (ii[((ni + i1) << 2) + 3] != -1 && ii[ii[((ni + i1) << 2) + 3] << 2] == ii[(ni + i2) << 2]) continue;
-        const auto& p1 = *(Vector2R*)&csg.pp[ii[(ni + i1) << 2]];
-        const auto& p2 = *(Vector2R*)&csg.pp[ii[(ni + i2) << 2]]; auto pv = p2 - p1;
+        const auto& p1 = *(const Vector2R*)&csg.pp[ii[(ni + i1) << 2]];
+        const auto& p2 = *(const Vector2R*)&csg.pp[ii[(ni + i2) << 2]]; auto pv = p2 - p1;
         for (j = 0; j < ni; j++)
         {
           int t1 = ii[j << 2], t2 = ii[ii[(j << 2) + 3] << 2]; if (t1 == t2) continue;
-          const auto& o1 = *(Vector2R*)&csg.pp[t1];
-          const auto& o2 = *(Vector2R*)&csg.pp[t2]; auto ov = o2 - o1;
+          const auto& o1 = *(const Vector2R*)&csg.pp[t1];
+          const auto& o2 = *(const Vector2R*)&csg.pp[t2]; auto ov = o2 - o1;
           if ((0 ^ (ov ^ pv)) != 0) continue;
           if ((0 ^ (ov & pv)) <= 0) continue; Rational::mach m = 0;
           auto f = (ov.x.sign() < 0 ? -ov.x : ov.x) > (ov.y.sign() < 0 ? -ov.y : ov.y) ? (p2.x - o1.x) / ov.x : (p2.y - o1.y) / ov.y;
-          auto t = f.sign() <= 0 || f.CompareTo(1) > 0; m.dispose(); if (t) continue;
+          auto t = f.sign() <= 0 || f.CompareTo(1) > 0; f = 0; m.dispose(); if (t) continue;
           if ((0 ^ (ov.x * (p1.y - o1.y) - ov.y * (p1.x - o1.x))) != 0) continue;
           ii[((ni + i1) << 2) + 1] = ii[(j << 2) + 1];
           ii[((ni + i1) << 2) + 2] = ii[(j << 2) + 2];
@@ -99,7 +99,7 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
       for (int k = at + 1; k < bn; k++) ii[((ni + k - 1) << 2) + 3] = k;
       ii[((ni + bn - 1) << 2) + 3] = at;
     }
-    memcpy(ii, ii + (ni << 2), (ni = bn) << 4); ee = csg.ee.getptr(ni << 1);
+    memcpy(ii, ii + (ni << 2), bn << 4); ni = bn; ee = csg.ee.getptr(ni << 1);
     if (nf < ni) { ff = csg.ff.getptr(ni); for (; nf < ni; ff[nf++] = 0); }
     else nf = ni;
     for (int i = 0; i < ni; i++)
@@ -140,14 +140,15 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
     }
     for (int i = 0; i < ni; i++)
     {
-      auto& p = csg.pp[ii[i << 2]];
-      auto& v = *(Vector3R*)&csg.ee[(i << 1) + 1].x;
+      const auto& p = csg.pp[ii[i << 2]];
+      const auto& v = *(const Vector3R*)&csg.ee[(i << 1) + 1].x;
       for (int k = 0, j; k < ni; k++)
       {
         if (k == i) continue;
         if ((j = ii[(k << 2) + 3]) == i) continue;
-        auto& e = ee[ii[(k << 2) + 1]]; Rational::mach m = 0; Vector2R t; Rational z, f;
-        auto d = *(Vector3R*)&e.x & v; if (d.sign() == 0) goto ex;
+        const auto& e = ee[ii[(k << 2) + 1]];
+        Rational::mach m = 0; Vector2R t;
+        Rational z, f, d = *(Vector3R*)&e.x & v; if (d.sign() == 0) goto ex;
         f = e.DotCoord(p) / d;
         z = p.z - v.z * f; if (z >= z2 || z <= z1) goto ex;
         t = Vector2R(p.x - v.x * f, p.y - v.y * f);
@@ -158,11 +159,11 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
     }
     for (int i = 0; i < ni; i++)
     {
-      auto& p = csg.pp[ii[i << 2]];
-      auto& n = *(Vector3R*)&csg.ee[(i << 1) + 1].x;
-      ii[i << 2] |= csg.addpp(Vector3R(
-        0 | p.x + n.x * z2 / n.z - n.x * p.z / n.z,
-        0 | p.y + n.y * z2 / n.z - n.y * p.z / n.z, z2)) << 16;
+      const auto& p = csg.pp.p[ii[i << 2]];
+      const auto& n = *(const Vector3R*)&csg.ee.p[(i << 1) + 1].x;
+      auto x = 0 | p.x + n.x * z2 / n.z - n.x * p.z / n.z;
+      auto y = 0 | p.y + n.y * z2 / n.z - n.y * p.z / n.z;
+      ii[i << 2] |= csg.addpp(Vector3R(x, y, z2)) << 16;
     }
     tt = csg.tt.getptr(nt + ni * 3);
     for (int i = 0; i < ni; i++)
@@ -175,11 +176,11 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
   }
   ff = csg.ff.getptr(ne >> 1); memset(ff, 0, (ne >> 1) * sizeof(int));
   for (int k = 0, j; k < nt; k += 3) { j = tt[k] >> 1; tt[k] = ff[j]; ff[j] = k + 1; }
-  ni = 0; mode = (CSG_TESS)(CSG_TESS_POSITIVE | CSG_TESS_FILL); //Planes.n = 0; Planes.Ensure(ne >> 1);
+  ni = 0; mode = (CSG_TESS)(CSG_TESS_POSITIVE | CSG_TESS_FILL | CSG_TESS_NOTRIM); //Planes.n = 0; Planes.Ensure(ne >> 1);
   for (int i = 0, k; i < ne; i += 2)
   {
     if ((k = ff[i >> 1]) == 0) continue;
-    setnormal(*(Vector3R*)&ee[i].x);
+    setnormal(*(const Vector3R*)&ee[i].x);
     BeginPolygon();
     for (; k != 0; k = tt[k - 1])
     {
