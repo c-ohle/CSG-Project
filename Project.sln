@@ -16,6 +16,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "csgtest", "csgtest\csgtest.
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "bin", "bin", "{59E52018-3128-4454-91C5-B89C0D9C716F}"
+	ProjectSection(SolutionItems) = preProject
+		bin\csg32.dll = bin\csg32.dll
+		bin\csg3mf.exe = bin\csg3mf.exe
+		bin\csg64.dll = bin\csg64.dll
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "demos", "demos", "{BE1336B9-3BC7-4D40-ABE4-17105DB1EF47}"
 	ProjectSection(SolutionItems) = preProject

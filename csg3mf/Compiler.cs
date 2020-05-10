@@ -982,7 +982,8 @@ namespace csg3mf
       var tok = b[0]; var org = b;
       if (tok.Equals('('))
       {
-        var a = b.Next().Trim(); if (b.Length == 0) return Parse(a, wt);
+        var a = b.Next().Trim();
+        if (b.Length == 0) return Parse(a, wt);
         if (b.StartsWith('.') || b.StartsWith('[')) return Parse(a, wt != null ? Parse(a, null) : null);
         var c = b; b = b.SubBlock(b.Length, 0);
         var tb = ParseType(a); if (tb == null) return null; if (wt == null) return tb;
@@ -1511,7 +1512,6 @@ namespace csg3mf
         }
         mb.Ldnull(); return wt;
       }
-
       var a = b; var pos = -1; int l = 0;
       for (char ü; a.Length != 0;)
       {
@@ -1542,7 +1542,11 @@ namespace csg3mf
         if (l == 11) continue;
         if (t.Equals('*') || t.Equals('/') || t.Equals('%')) { pos = t.Position; l = 12; while (a.Take('-') || a.Take('+')) { } }
         if (l == 12) continue;
-        if (t.Equals(',')) { Error(1525, "Invalid expression term '{0}'", t); break; }// return null; }
+        if (t.Equals(','))
+        {
+          if (wt != null) { var tc = newcall(b, wt, b); if (tc != null) return tc; }
+          Error(1525, "Invalid expression term '{0}'", t); break;
+        }
       }
       if (l != 0)
       {
