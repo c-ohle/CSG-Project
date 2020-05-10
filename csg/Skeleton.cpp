@@ -13,7 +13,7 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
     conv(&csg.pp[csg.np++].x, 2, va); csg.ff.getptr(np)[np - 1] = csg.np;
     return 0;
   }
-  auto& me = *static_cast<CMesh*>(mesh); me.rtgen = getrtid();
+  auto& me = *static_cast<CMesh*>(mesh);
   int polys = 0; for (int i = 0; i < np; i++) if (pp[i].next < i) polys++;
   carray<carray<carray<Vector2R>>> data; data.setsize(polys);
   for (int i = 0, k, j = 0, u = 0; i < np; i = k, j++)
@@ -176,7 +176,7 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
   }
   ff = csg.ff.getptr(ne >> 1); memset(ff, 0, (ne >> 1) * sizeof(int));
   for (int k = 0, j; k < nt; k += 3) { j = tt[k] >> 1; tt[k] = ff[j]; ff[j] = k + 1; }
-  ni = 0; mode = (CSG_TESS)(CSG_TESS_POSITIVE | CSG_TESS_FILL | CSG_TESS_NOTRIM); //Planes.n = 0; Planes.Ensure(ne >> 1);
+  ni = 0; mode = (CSG_TESS)(CSG_TESS_POSITIVE | CSG_TESS_FILL | CSG_TESS_NOTRIM); int nn = 0;//Planes.n = 0; Planes.Ensure(ne >> 1);
   for (int i = 0, k; i < ne; i += 2)
   {
     if ((k = ff[i >> 1]) == 0) continue;
@@ -194,12 +194,19 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
     EndPolygon(); auto ic = this->ns; if (ic == 0) continue;
     ii = csg.ii.getptr(ni + ic); auto ab = ni;
     for (int t = 0; t < ic; t++) ii[ni++] = csg.addpp(*(Vector3R*)&this->pp[this->ss[t]].x);
-    for (int t = ab; t < ni; t += 3) encode((UINT*)ii + t, t == ab);
-    //Planes.p[Planes.n++] = ee[i];
+    for (int t = ab; t < ni; t += 3) encode((UINT*)ii + t, t == ab); ff[nn++] = i; //Planes.p[Planes.n++] = ee[i];
   }
+  me.rtgen = getrtid(); me.flags = 1 | 2;
+  me.ee.setsize(nn << 1); for (int i = 0; i < nn; i++) me.ee[i] = -(me.ee[nn + i] = ee[ff[i]]);
   ni = join(ni, 1); csg.trim(ni);
-  me.resetee();
   me.pp.copy(csg.pp.p, csg.np);
-  me.ii.copy((const UINT*)csg.ii.p, ni);
+  me.ii.setsize(ni << 1);
+  memcpy(me.ii.p + 00, ii, ni << 2);
+  memcpy(me.ii.p + ni, ii, ni << 2);
+  for (int i = 0; i < ni; i += 3)
+  {
+    swap(me.ii.p[i + 1], me.ii.p[i + 2]);
+    encode((UINT*)me.ii.p + i, decode((UINT*)ii + i));
+  }
   return 0;
 }

@@ -16,14 +16,31 @@ node.Color = 0xff0000ff; //set a display color
 node.Name = "ground plate"; node.Color = 0xffaaff80;
 node.Mesh.CreateBox(new Vector3(-2, -2, 0), new Vector3(+2, +2, -0.1f));
 
-Nodes.Add(node = new Node("Roof", 0xff800000));
+Nodes.Add(node = new Node("Roof", 0xffee8000));
 var roof = new float2[][][] { 
   new float2[][] {
-    new float2[] { new float2(0.1f, 0.1f), new float2(0, 45) },
-    new float2[] { new float2(2, 0), new float2(0, 45) },
-    new float2[] { new float2(2, 1), new float2(0, 45) },
-    new float2[] { new float2(0, 1), new float2(0, 45) } } };
+    new float2[] { new float2(0, 0), new float2(0, 45) },
+    new float2[] { new float2(3, 0), new float2(0, 45) },
+    new float2[] { new float2(3, 2), new float2(0, 45) },
+    new float2[] { new float2(0, 2), new float2(0, 45) } } };
 Tesselator.Skeleton(node.Mesh, roof);
+Tesselator.Stretch(node.Mesh, new Vector3(0, 0, 0.05m));
+var errors = node.Mesh.Check();
+node.Transform *= Matrix.Translation(-1, -1, 2.5m);
+
+roof = new float2[][][] { 
+  new float2[][] {
+    new float2[] { new float2(0, 0), new float2(0, 45) },
+    new float2[] { new float2(1, 0), new float2(0, 45) },
+    new float2[] { new float2(1, -0.5f), new float2(0, 90) },
+    new float2[] { new float2(2, -0.5f), new float2(0, 45) },
+    new float2[] { new float2(2, 0), new float2(0, 45) },
+    new float2[] { new float2(3, 0), new float2(0, 45) },
+    new float2[] { new float2(3, 2), new float2(0, 45) },
+    new float2[] { new float2(0, 2), new float2(0, 45) } } };
+Tesselator.Skeleton(node.Mesh, roof);
+Tesselator.Stretch(node.Mesh, new Vector3(0, 0, 0.05m));
+errors = node.Mesh.Check();
 
 //new node as second object
 Nodes.Add(node = new Node("Box1"));

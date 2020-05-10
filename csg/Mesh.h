@@ -8,11 +8,11 @@ struct CMesh : public ICSGMesh
   carray<Vector4R> ee;
   void clear()
   {
-    ii.setsize(0); pp.setsize(0); ee.setsize(0);
+    ii.setsize(0); pp.setsize(0); ee.setsize(0); 
+    flags = 0; rtgen = getrtid();
   }
   void invert()
   {
-    //ii.invert();
     for (UINT i = 0; i < ii.n; i += 3) { auto t = ii.p[i + 1]; ii.p[i + 1] = ii[i + 2]; ii.p[i + 2] = t; }
   }
   void resetee()

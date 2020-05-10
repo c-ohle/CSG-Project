@@ -299,6 +299,7 @@
     </ClCompile>
     <ClCompile Include="Factory.cpp" />
     <ClCompile Include="Glyph.cpp" />
+    <ClCompile Include="Intersect.cpp" />
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
