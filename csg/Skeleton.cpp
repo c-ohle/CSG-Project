@@ -8,7 +8,8 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
 {
   if (!mesh)
   {
-    if (np == 1) { csg.pp.setsize(32); csg.np = 0; }
+    if (np == 0) return E_INVALIDARG; //crease before vertex
+    if (np == 1) { if(!csg.pp.n) csg.pp.setsize(32); csg.np = 0; }
     if (csg.np == csg.pp.n) csg.pp.setsize(csg.pp.n << 1);
     conv(&csg.pp[csg.np++].x, 2, va); csg.ff.getptr(np)[np - 1] = csg.np;
     return 0;
@@ -22,7 +23,7 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
     auto& a = data[j]; a.setsize(k - i);
     for (UINT t = 0; t < a.n; t++)
     {
-      auto nc = csg.ff[i + t] - u;
+      auto nc = csg.ff[i + t] - u; if(nc == 0) return E_INVALIDARG; //missing crease
       auto& b = a[t]; b.setsize(1 + nc); b[0] = *(const Vector2R*)&pp[i + t].x;
       for (int s = 1; s <= nc; s++) b[s] = *(const Vector2R*)&csg.pp[u++];
     }

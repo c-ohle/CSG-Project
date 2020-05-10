@@ -282,133 +282,44 @@ HRESULT CMesh::CreateBox(CSGVAR a, CSGVAR b)
   return 0;
 }
 
-void CTesselatorRat::initplanes(CMesh& m)
+HRESULT CTesselatorRat::Stretch(ICSGMesh* mesh, CSGVAR v)
 {
-  if (m.ii.n == 0) return;
-  if (m.flags & 1)
+  Vector3R dir; conv(&dir.x, 3, v);
+  if (!dir.x.sign() && !dir.y.sign() && !dir.z.sign()) return 0;
+  auto& m = *static_cast<CMesh*>(mesh);
+  csg.dictpp(m.pp.n << 1);
+  auto ff = ll.getptr(m.pp.n << 1); memset(ff, -1, (m.pp.n << 1) * sizeof(int));
+  UINT ni, * ii = (UINT*)ss.getptr(ni = m.ii.n);
+  beginsex(); int sig = 0;
+  for (UINT i = 0, k = 0, e = -1; i < m.ii.n; i += 3, k++)
   {
-    UINT c = 1; for (UINT i = 3; i < m.ii.n; i += 3) if (decode(m.ii.p + i)) c++;
-    m.ee.setsize(c);
-    for (UINT i = 0, k = 0; i < m.ii.n; i += 3)
-      if (decode(m.ii.p + i))
-        m.ee[k++] = 0 | Vector4R::PlaneFromPoints(m.pp[m.ii[i + 0]], m.pp[m.ii[i + 1]], m.pp[m.ii[i + 2]]);
-    return;
-  }
-  auto nd = m.ii.n / 3;
-  auto ff = csg.ff.getptr(nd + m.pp.n);
-  auto ii = csg.ii.getptr(nd + m.ii.n);
-  csg.dictee(64); memset(ff + nd, -1, m.pp.n * sizeof(int)); //for (int i = 0; i < m.pp.n; i++) ff[nd + i] = -1;
-  for (UINT i = 0, k = 0, l = 0, x = 0, i1, i2, i3; k < nd; i += 3, k++)
-  {
-    const auto& a = m.pp[i1 = m.ii[i + 0]];
-    const auto& b = m.pp[i2 = m.ii[i + 1]];
-    const auto& c = m.pp[i3 = m.ii[i + 2]]; if ((ii[k] = i) == 0) goto m1;
-    const auto& e = csg.ee[l];
-    if (ff[nd + i1] != l) if ((0 ^ e.DotCoord(a)) != 0) goto m1;
-    if (ff[nd + i2] != l) if ((0 ^ e.DotCoord(b)) != 0) goto m1;
-    if (ff[nd + i3] != l) if ((0 ^ e.DotCoord(c)) != 0) goto m1;
-    switch (x != -1 ? x : (x = ((const Vector3R*)&e)->LongAxis()))
+    sig = (m.flags & 1) && !decode(m.ii.p + i) ? sig : 0 ^ Vector3R::Dot(dir,
+      m.ee.n ? *(Vector3R*)&m.ee[++e].x :
+      Vector3R::Ccw(m.pp.p[m.ii.p[i + 0]], m.pp.p[m.ii.p[i + 1]], m.pp.p[m.ii.p[i + 2]]));
+    for (int j = 0, h; j < 3; j++)
     {
-    case 0: if ((0 ^ (b.y - a.y) * (c.z - a.z) - (b.z - a.z) * (c.y - a.y)) != e.x.sign()) goto m1; break;
-    case 1: if ((0 ^ (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z)) != e.y.sign()) goto m1; break;
-    case 2: if ((0 ^ (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)) != e.z.sign()) goto m1; break;
+      auto& t = ff[(sig < 0 ? 0 : m.pp.n) + m.ii.p[h = i + j]];
+      ii[h] = t != -1 ? t : (t = csg.addpp(sig < 0 ? m.pp.p[m.ii.p[h]] : m.pp.p[m.ii.p[h]] + dir));
     }
-    ff[k] = l; goto m2; m1: //TRACE(L"plane %i at %i\n", csg.ne, i);
-    ff[k] = l = csg.addee(0 | Vector4R::PlaneFromPoints(a, b, c)); x = -1; m2:
-    ff[nd + i1] = ff[nd + i2] = ff[nd + i3] = l;
-  }
-  qsort(ff, ii, 0, nd - 1);
-  for (UINT i = 0, j = 0; i < nd; i++, j += 3) for (UINT k = 0; k < 3; k++) ii[nd + j + k] = m.ii[ii[i] + k];
-  m.ii.copy((const UINT*)ii + nd, m.ii.n);
-  for (UINT i = 0, k = 0; i < m.ii.n; i += 3, k++) encode(m.ii.p + i, k == 0 || ff[k - 1] != ff[k]);
-  m.ee.copy(csg.ee.p, csg.ne); m.flags |= 1;
-}
-void CTesselatorRat::setnormal(const Vector3R& v)
-{
-  auto i = v.LongAxis(); auto s = (&v.x)[i].sign();
-  mode = (CSG_TESS)((mode & 0xffff) | ((int)CSG_TESS_NORMX << i) | (s & (int)CSG_TESS_NORMNEG));
-}
-void CTesselatorRat::addvertex(const Vector3R& v)
-{
-  if (np == pp.n) resize(64);
-  if (np != fi) pp[np - 1].next = np;
-  auto a = &pp[np++]; a->next = fi; *(Vector3R*)&a->x = v;
-}
-void CTesselatorRat::beginsex()
-{
-  if (dict.n == 0)
-  {
-    dict.setsize(hash + 32);
-    ii.setsize(64);
-  }
-  np = ns = nl = ni = 0; memset(dict.p, 0, hash * sizeof(int));
-}
-void CTesselatorRat::addsex(int a, int b)
-{
-  for (int i = dict[b % hash] - 1; i != -1; i = dict[hash + i] - 1)
-    if (ii[i].a == b && ii[i].b == a) { ii[i].a = -1; return; }
-  if (ni >= (int)ii.n)
-    ii.setsize(ni << 1);
-  if (hash + ni >= (int)dict.n)
-    dict.setsize(hash + ii.n);
-  auto h = a % hash; dict[hash + ni] = dict[h]; dict[h] = ni + 1;
-  ii[ni++] = ab(a, b); np = max(np, max(a, b) + 1);
-}
-void CTesselatorRat::endsex()
-{
-  int k = 0; for (int i = 0; i < ni; i++) if (ii[i].a != -1) ii[k++] = ii[i]; ni = k;
-  _ASSERT((mode & CSG_TESS_OUTLINEPRECISE) == 0); outline();
-}
-void CTesselatorRat::filloutlines()
-{
-  BeginPolygon();
-  for (int i = 0, f = 0, n = nl; i < n; i++)
-  {
-    if (f == 0) { BeginContour(); f = 1; }
-    auto k = ll[i]; addvertex(csg.pp[k & 0x0fffffff]);
-    if ((k & 0x40000000) != 0) { EndContour(); f = 0; }
-  }
-  EndPolygon();
-}
-void CTesselatorRat::outline(int* ii, int ni)
-{
-  beginsex();
-  for (int i = 0; i < ni; i += 3)
-  {
-    addsex(ii[i + 0], ii[i + 1]);
-    addsex(ii[i + 1], ii[i + 2]);
-    addsex(ii[i + 2], ii[i + 0]);
-  }
-  endsex();
-}
-int CTesselatorRat::join(int ni, int fl)
-{
-  for (int swap = 0; ;)
-  {
-    auto ii = csg.ii.p; outline(ii, ni); if (nl == 0) break;
-    for (int i = 0, n = nl, k, x; i < n; i = k)
+    if (sig < 0)
     {
-      for (k = i + 1; k < n && (ll[k - 1] & 0x40000000) == 0; k++);
-      for (int l = k - i, t = 0, t1, t2, t3, u; t < l; t++)
-      {
-        auto s = Vector3R::Inline(
-          csg.pp[t1 = ll[i + t] & 0x0fffffff],
-          csg.pp[t2 = ll[i + (t + 1) % l] & 0x0fffffff],
-          csg.pp[t3 = ll[i + (t + 2) % l] & 0x0fffffff], 2);
-        if (s == 2 && fl == 1) { if (k == n) return ni; swap++; break; }
-        if (s == 0 || s == 2) continue;
-        if (s < 0) { s = t1; t1 = t2; t2 = t3; t3 = s; }
-        for (x = 0; x < ni && !(ii[x] == t1 && ii[x / 3 * 3 + (x + 1) % 3] == t2); x++);
-        ii = csg.ii.getptr(ni + 3); u = x / 3 * 3;
-        memcpy(ii + (u + 3), ii + u, (ni - u) * sizeof(int)); ni += 3;
-        auto c = decode((UINT*)ii + u); ii[x] = ii[u + 3 + (x + 1) % 3] = t3;
-        encode((UINT*)ii + u, c); encode((UINT*)ii + (u + 3), false); swap++; break;
-      }
+      addsex(m.ii.p[i + 0], m.ii.p[i + 1]);
+      addsex(m.ii.p[i + 1], m.ii.p[i + 2]);
+      addsex(m.ii.p[i + 2], m.ii.p[i + 0]);
     }
-    if (swap == 0)
-      return -1;
-    swap = 0;
   }
-  return ni;
+  for (int i = 0; i < this->ni; i++)
+  {
+    if (this->ii[i].a == -1) continue;
+    ii = (UINT*)ss.getptr(ni + 6);
+    ii[ni + 0] = ff[this->ii[i].a];
+    ii[ni + 2] = ii[ni + 5] = ff[this->ii[i].b];
+    if ((ii[ni + 1] = ii[ni + 3] = ff[m.pp.n + this->ii[i].a]) == -1) return 0x8C066001;
+    if ((ii[ni + 4] = ff[m.pp.n + this->ii[i].b]) == -1) return 0x8C066001;
+    ni += 6;
+  }
+  m.pp.copy(csg.pp.p, csg.np);
+  m.ii.copy((UINT*)ii, ni);
+  m.resetee(); m.flags &= ~2; m.rtgen = getrtid();
+  return 0;
 }
-

@@ -1142,7 +1142,7 @@ namespace csg3mf
       if (!runs) return;
       try { neuron.Invoke(3, null); }
       catch (DebugStop) { editor?.stop(); return; }
-      catch (Exception e) { MessageBox.Show(e.ToString()); }
+      catch (Exception e) { MessageBox.Show(e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
       if (neuron.Invoke(5, null) != null) { neuron.Invoke(6, 0); editor?.onstop(null); }
     }
     protected override void UpdateSyntaxColors()
