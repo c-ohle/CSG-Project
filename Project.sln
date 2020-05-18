@@ -8,6 +8,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "csg3mf", "csg3mf\csg3mf.csproj", "{E8B746EB-F3F9-4D63-82BB-04AC5D634ED4}"
 	ProjectSection(ProjectDependencies) = postProject
 		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF} = {EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC} = {74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "csgtest", "csgtest\csgtest.csproj", "{0A24EE61-6973-4F9B-A714-80BC4E576C12}"
@@ -39,6 +40,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "textures", "textures", "{F5
 		bin\textures\wood1.png = bin\textures\wood1.png
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cdx", "cdx\cdx.vcxproj", "{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}"
+	ProjectSection(ProjectDependencies) = postProject
+		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF} = {EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -50,10 +56,9 @@ Global
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Debug|Any CPU.ActiveCfg = Debug|Win32
-		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Debug|x64.ActiveCfg = Release|x64
-		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Debug|x64.Build.0 = Release|x64
-		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Debug|x86.ActiveCfg = Release|Win32
-		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Debug|x86.Build.0 = Release|Win32
+		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Debug|x64.ActiveCfg = Debug|x64
+		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Debug|x86.ActiveCfg = Debug|Win32
+		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Debug|x86.Build.0 = Debug|Win32
 		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Release|Any CPU.ActiveCfg = Release|Win32
 		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Release|x64.ActiveCfg = Release|x64
 		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}.Release|x64.Build.0 = Release|x64
@@ -83,6 +88,16 @@ Global
 		{0A24EE61-6973-4F9B-A714-80BC4E576C12}.Release|x64.Build.0 = Release|Any CPU
 		{0A24EE61-6973-4F9B-A714-80BC4E576C12}.Release|x86.ActiveCfg = Release|Any CPU
 		{0A24EE61-6973-4F9B-A714-80BC4E576C12}.Release|x86.Build.0 = Release|Any CPU
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}.Debug|Any CPU.ActiveCfg = Debug|Win32
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}.Debug|x64.ActiveCfg = Debug|x64
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}.Debug|x64.Build.0 = Debug|x64
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}.Debug|x86.ActiveCfg = Debug|Win32
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}.Debug|x86.Build.0 = Debug|Win32
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}.Release|Any CPU.ActiveCfg = Release|Win32
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}.Release|x64.ActiveCfg = Release|x64
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}.Release|x64.Build.0 = Release|x64
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}.Release|x86.ActiveCfg = Release|Win32
+		{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Xml.Linq;
@@ -12,7 +13,7 @@ namespace csg3mf
 {
   public unsafe static class CSG
   {
-    public static readonly IFactory Factory = COM.CreateInstance<IFactory>(IntPtr.Size == 8 ? (COM.NDEBUG ? "csg64d.dll" : "csg64.dll") : (COM.NDEBUG ? "csg32d.dll" : "csg32.dll"), typeof(CFactory).GUID);
+    public static readonly IFactory Factory = COM.CreateInstance<IFactory>(IntPtr.Size == 8 ? "csg64.dll" : "csg32.dll", typeof(CFactory).GUID);
     //public static readonly IFactory Factory = (IFactory)new CFactory(); //alternative from registry
     public static ITesselator Tesselator => tess ?? (tess = Factory.CreateTessalator(Unit.Rational));
     [ThreadStatic] static ITesselator tess;
@@ -67,7 +68,10 @@ namespace csg3mf
     public enum JoinOp { Union = 0, Difference = 1, Intersection = 2 }
 
     [Flags]
-    public enum MeshCheck { DupPoints = 1, BadIndex = 2, UnusedPoint = 4, Openings = 8, Planes = 16 }
+    public enum MeshCheck { DupPoints = 1, BadIndex = 2, UnusedPoint = 4, Openings = 8, Planes = 16, DupPlanes = 32 }
+
+    [Flags]
+    public enum MeshState { Modified = 0x4000 }
 
     [ComImport, Guid("BE338702-B776-4178-AA13-963B4EB53EDF"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     public interface IMesh
@@ -88,7 +92,7 @@ namespace csg3mf
       void ReadFromStream(COM.IStream str);
       void CreateBox(Variant a, Variant b);
       MeshCheck Check(MeshCheck m = 0);
-      uint Generation { get; }
+      bool GetModified();
     }
 
     public enum Op1 { Copy = 0, Neg = 1, TransPM = 2, Inv3x4 = 3, Dot2 = 4, Dot3 = 5, Norm3 = 6, Num = 7, Den = 8, Lsb = 9, Msb = 10, Trunc = 11, Floor = 12, Ceil = 13, Round = 14, Rnd10 = 15, Com = 16 }
@@ -136,12 +140,15 @@ namespace csg3mf
       public static implicit operator Variant(string s) { Variant v; v.vt = (ushort)VarType.String; var p = Marshal.StringToBSTR(s); v.vp = p.ToPointer(); Marshal.FreeBSTR(p); return v; }
     }
 
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
     public struct Rational : IEquatable<Rational>
     {
-      readonly IVector p; readonly int i;
+      [FieldOffset(0)] readonly int t;
+      [FieldOffset(4)] readonly int i;
+      [FieldOffset(8)] readonly IVector p;
       public override string ToString() => p.GetString(i);
       public string ToString(int digits, int fl = 3) => p.GetString(i, digits, fl);
-      Rational(IVector p, int i) { this.p = p; this.i = i; }
+      Rational(IVector p, int i, int c) { t = (int)VarType.Rational | (c << 8); this.i = i; this.p = p; }
       public override int GetHashCode()
       {
         return base.GetHashCode();
@@ -196,14 +203,14 @@ namespace csg3mf
         //return new Rational(Factory.CreateVector(c), 0);
         ref var b = ref buff; const int size = 512;
         if (b.p == null || b.i + c > size) { b.i = 0; b.p = Factory.CreateVector(size); }
-        var r = new Rational(b.p, b.i); b.i += c; return r;
+        var r = new Rational(b.p, b.i, c); b.i += c; return r;
       }
       [ThreadStatic] static (IVector p, int i) buff;
 
       public readonly struct Vector2 : IEquatable<Vector2>
       {
-        public Rational x { get => new Rational(m.p, m.i + 0); set => m.p.Execute1(Op1.Copy, m.i + 0, value.p, value.i); }
-        public Rational y { get => new Rational(m.p, m.i + 1); set => m.p.Execute1(Op1.Copy, m.i + 1, value.p, value.i); }
+        public Rational x { get => new Rational(m.p, m.i + 0, 1); set => m.p.Execute1(Op1.Copy, m.i + 0, value.p, value.i); }
+        public Rational y { get => new Rational(m.p, m.i + 1, 1); set => m.p.Execute1(Op1.Copy, m.i + 1, value.p, value.i); }
         public override string ToString() => $"{m.ToString(17)}; {y.ToString(17)}";
         public override int GetHashCode() => m.p.GetHashCode(m.i, 2);
         public override bool Equals(object p) => p is Vector3 b && Equals(b);
@@ -238,9 +245,9 @@ namespace csg3mf
       }
       public readonly struct Vector3 : IEquatable<Vector3>
       {
-        public Rational x { get => new Rational(m.p, m.i + 0); set => m.p.Execute1(Op1.Copy, m.i + 0, value.p, value.i); }
-        public Rational y { get => new Rational(m.p, m.i + 1); set => m.p.Execute1(Op1.Copy, m.i + 1, value.p, value.i); }
-        public Rational z { get => new Rational(m.p, m.i + 2); set => m.p.Execute1(Op1.Copy, m.i + 2, value.p, value.i); }
+        public Rational x { get => new Rational(m.p, m.i + 0, 1); set => m.p.Execute1(Op1.Copy, m.i + 0, value.p, value.i); }
+        public Rational y { get => new Rational(m.p, m.i + 1, 1); set => m.p.Execute1(Op1.Copy, m.i + 1, value.p, value.i); }
+        public Rational z { get => new Rational(m.p, m.i + 2, 1); set => m.p.Execute1(Op1.Copy, m.i + 2, value.p, value.i); }
         public override string ToString() => $"{m.ToString(17)}; {y.ToString(17)}; {z.ToString(17)}";
         public override int GetHashCode() => m.p.GetHashCode(m.i, 3);
         public override bool Equals(object p) => p is Vector3 b && Equals(b);
@@ -264,10 +271,10 @@ namespace csg3mf
       }
       public readonly struct Plane : IEquatable<Plane>
       {
-        public Rational x { get => new Rational(m.p, m.i + 0); set => m.p.Execute1(Op1.Copy, m.i + 0, value.p, value.i); }
-        public Rational y { get => new Rational(m.p, m.i + 1); set => m.p.Execute1(Op1.Copy, m.i + 1, value.p, value.i); }
-        public Rational z { get => new Rational(m.p, m.i + 2); set => m.p.Execute1(Op1.Copy, m.i + 2, value.p, value.i); }
-        public Rational w { get => new Rational(m.p, m.i + 3); set => m.p.Execute1(Op1.Copy, m.i + 3, value.p, value.i); }
+        public Rational x { get => new Rational(m.p, m.i + 0, 1); set => m.p.Execute1(Op1.Copy, m.i + 0, value.p, value.i); }
+        public Rational y { get => new Rational(m.p, m.i + 1, 1); set => m.p.Execute1(Op1.Copy, m.i + 1, value.p, value.i); }
+        public Rational z { get => new Rational(m.p, m.i + 2, 1); set => m.p.Execute1(Op1.Copy, m.i + 2, value.p, value.i); }
+        public Rational w { get => new Rational(m.p, m.i + 3, 1); set => m.p.Execute1(Op1.Copy, m.i + 3, value.p, value.i); }
         public override string ToString() => $"{m.ToString(17)}; {y.ToString(17)}; {z.ToString(17)}; {w.ToString(17)}";
         public override int GetHashCode() => m.p.GetHashCode(m.i, 4);
         public override bool Equals(object p) => p is Vector3 b && Equals(b);
@@ -300,6 +307,20 @@ namespace csg3mf
         public override bool Equals(object p) => p is Matrix b && Equals(b);
         public bool Equals(Matrix b) => m.p.Equals(m.i, b.m.p, b.m.i, 12);
         public static implicit operator Variant(Matrix m) => new Variant(m.m.p, 12, m.m.i);
+        //public static explicit operator Matrix(Variant m)
+        //{
+        //  if (m.vt == ((ushort)VarType.Rational | (12 << 8)))
+        //  {
+        //    var t = new Matrix(0); var p = Marshal.GetObjectForIUnknown(*(IntPtr*)&m.vp);
+        //    t.m.p.Copy(t.m.i, (IVector)p, ((int*)&m)[1], 12); return t;
+        //  }
+        //  if (m.vt == ((ushort)VarType.Float | (16 << 8)))
+        //  {
+        //    var s = *(D3DView.float4x4**)&m.vp; var t = new Matrix(0);
+        //    for (int i = 0, k = 0; i < 12; k += i % 3 == 2 ? 2 : 1, i++) t[i] = (&s->_11)[k]; return t;
+        //  }
+        //  throw new NotImplementedException();
+        //}
         public static Matrix Identity()
         {
           var m = new Matrix(0); m.SetIdentity(); return m;
@@ -341,7 +362,7 @@ namespace csg3mf
         public Vector3 mp { get => copy(9); set => m.p.Copy(m.i + 9, value.m.p, value.m.i, 3); }
         public Rational this[int i]
         {
-          get => new Rational(m.p, m.i + i);
+          get => new Rational(m.p, m.i + i, 1);
           set => m.p.Execute1(Op1.Copy, m.i + i, value.p, value.i);
         }
         public Variant this[uint i]
@@ -365,7 +386,7 @@ namespace csg3mf
         internal void GetValues(Variant v) => m.p.GetValue(m.i, ref v);
         internal void SetValues(Variant v) => m.p.SetValue(m.i, v);
         internal void SetIdentity() { var v = stackalloc int[12] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 }; m.p.SetValue(m.i, new Variant(v, 12)); }
-        public static explicit operator D3DView.float3x4(Matrix m) { D3DView.float3x4 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
+        public static explicit operator D3DView.float4x3(Matrix m) { D3DView.float4x3 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
         //public void Save()
         //{
         //  var str = COM.SHCreateMemStream();
@@ -435,7 +456,7 @@ namespace csg3mf
     #endregion
   }
 
-  public unsafe class COM
+  public static unsafe class COM
   {
     public static T CreateInstance<T>(string path, in Guid clsid)
     {
@@ -460,20 +481,14 @@ namespace csg3mf
       void Seek(long i, int org = 0, long* p = null);
       void SetSize(long n);
     }
-    //[DllImport("shlwapi.dll")]
-    //public static extern IStream SHCreateMemStream(void* p = null, int n = 0);
+    [DllImport("shlwapi.dll")]
+    public static extern IStream SHCreateMemStream(void* p = null, int n = 0);
+    public static IStream Stream(byte[] a) { fixed(byte*p=a) return SHCreateMemStream(p, a.Length); }
+    //public static long Position(this IStream str) { long v; str.Seek(0, 1, &v); return v; }
 #if (!DEBUG)
     internal const bool DEBUG = false;
-    internal const bool NDEBUG = false;
 #else
     internal const bool DEBUG = true;
-    internal static readonly bool NDEBUG = ndebug();
-    static bool ndebug()
-    {
-      if (!Debugger.IsAttached) return false;
-      var e = XElement.Load(Directory.EnumerateFiles("..\\", Process.GetCurrentProcess().ProcessName + ".csproj.user", SearchOption.AllDirectories).FirstOrDefault());
-      return e.Descendants(e.Name.Namespace + "EnableUnmanagedDebugging").First().Value == "true";
-    }
 #endif
   }
 

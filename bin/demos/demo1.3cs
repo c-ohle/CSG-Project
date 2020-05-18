@@ -2,62 +2,89 @@ using csg3mf;
 using static csg3mf.CSG;
 using static csg3mf.CSG.Rational;
 
-Nodes.Clear();
-Infos.Clear(); 
+//Rational.Plane
+Nodes.Clear(); Infos.Clear();
 Infos.Add("Hello World!");
+var n1 = Nodes.AddNode("Node1"); n1.Color = 0xff8080ff;
+var n2 = Nodes.AddNode("Node2"); n2.Color = 0xffff0000;
 
-var m1 = new Node.Material[1]; m1[0].Color = 0xff8080ff;
-var m2 = new Node.Material[1]; m2[0].Color = 0xffff0000;
-
-Nodes.Add(new Node { Name = "Node1", Materials = m1 });
-Nodes.Add(new Node { Name = "Node2", Materials = m2 });
-
-//Rational width = 1, heigth = System.Math.PI;
-//var matr = Rational.Matrix.Identity();
 var sw = new System.Diagnostics.Stopwatch(); sw.Start();
+CreateBox(Nodes[0], 1, 1, 1);
+Nodes[0].Mesh.Transform(new Vector3(-0.5m, -0.5m, -0.5m));
+CreateCylinder(Nodes[1], 0.3m, 0.7m);
+Nodes[0].Color = 0xffffff00;
+Nodes[0].Color = 0x80ffff00;
 
-var box = CreateBox(1, 1, 1); Nodes[0].Mesh = box;
-box.Transform(new Vector3(-0.5m, -0.5m, -0.5m));
-var c1 = CreateCylinder(0.3m, 0.7m); Nodes[1].Mesh = c1;
-Nodes[0].Materials[0].Color = 0xffffff00;
-Nodes[0].Materials[0].Color = 0x80ffff00;
-Tesselator.Join(box, c1, JoinOp.Difference); Nodes[1].Mesh = null;
-Nodes[0].Materials[0].Color = 0xff8080ff;
-Nodes[1].Mesh = c1;
-c1.Transform(new Vector3(0, -0.5m, 0)); 
-Tesselator.Join(box, c1, JoinOp.Difference); 
+Nodes[0].Difference(Nodes[1]);
+//Tesselator.Join(Nodes[0].Mesh, Nodes[1].Mesh, JoinOp.Difference);
+
+Nodes[1].Transform *= Matrix.Translation(0, 0, 1);
+Nodes[1].Transform *= Matrix.Translation(0, -0.5m, 0);
+Nodes[1].Transform *= Matrix.Translation(0, 0, -1);
+
+Nodes[0].Transform *= Matrix.RotationX(System.Math.PI/8);
+Nodes[0].Difference(Nodes[1]);
+Nodes[1].Transform *= Matrix.Translation(0, 0, 1);
+Nodes[0].Transform *= Matrix.RotationX(-System.Math.PI/8);
+
+CreateCylinder(Nodes[1], 0.2m, 2);
+Nodes[1].Transform = Matrix.RotationX(System.Math.PI/2) * Nodes[1].Transform;
+Nodes[1].Transform *= Matrix.Translation(0, 0, -1);
+Nodes[1].Transform *= Matrix.Translation(0, 1.5m, 0);
+
+Nodes[0].Difference(Nodes[1]);
+
+Nodes[1].Transform *= Matrix.Translation(0, 0, 1);
+Nodes[0].Color = 0xff8080ff;
+
 Nodes[1].Mesh = null;
-var c2 = CreateCylinder(0.2m, 2); Nodes[1].Mesh = c2;
-c2.Transform(
-  Matrix.RotationX(Vector2.SinCos(System.Math.PI/2)) *
-  Matrix.Translation(0, 1, 0));
-Tesselator.Join(box, c2, JoinOp.Difference);
+Nodes[1].Transform = Matrix.Translation(0, 0, 0.9m);
+CreateBox(Nodes[1], 2, 2, 0.001m);
+Nodes[1].Mesh.Transform(Matrix.Translation(-1, -1, 0));
+Nodes[1].Transform = Matrix.RotationY(System.Math.PI/4) * Nodes[1].Transform;
+Nodes[0].Cut(Nodes[1]);
+
+Nodes[1].Transform = Matrix.Translation(0, 0, 0.9m);
+Nodes[1].Transform = Matrix.RotationY(-System.Math.PI/4) * Nodes[1].Transform;
+Nodes[0].Cut(Nodes[1]);
+
+Nodes[1].Transform = Matrix.Translation(0, 0, 0.9m);
+Nodes[1].Transform = Matrix.RotationX(-System.Math.PI/4) * Nodes[1].Transform;
+Nodes[0].Cut(Nodes[1]);
+
 Nodes.Remove(Nodes[1]);
 
 sw.Stop();
-Infos.Add("Vertices: " + box.VertexCount + " Indices: " + box.IndexCount);
+Infos.Add("Vertices: " + Nodes[0].Mesh.VertexCount + " Indices: " + Nodes[0].Mesh.IndexCount);
 Infos.Add("Build time: " + sw.ElapsedMilliseconds + " ms");
 return;
 
-IMesh CreateBox(decimal dx, decimal dy, decimal dz)
+void CreateBox(CDX.INode node, Rational dx, Rational dy, Rational dz)
 {
-  var tess = Tesselator;
-  tess.Mode = Mode.Fill | Mode.Outline| Mode.Positive;
-  tess.BeginPolygon();
-  tess.BeginContour();
-  tess.AddVertex(0, 0);
-  tess.AddVertex(dx, 0);
-  tess.AddVertex(dx, dy);
-  tess.AddVertex(0, dy);
-  tess.EndContour();
-  tess.EndPolygon();
-  var mesh = Factory.CreateMesh();
-  tess.Update(mesh, dz);
-  return mesh;
+  if(true)
+  {
+    if(node.Mesh == null) node.Mesh = Factory.CreateMesh();
+    node.Mesh.CreateBox(new Vector3(0, 0, 0), new Vector3(dx, dy, dz));
+  }
+  else
+  {
+    var tess = Tesselator;
+    tess.Mode = Mode.Fill | Mode.Outline| Mode.Positive;
+    tess.BeginPolygon();
+    tess.BeginContour();
+    tess.AddVertex(0, 0);
+    tess.AddVertex(dx, 0);
+    tess.AddVertex(dx, dy);
+    tess.AddVertex(0, dy);
+    tess.EndContour();
+    tess.EndPolygon();
+    if(node.Mesh == null) node.Mesh = Factory.CreateMesh();
+    tess.Update(node.Mesh, dz);
+  }
 }
-IMesh CreateCylinder(Rational radius, Rational height)
+void CreateCylinder(CDX.INode node, Rational radius, Rational height)
 {
-  int segs = 30;
+  int segs = 60;
   var tess = Tesselator;
   tess.Mode = Mode.NonZero | Mode.Fill | Mode.Outline;
   tess.BeginPolygon();
@@ -66,7 +93,6 @@ IMesh CreateCylinder(Rational radius, Rational height)
   tess.AddVertex(Vector2.SinCos(i * f) * radius);
   tess.EndContour();
   tess.EndPolygon();
-  var mesh = Factory.CreateMesh();
-  tess.Update(mesh, height);
-  return mesh;
+  if(node.Mesh == null) node.Mesh = Factory.CreateMesh();
+  tess.Update(node.Mesh, height);
 }

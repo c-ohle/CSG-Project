@@ -13,7 +13,7 @@ namespace csg3mf
 {
   public unsafe class Container : Neuron
   {
-    public readonly List<Node> Nodes = new List<Node>();
+    public readonly CDX.IScene Nodes = CDX.Factory.CreateScene();
     public readonly List<string> Infos = new List<string>();
     public Unit BaseUnit;
     public Action OnUpdate;
@@ -38,28 +38,30 @@ namespace csg3mf
         //cont.BaseUnit = unit == "micron" ? 0.000001m : unit == "millimeter" ? 0.001m : unit == "centimeter" ? 0.01m : unit == "inch" ? 0.0254m : unit == "foot" ? 0.3048m : 1;
         var res = model.Element(ns + "resources");
         var build = model.Element(ns + "build");
-        foreach (var p in build.Elements(ns + "item").Select(item => convert(item))) cont.Nodes.Add(p);
+        foreach (var p in build.Elements(ns + "item")) //.Select(item => convert(item))) cont.Nodes.Add(p);
+          convert(cont.Nodes.AddNode(null), p);
         /////////////
-        if (cont.Nodes.Count != 0 && dot(((float3x4)cont.Nodes[0].Transform)[0]) > 10) //curiosity bug fix
-          foreach (var p in cont.Nodes) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
+        if (cont.Nodes.Count != 0 && dot((cont.Nodes[0].TransformF)[0]) > 10) //curiosity bug fix
+          foreach (var p in cont.Nodes.Descendants()) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
         /////////////
         var uri = new Uri("/Metadata/csg.cs", UriKind.Relative);
         if (!package.PartExists(uri)) { script = null; return cont; }
         using (var str = package.GetPart(uri).GetStream())
         using (var sr = new StreamReader(str)) script = sr.ReadToEnd();
         return cont;
-        Node convert(XElement e)
+        void convert(CDX.INode node, XElement e)
         {
           var oid = (string)e.Attribute("objectid");
           var obj = res.Elements(ns + "object").First(p => (string)p.Attribute("id") == oid);
           var mesh = obj.Element(ns + "mesh");
-          var node = new Node();
           node.Name = (string)obj.Attribute("name");
           var tra = (string)e.Attribute("transform");
-          if (tra != null) fixed (char* p = tra) node.Transform.SetValues(new Variant(p, 12));
+          if (tra != null) fixed (char* p = tra) node.SetTransform(new Variant(p, 12)); //{ var m = node.Transform; m.SetValues(new Variant(p, 12)); node.Transform = m; }
           var cmp = obj.Element(ns + "components");
-          if (cmp != null) foreach (var p in cmp.Elements(ns + "component").Select(item => convert(item))) { p.Parent = node; cont.Nodes.Add(p); }
-          if (mesh == null) return node;
+          if (cmp != null)
+            foreach (var p in cmp.Elements(ns + "component"))//.Select(item => convert(item))) { p.Parent = node; cont.Nodes.Add(p); }
+              convert(node.AddNode(null), p);
+          if (mesh == null) return;
           var mid = (string)obj.Attribute("materialid"); var color = 0xffffffff;
           if (mid != null) //2013/01
           {
@@ -110,48 +112,57 @@ namespace csg3mf
               me.SetVertex(l++, new Variant(t, 3));
 #endif
 #endif
-          node.Mesh = me; node.Materials = new Node.Material[mm.Length];
+          node.Mesh = me;
+#if(true)          
+          node.MaterialCount = mm.Length; float2[] tt = null;//.Materials = new Node.Material[mm.Length];
           var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
           for (int i = 0, ab = 0, bis = 1; i < mm.Length; i++, ab = bis)
           {
             var pid = mm[i]; for (; bis < kk.Length && kk[bis - 1].Attribute("pid")?.Value == pid; bis++) ;
-            ref var ma = ref node.Materials[i];
-            ma.Color = color; ma.IndexCount = bis * 3 - (ma.StartIndex = ab * 3);
-            if (pid == null) continue;
-            var basematerials = res.Elements(ns + "basematerials").FirstOrDefault(p => (string)p.Attribute("id") == pid);
-            if (basematerials != null)
+            COM.IStream bin = null;//ref var ma = ref node.Materials[i];ma.Color = color; ma.IndexCount = bis * 3 - (ma.StartIndex = ab * 3);
+            if (pid != null)
             {
-              var mat = basematerials.Elements(ns + "base").ElementAt((int)kk[ab].Attribute("p1"));
-              var sco = (string)mat.Attribute("displaycolor"); if (sco[0] != '#') continue;
-              var col = uint.Parse(sco.Substring(1), System.Globalization.NumberStyles.HexNumber);
-              if (sco.Length == 9) col = (col >> 8) | (col << 24); else col |= 0xff000000; ma.Color = col; continue;
+              var basematerials = res.Elements(ns + "basematerials").FirstOrDefault(p => (string)p.Attribute("id") == pid);
+              if (basematerials != null)
+              {
+                var mat = basematerials.Elements(ns + "base").ElementAt((int)kk[ab].Attribute("p1"));
+                var sco = (string)mat.Attribute("displaycolor"); if (sco[0] != '#') continue;
+                var col = uint.Parse(sco.Substring(1), System.Globalization.NumberStyles.HexNumber);
+                if (sco.Length == 9) col = (col >> 8) | (col << 24); else col |= 0xff000000; color = col; goto addmat;
+              }
+              var texture2dgroup = res.Elements(ms + "texture2dgroup").FirstOrDefault(p => (string)p.Attribute("id") == pid);
+              if (texture2dgroup == null) goto addmat;
+              var pp = texture2dgroup.Elements(ms + "tex2coord").Select(p => new float2((float)p.Attribute("u"), -(float)p.Attribute("v"))).ToArray();
+              if (tt == null) tt = new float2[kk.Length * 3];
+              for (int t = ab, x; t < bis; t++)
+              {
+                var p1 = kk[t].Attribute("p1"); x = (int)p1; /*   */ if (x < pp.Length) tt[t * 3 + 0] = pp[x];
+                var p2 = kk[t].Attribute("p2"); x = (int)(p2 ?? p1); if (x < pp.Length) tt[t * 3 + 1] = pp[x];
+                var p3 = kk[t].Attribute("p3"); x = (int)(p3 ?? p1); if (x < pp.Length) tt[t * 3 + 2] = pp[x];
+              }
+              var texid = (string)texture2dgroup.Attribute("texid");
+              var texture2d = res.Elements(ms + "texture2d").Where(t => (string)t.Attribute("id") == texid).First();
+              bin = texture2d.Annotation<COM.IStream>();
+              if (bin == null)
+              {
+                var texpath = (string)texture2d.Attribute("path");
+                var texpart = package.GetPart(new Uri(texpath, UriKind.Relative));
+                using (var str = texpart.GetStream())
+                {
+                  var a = new byte[str.Length]; str.Read(a, 0, a.Length);
+                  fixed (byte* p = a) bin = COM.SHCreateMemStream(p, a.Length);
+                  texture2d.AddAnnotation(bin);
+                }
+              }
             }
-            var texture2dgroup = res.Elements(ms + "texture2dgroup").FirstOrDefault(p => (string)p.Attribute("id") == pid);
-            if (texture2dgroup == null) continue;
-            var pp = texture2dgroup.Elements(ms + "tex2coord").Select(p => new float2((float)p.Attribute("u"), -(float)p.Attribute("v"))).ToArray();
-            var tt = node.Texcoords ?? (node.Texcoords = new float2[kk.Length * 3]);
-            for (int t = ab; t < bis; t++)
-            {
-              var p1 = kk[t].Attribute("p1"); tt[t * 3 + 0] = pp[(int)p1];
-              var p2 = kk[t].Attribute("p2"); tt[t * 3 + 1] = pp[(int)(p2 ?? p1)];
-              var p3 = kk[t].Attribute("p3"); tt[t * 3 + 2] = pp[(int)(p3 ?? p1)];
-            }
-            var texid = (string)texture2dgroup.Attribute("texid");
-            var texture2d = res.Elements(ms + "texture2d").Where(t => (string)t.Attribute("id") == texid).First();
-            var bin = texture2d.Annotation<byte[]>();
-            if (bin == null)
-            {
-              var texpath = (string)texture2d.Attribute("path");
-              var texpart = package.GetPart(new Uri(texpath, UriKind.Relative));
-              using (var str = texpart.GetStream()) { bin = new byte[str.Length]; str.Read(bin, 0, bin.Length); texture2d.AddAnnotation(bin); }
-            }
-            ma.Texture = bin;
+          addmat: node.SetMaterial(i, ab * 3, (bis - ab) * 3, color, bin);
           }
-          return node;
+          if (tt != null) fixed (float2* p = tt) node.SetTexturCoords(new Variant(&p->x, 2, tt.Length));
+#endif
         };
       }
     }
-    public XElement Export3MF(string path, Bitmap prev, string script)
+    public XElement Export3MF(string path, COM.IStream prev, string script)
     {
       var ns = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/core/2015/02";
       var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
@@ -161,15 +172,15 @@ namespace csg3mf
       doc.Add(new XAttribute(XNamespace.Xmlns + "m", ms.NamespaceName));
       var resources = new XElement(ns + "resources"); doc.Add(resources);
       var build = new XElement(ns + "build"); doc.Add(build);
-      var uid = 1; var textures = new List<(byte[] bin, int id, XElement e)>();
+      var uid = 1; var textures = new List<(COM.IStream str, int id, XElement e)>();
       var basematerials = new XElement(ns + "basematerials"); resources.Add(basematerials);
       var bmid = uid++; basematerials.SetAttributeValue("id", bmid);
       var nodes = this;
-      void add(Node group, XElement dest)
+      void add(CDX.INode group, XElement dest)
       {
         var obj = new XElement(ns + "object"); obj.SetAttributeValue("id", 0);
         if (group.Name != null) obj.SetAttributeValue("name", group.Name);
-        var desc = nodes.Nodes.Where(p => p.Parent == group);
+        var desc = nodes.Nodes.Descendants().Where(p => p.Parent == group);
         var components = desc.Any() ? new XElement(ns + "components") : null;
         if (group.Mesh != null)
         {
@@ -182,7 +193,7 @@ namespace csg3mf
           tag.SetAttributeValue("type", "model");
           tag.SetAttributeValue("pid", bmid); var im = basematerials.Elements().Count(); tag.SetAttributeValue("pindex", im++);
           var bs = new XElement(ns + "base"); basematerials.Add(bs); bs.SetAttributeValue("name", "Material" + im);
-          var color = group.Materials[0].Color; //group.Color 
+          var color = group.Color; //group.Color 
           bs.SetAttributeValue("displaycolor", $"#{(color << 8) | (color >> 24):X8}");
           var mesh = new XElement(ns + "mesh"); tag.Add(mesh);
           var vertices = new XElement(ns + "vertices"); mesh.Add(vertices);
@@ -205,42 +216,51 @@ namespace csg3mf
               vertex.SetAttributeValue(k == 0 ? "x" : k == 1 ? "y" : "z", s);
             }
           }
-          for (int k = 0; k < group.Materials.Length; k++)
+          for (int k = 0, nk = group.MaterialCount; k < nk; k++)
           {
-            ref var ma = ref group.Materials[k]; var texgid = 0;
-            if (ma.Texture != null)
+            group.GetMaterial(k, out var mastart, out var macount, out var ucolor, out var tex);
+            var texgid = 0;
+            if (tex != null)
             {
-              int texid; int i = 0; for (; i < textures.Count && !Native.Equals(textures[i].bin, ma.Texture); i++) ;
+              int texid; int i = 0; for (; i < textures.Count && textures[i].str != tex; i++) ;
               if (i != textures.Count) texid = textures[i].id;
               else
               {
                 texid = uid++;
                 var texture2d = new XElement(ms + "texture2d"); resources.Add(texture2d);
                 texture2d.SetAttributeValue("id", texid);
-                string typ; switch (ma.Texture[0]) { case 0x89: typ = "png"; break; case 0xff: typ = "jpeg"; break; default: typ = "bmp"; break; }
+                tex.Seek(0); byte kb; tex.Read(&kb, 1);
+                string typ; switch (kb) { case 0x89: typ = "png"; break; case 0xff: typ = "jpeg"; break; default: typ = "bmp"; break; }
                 texture2d.SetAttributeValue("path", $"/3D/Textures/{texid}.{typ}");
                 texture2d.SetAttributeValue("contenttype", $"image/{typ}");
-                textures.Add((ma.Texture, texid, texture2d));
+                textures.Add((tex, texid, texture2d));
               }
               var texture2dgroup = new XElement(ms + "texture2dgroup"); resources.Add(texture2dgroup);
               texture2dgroup.SetAttributeValue("id", texgid = uid++);
               texture2dgroup.SetAttributeValue("texid", texid);
-              if (group.Texcoords != null)
-                foreach (var p in group.Texcoords)
-                {
-                  var tex2coord = new XElement(ms + "tex2coord"); texture2dgroup.Add(tex2coord);
-                  tex2coord.SetAttributeValue("u", +p.x);
-                  tex2coord.SetAttributeValue("v", -p.y);
-                }
+              group.GetTexturCoords(out var tcs);
+              for (int t = 0, nt = ((int*)&tcs)[1]; t < nt; t++)
+              {
+                var p = (*(float2**)&tcs.vp)[t];
+                var tex2coord = new XElement(ms + "tex2coord"); texture2dgroup.Add(tex2coord);
+                tex2coord.SetAttributeValue("u", +p.x);
+                tex2coord.SetAttributeValue("v", -p.y);
+              }
+              //foreach (var p in group.Texcoords)
+              //  {
+              //    var tex2coord = new XElement(ms + "tex2coord"); texture2dgroup.Add(tex2coord);
+              //    tex2coord.SetAttributeValue("u", +p.x);
+              //    tex2coord.SetAttributeValue("v", -p.y);
+              //  }
             }
-            for (int i = 0; i < ma.IndexCount; i += 3)
+            for (int i = 0; i < macount; i += 3)
             {
               var triangle = new XElement(ns + "triangle"); triangles.Add(triangle);
               for (int t = 0; t < 3; t++)
-                triangle.SetAttributeValue(t == 0 ? "v1" : t == 1 ? "v2" : "v3", rmesh.GetIndex(ma.StartIndex + i + t));
+                triangle.SetAttributeValue(t == 0 ? "v1" : t == 1 ? "v2" : "v3", rmesh.GetIndex(mastart + i + t));
               if (texgid == 0) continue;
               triangle.SetAttributeValue("pid", texgid);
-              for (int t = 0; t < 3; t++) triangle.SetAttributeValue(t == 0 ? "p1" : t == 1 ? "p2" : "p3", ma.StartIndex + i + t);
+              for (int t = 0; t < 3; t++) triangle.SetAttributeValue(t == 0 ? "p1" : t == 1 ? "p2" : "p3", mastart + i + t);
             }
           }
         }
@@ -253,7 +273,7 @@ namespace csg3mf
         item.SetAttributeValue("transform", new string(ss));
         dest.Add(item);
       };
-      foreach (var group in nodes.Nodes.Where(p => p.Parent == null)) add(group, build);
+      foreach (var group in nodes.Nodes.Descendants().Where(p => p.Parent == null)) add(group, build);
       if (path == null) return doc;//doc.Save("C:\\Users\\cohle\\Desktop\\test2.xml");
       var memstr = new MemoryStream();
       using (var package = System.IO.Packaging.Package.Open(memstr, FileMode.Create))
@@ -261,16 +281,25 @@ namespace csg3mf
         var packdoc = package.CreatePart(new Uri("/3D/3dmodel.model", UriKind.Relative), "application/vnd.ms-package.3dmanufacturing-3dmodel+xml");
         using (var str = packdoc.GetStream()) doc.Save(str);
         package.CreateRelationship(packdoc.Uri, System.IO.Packaging.TargetMode.Internal, "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel", "rel0");
+        var buff = new byte[4096];
         foreach (var (bin, id, e) in textures)
         {
           var pack = package.CreatePart(new Uri((string)e.Attribute("path"), UriKind.Relative), (string)e.Attribute("contenttype"));
-          using (var str = pack.GetStream()) str.Write(bin, 0, bin.Length); //using (var bmp = Image.FromStream(new MemoryStream(bin))) using (var str = pack.GetStream()) bmp.Save(str, System.Drawing.Imaging.ImageFormat.Png);
+          using (var str = pack.GetStream())
+          {
+            bin.Seek(0);
+            for (; ; ) { int nr; fixed (byte* p = buff) bin.Read(p, 4096, &nr); str.Write(buff, 0, nr); if (nr < 4096) break; }
+          }
           packdoc.CreateRelationship(pack.Uri, System.IO.Packaging.TargetMode.Internal, "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dtexture", "rel" + id);
         }
         if (prev != null)
         {
           var packpng = package.CreatePart(new Uri("/Metadata/thumbnail.png", UriKind.Relative), "image/png");
-          using (var str = packpng.GetStream()) prev.Save(str, System.Drawing.Imaging.ImageFormat.Png);
+          using (var str = packpng.GetStream())
+          {
+            prev.Seek(0);
+            for (; ; ) { int nr; fixed (byte* p = buff) prev.Read(p, 4096, &nr); str.Write(buff, 0, nr); if (nr < 4096) break; }
+          }
           package.CreateRelationship(packpng.Uri, System.IO.Packaging.TargetMode.Internal, "http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail", "rel1");
         }
         if (!string.IsNullOrEmpty(script))
@@ -291,7 +320,7 @@ namespace csg3mf
     }
     internal void update()
     {
-      for (int i = 0; i < Nodes.Count; i++) Nodes[i].update();
+      //for (int i = 0; i < Nodes.Count; i++) Nodes[i].update();
     }
 
     public class Node
@@ -314,7 +343,7 @@ namespace csg3mf
       public float2[] Texcoords
       {
         get => texcoords;
-        set { texcoords = value; mgen = 0; }
+        set { texcoords = value; }// mgen = 0; }
       }
       public Material[] Materials;
       public struct Material
@@ -352,15 +381,15 @@ namespace csg3mf
       public int[] Indices => Mesh != null ? Mesh.Indices().ToArray() : null;
       public Rational.Vector3[] Vertices => Mesh != null ? Mesh.Vertices().ToArray() : null;
       public Rational.Plane[] Planes => Mesh != null ? Mesh.Planes().ToArray() : null;
-      internal float3x4 transform;
-      internal VertexBuffer vertexbuffer; uint mgen;
+      internal float4x3 transform;
+      internal VertexBuffer vertexbuffer;
       internal IndexBuffer indexbuffer; float2[] texcoords;
-      internal float3x4 gettrans(Node rel = null)
+      internal float4x3 gettrans(Node rel = null)
       {
         var m = transform;
         for (var p = Parent; p != rel; p = p.Parent) m *= p.transform; return m;
       }
-      internal void getbox(in float3x4 m, float3* box, float2* ab = null)
+      internal void getbox(in float4x3 m, float3* box, float2* ab = null)
       {
         //if (Mesh == null) return;
         //var nv = Mesh.VertexCount; var vv = (float3*)StackPtr;
@@ -380,7 +409,7 @@ namespace csg3mf
       }
       internal void update()
       {
-        transform = (float3x4)Transform;
+        transform = (float4x3)Transform;
         if (Mesh == null)
         {
           if (vertexbuffer != null) { vertexbuffer.Release(); vertexbuffer = null; }
@@ -399,7 +428,8 @@ namespace csg3mf
           ref var m = ref Materials[i];
           if (m.Texture != null && m.texture == null) m.texture = GetTexture(m.Texture);
         }
-        if (mgen == Mesh.Generation) return; mgen = Mesh.Generation;
+        bool mod = Mesh.GetModified();
+        if (vertexbuffer != null && !mod) return;
         int nv = Mesh.VertexCount, ni = Mesh.IndexCount;
         if (Materials.Length == 1) { ref var p = ref Materials[0]; p.StartIndex = 0; p.IndexCount = ni; }
         else { } //todo: ...

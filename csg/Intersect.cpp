@@ -78,7 +78,7 @@ HRESULT CTesselatorRat::Cut(ICSGMesh* mesh, CSGVAR vplane)
   m.ee.setsize(xe);
   csg.trim(nk);
   m.pp.copy(csg.pp.p, csg.np);
-  m.ii.copy((const UINT*)csg.ii.p, nk); m.rtgen = getrtid();
+  m.ii.copy((const UINT*)csg.ii.p, nk); m.flags |= MESH_FL_MODIFIED;
   return 0;
 }
 HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
@@ -152,7 +152,7 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
       auto in = a.ii.n; a.ii.setsize(a.ii.n + b.ii.n); for (UINT i = 0; i < b.ii.n; i++) a.ii.p[in + i] = an + b.ii.p[i];
       if (csg.ne < a.ee.n + b.ee.n) a.resetee();
       else { auto en = a.ee.n; a.ee.setsize(a.ee.n + b.ee.n); for (UINT i = 0; i < b.ee.n; i++) a.ee[en + i] = b.ee[i]; }
-      a.rtgen = getrtid(); return 0;
+      a.flags |= MESH_FL_MODIFIED; return 0;
     }
     if (mp != 1) { a.clear(); } return 0;
   }
@@ -305,14 +305,14 @@ HRESULT CTesselatorRat::Join(ICSGMesh* pa, ICSGMesh* pb, CSG_JOIN op)
   a.ee.setsize(ne); for (UINT i = 0; i < ne; i++) a.ee[i] = csg.ee[fm[i]];
   csg.trim(ni);
   a.pp.copy(csg.pp.p, csg.np);
-  a.ii.copy((const UINT*)csg.ii.p, ni); a.rtgen = getrtid();
+  a.ii.copy((const UINT*)csg.ii.p, ni); a.flags |= MESH_FL_MODIFIED;
   return 0;
 }
 
 void CTesselatorRat::initplanes(CMesh& m)
 {
   if (m.ii.n == 0) return;
-  if (m.flags & 1)
+  if (m.flags & MESH_FL_ENCODE)
   {
     UINT c = 1; for (UINT i = 3; i < m.ii.n; i += 3) if (decode(m.ii.p + i)) c++;
     m.ee.setsize(c);
@@ -348,7 +348,7 @@ void CTesselatorRat::initplanes(CMesh& m)
   for (UINT i = 0, j = 0; i < nd; i++, j += 3) for (UINT k = 0; k < 3; k++) ii[nd + j + k] = m.ii[ii[i] + k];
   m.ii.copy((const UINT*)ii + nd, m.ii.n);
   for (UINT i = 0, k = 0; i < m.ii.n; i += 3, k++) encode(m.ii.p + i, k == 0 || ff[k - 1] != ff[k]);
-  m.ee.copy(csg.ee.p, csg.ne); m.flags |= 1;
+  m.ee.copy(csg.ee.p, csg.ne); m.flags |= MESH_FL_ENCODE;
 }
 void CTesselatorRat::setnormal(const Vector3R& v)
 {

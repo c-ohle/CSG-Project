@@ -5,7 +5,7 @@
 
 HRESULT CTesselatorRat::Update(ICSGMesh* mesh, CSGVAR v, UINT flags)
 {
-  auto& m = *static_cast<CMesh*>(mesh); m.resetee(); m.rtgen = getrtid(); bool inv = false;
+  auto& m = *static_cast<CMesh*>(mesh); m.resetee(); bool inv = false;
   UINT mo = (flags >> 16) & 0x0f, nn = nl != 0 ? max(1, flags & 0x0000ffff) : 0, nb = ns ? nn : nn + 1, nt = np;
   if (mo & 3)
   {
@@ -72,21 +72,21 @@ HRESULT CTesselatorRat::Update(ICSGMesh* mesh, CSGVAR v, UINT flags)
   }
   _ASSERT(t == m.ii.n);
   if (inv) m.invert();
-  m.flags = !nn && m.ii.n ? 2 : 0;
+  m.flags = !nn && m.ii.n ? MESH_FL_SHELL : 0; m.flags |= MESH_FL_MODIFIED;
   /// todo: the other cases
   if (nn && mo == 0 && nn == 1 && simplepoly())
   {
     UINT e = m.ii.n - ns;
     for (UINT i = 0; i < (UINT)ns; i += 3) { encode(m.ii.p + i, i == 0); encode(m.ii.p + e + i, i == 0); }
-    for (UINT i = ns, k = 1; i < e; i += 3, k++) encode(m.ii.p + i, k & 1); m.flags |= 1;
+    for (UINT i = ns, k = 1; i < e; i += 3, k++) encode(m.ii.p + i, k & 1); m.flags |= MESH_FL_ENCODE;
   }
-  ///
+  /// 
   return 0;
 }
 
 HRESULT CTesselatorDbl::Update(ICSGMesh* mesh, CSGVAR v, UINT flags)
 {
-  auto& m = *static_cast<CMesh*>(mesh); m.resetee(); m.rtgen = getrtid(); bool inv = false;
+  auto& m = *static_cast<CMesh*>(mesh); m.resetee(); bool inv = false;
   UINT mo = (flags >> 16) & 0x0f, nn = nl != 0 ? max(1, flags & 0x0000ffff) : 0, nb = ns ? nn : nn + 1, nt = np;
   if (mo & 3)
   {
@@ -153,15 +153,15 @@ HRESULT CTesselatorDbl::Update(ICSGMesh* mesh, CSGVAR v, UINT flags)
   }
   _ASSERT(t == m.ii.n);
   if (inv) m.invert();
-  m.flags = !nn && m.ii.n ? 2 : 0; return 0;
+  m.flags = !nn && m.ii.n ? MESH_FL_SHELL : 0; m.flags |= MESH_FL_MODIFIED; return 0;
 }
 
 HRESULT CMesh::Check(CSG_MESH_CHECK check, CSG_MESH_CHECK* p)
 {
-  sarray<UINT> tt; *p = (CSG_MESH_CHECK)0; if (!check) check = (CSG_MESH_CHECK)0xff;
+  sarray<UINT> tt; *p = (CSG_MESH_CHECK)0; if (!check) check = (CSG_MESH_CHECK)0xffff; 
   if (check & CSG_MESH_CHECK_DUP_POINTS)
   {
-    UINT ts = min(pp.n, 1024), * ht = (UINT*)_alloca(ts * sizeof(UINT)); memset(ht, 0, ts * sizeof(UINT));
+    UINT ts = max(pp.n, 32), * ht = tt.getptr(ts); memset(ht, 0, ts * sizeof(UINT));
     for (UINT i = 0, k; i < pp.n; i++)
     {
       const auto& e = pp.p[i];
@@ -170,6 +170,19 @@ HRESULT CMesh::Check(CSG_MESH_CHECK check, CSG_MESH_CHECK* p)
       for (k = hc - 1; k < i && !e.Equals(pp[k]); k++);
       if (k == i) continue;
       *p = (CSG_MESH_CHECK)(*p | CSG_MESH_CHECK_DUP_POINTS); break;
+    }
+  }
+  if (check & CSG_MESH_CHECK_DUP_PLANES)
+  {
+    UINT ts = max(ee.n, 32), * ht = tt.getptr(ts); memset(ht, 0, ts * sizeof(UINT));
+    for (UINT i = 0, k; i < ee.n; i++)
+    {
+      const auto& e = ee.p[i];
+      UINT& hc = ht[e.GetHashCode() % ts];
+      if (!hc) { hc = i + 1; continue; }
+      for (k = hc - 1; k < i && !e.Equals(ee.p[k]); k++);
+      if (k == i) continue;
+      *p = (CSG_MESH_CHECK)(*p | CSG_MESH_CHECK_DUP_PLANES); break;
     }
   }
   if (check & (CSG_MESH_CHECK_BAD_INDEX | CSG_MESH_CHECK_UNUSED_POINT))
@@ -209,7 +222,7 @@ HRESULT CMesh::Check(CSG_MESH_CHECK check, CSG_MESH_CHECK* p)
   }
   if (check & CSG_MESH_CHECK_PLANES)
   {
-    if (flags & 1 && ee.n != 0)
+    if (flags & MESH_FL_ENCODE && ee.n != 0)
     {
       UINT ne = -1;
       for (UINT i = 0, j = -1, k = 0, l; i < ii.n; i += 3)
@@ -228,7 +241,7 @@ HRESULT CMesh::Check(CSG_MESH_CHECK check, CSG_MESH_CHECK* p)
 
 HRESULT CMesh::Transform(CSGVAR m)
 {
-  if (ee.n) ee.setsize(0); rtgen = getrtid();
+  if (ee.n) ee.setsize(0); flags |= MESH_FL_MODIFIED;
   if (m.vt == CSG_TYPE_RATIONAL)
   {
     if (m.count == 12)
@@ -249,7 +262,7 @@ HRESULT CMesh::Transform(CSGVAR m)
 
 HRESULT CMesh::CreateBox(CSGVAR a, CSGVAR b)
 {
-  UINT l = -1; ee.setsize(0); flags = 0; rtgen = getrtid();
+  UINT l = -1; ee.setsize(0); 
   Vector3R ab[2]; conv(&ab[0].x, 3, a); conv(&ab[1].x, 3, b);
   for (UINT i = 0; i < 3; i++)
   {
@@ -263,7 +276,7 @@ HRESULT CMesh::CreateBox(CSGVAR a, CSGVAR b)
     p[0] = ab[0]; p[1].x = ab[1].x; p[1].y = ab[l == 0 ? 1 : 0].y; p[1].z = ab[0].z;
     p[2] = ab[1]; p[3].x = ab[0].x; p[3].y = ab[l == 0 ? 0 : 1].y; p[3].z = ab[1].z;
     byte bb[12] = { 2, 0, 1, 2, 3, 0, 1, 0, 2, 0, 3, 2 };
-    for (UINT i = 0; i < 12; i++) ii.p[i] = bb[i]; flags = 1 | 2;
+    for (UINT i = 0; i < 12; i++) ii.p[i] = bb[i]; flags = MESH_FL_ENCODE | MESH_FL_SHELL | MESH_FL_MODIFIED;
   }
   else
   {
@@ -277,7 +290,7 @@ HRESULT CMesh::CreateBox(CSGVAR a, CSGVAR b)
     p[6].x = ab[1].x; p[6].y = ab[1].y; p[6].z = ab[1].z;
     p[7].x = ab[0].x; p[7].y = ab[1].y; p[7].z = ab[1].z;
     byte bb[36] = { 2, 1, 0, 0, 3, 2, 4, 0, 1, 1, 5, 4, 5, 1, 2, 2, 6, 5, 6, 2, 3, 3, 7, 6, 3, 0, 7, 0, 4, 7, 6, 4, 5, 6, 7, 4 }; //encoded
-    for (UINT i = 0; i < 36; i++) ii.p[i] = bb[i]; flags = 1;
+    for (UINT i = 0; i < 36; i++) ii.p[i] = bb[i]; flags = MESH_FL_ENCODE | MESH_FL_MODIFIED;
   }
   return 0;
 }
@@ -293,7 +306,7 @@ HRESULT CTesselatorRat::Stretch(ICSGMesh* mesh, CSGVAR v)
   beginsex(); int sig = 0;
   for (UINT i = 0, k = 0, e = -1; i < m.ii.n; i += 3, k++)
   {
-    sig = (m.flags & 1) && !decode(m.ii.p + i) ? sig : 0 ^ Vector3R::Dot(dir,
+    sig = (m.flags & MESH_FL_ENCODE) && !decode(m.ii.p + i) ? sig : 0 ^ Vector3R::Dot(dir,
       m.ee.n ? *(Vector3R*)&m.ee[++e].x :
       Vector3R::Ccw(m.pp.p[m.ii.p[i + 0]], m.pp.p[m.ii.p[i + 1]], m.pp.p[m.ii.p[i + 2]]));
     for (int j = 0, h; j < 3; j++)
@@ -320,6 +333,6 @@ HRESULT CTesselatorRat::Stretch(ICSGMesh* mesh, CSGVAR v)
   }
   m.pp.copy(csg.pp.p, csg.np);
   m.ii.copy((UINT*)ii, ni);
-  m.resetee(); m.flags &= ~2; m.rtgen = getrtid();
+  m.resetee(); m.flags &= ~MESH_FL_SHELL; m.flags |= MESH_FL_MODIFIED;
   return 0;
 }

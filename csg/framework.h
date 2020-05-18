@@ -162,8 +162,6 @@ struct carray
   }
 };
 
-UINT getrtid();
-
 __forceinline bool decode(const UINT* p) { return p[0] > p[1]; }
 static void encode(UINT* p, bool v)
 {

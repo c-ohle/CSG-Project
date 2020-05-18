@@ -16,6 +16,7 @@ using System.Windows.Forms;
 using csg3mf.Properties;
 using csg3mf;
 using static csg3mf.D3DView;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace csg3mf
 {
@@ -28,13 +29,14 @@ namespace csg3mf
       Application.EnableVisualStyles();
       Application.SetCompatibleTextRenderingDefault(false);
       Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
-      Application.Run(new MainFram());
+      Application.Run(new MainFrame());
+      CDX.Factory.SetDevice(0xffffffff);
     }
   }
 
-  class MainFram : Form
+  class MainFrame : Form
   {
-    internal MainFram()
+    internal MainFrame()
     {
       Icon = Icon.FromHandle(Native.LoadIcon(Marshal.GetHINSTANCE(GetType().Module), (IntPtr)32512));
       StartPosition = FormStartPosition.WindowsDefaultBounds;
@@ -128,7 +130,7 @@ namespace csg3mf
           new MenuItem(5070 , "&About...")
         ),
        });
-      
+
       var tb1 = new ToolStrip() { Margin = new Padding(15), ImageScalingSize = new Size(24, 24), GripStyle = ToolStripGripStyle.Hidden };
       Application.Idle += (p, e) => { MenuItem.Update(tb1.Items); tb1.Update(); };
       tb1.Items.Add(new MenuItem.Button(5011, "Run", Resources.run));
@@ -146,7 +148,7 @@ namespace csg3mf
       splitter.Panel2.Controls.Add(view = new View { Dock = DockStyle.Fill });
       Controls.Add(splitter);
       Controls.Add(MainMenuStrip);
-      var reg = Application.UserAppDataRegistry; view.flags = (int)reg.GetValue("fl", 0x00ffff03);
+      var reg = Application.UserAppDataRegistry;
       var args = Environment.GetCommandLineArgs();
       if (args.Length > 1)
       {
@@ -192,8 +194,8 @@ namespace csg3mf
         case 2213: //Select Wireframe
         case 2214: //Select Outline
         case 2220: //Shadows
-          if (test != null) return (view.flags & (1 << (id - 2210))) != 0 ? 3 : 1;
-          view.flags ^= 1 << (id - 2210); Application.UserAppDataRegistry.SetValue("fl", view.flags);
+          if (test != null) return (view.view.Render & (CDX.Render)(1 << (id - 2210))) != 0 ? 3 : 1;
+          view.view.Render ^= (CDX.Render)(1 << (id - 2210)); Application.UserAppDataRegistry.SetValue("fl", (int)view.view.Render);
           view.Invalidate(); return 1;
         case 2300: return view.OnCenter(test);
         case 1120: return ShowXml(test);
@@ -219,7 +221,12 @@ namespace csg3mf
       view.cont.update();
       view.setcamera(); view.Invalidate();
       view.cont.OnUpdate = view.onstep;
-      if (view.IsHandleCreated) view.OnCenter(null);
+      if (view.IsHandleCreated)
+      {
+        view.view.Camera = null;
+        view.view.Scene = view.cont.Nodes;
+        view.OnCenter(null);
+      }
       this.path = path; UpdateTitle(); if (path != null) mru(path, path);
     }
     int OnNew(object test)
@@ -240,7 +247,7 @@ namespace csg3mf
       if (!AskSave()) return 1;
       Open(dlg.FileName); return 1;
     }
-    int OnSave(object test, bool saveas)
+    unsafe int OnSave(object test, bool saveas)
     {
       if (test != null) return 1;
       var s = path;
@@ -254,9 +261,9 @@ namespace csg3mf
       if (s.EndsWith(".3cs", true, null)) File.WriteAllText(s, edit.EditText);
       else
       {
-        var bmp = View.CreatePreview(256, 256, view.camera, (view.flags & (1 << 10)) != 0, view.cont.Nodes.Where(p => p.vertexbuffer != null));
-        bmp.RotateFlip(RotateFlipType.RotateNoneFlipX); //bmp.Save("C:\\Users\\cohle\\Desktop\\test.png", System.Drawing.Imaging.ImageFormat.Png); goto raus;
-        view.cont.Export3MF(s, bmp, edit.EditText);
+        var str = COM.SHCreateMemStream();
+        view.view.Print(256, 256, 4, 0x00ffffff, str);
+        view.cont.Export3MF(s, str, edit.EditText);
       }
       if (path != s) { path = s; UpdateTitle(); mru(path, path); }
       edit.IsModified = false; Cursor.Current = Cursors.Default;
@@ -358,9 +365,138 @@ namespace csg3mf
       WindowState = z ? FormWindowState.Maximized : FormWindowState.Normal;
     }
 
+#if(true)
+    unsafe class View : UserControl
+    {
+      internal Container cont;
+      internal Action Timer;
+      internal CDX.IView view;
+      long drvsettings = 0x400000000;
+      protected unsafe override void OnHandleCreated(EventArgs e)
+      {
+        var reg = Application.UserAppDataRegistry;
+        var drv = reg.GetValue("drv"); if (drv is long v) drvsettings = v;
+        CDX.Factory.SetDevice((uint)drvsettings);
+        view = CDX.Factory.CreateView(Handle, null, (uint)(drvsettings >> 32));
+        view.Render = (CDX.Render)reg.GetValue("fl", (int)(CDX.Render.BoundingBox | CDX.Render.Coordinates | CDX.Render.Wireframe | CDX.Render.Shadows));
+        view.BkColor = 0xffcccccc;
+        view.Scene = cont.Nodes;
+        OnCenter(null);
+      }
+      internal int OnDriver(object test)
+      {
+        if (test is ToolStripMenuItem item)
+        {
+          var ss = CDX.Factory.Devices.Split('\n');
+          for (int i = 1; i < ss.Length; i += 2)
+            item.DropDownItems.Add(new ToolStripMenuItem(ss[i + 1]) { Tag = ss[i], Checked = ss[i] == ss[0] });
+          return 0;
+        }
+        Cursor = Cursors.WaitCursor; CDX.Factory.SetDevice(uint.Parse((string)test));
+        drvsettings = (drvsettings >> 32 << 32) | uint.Parse((string)test);
+        Application.UserAppDataRegistry.SetValue("drv", drvsettings, Microsoft.Win32.RegistryValueKind.QWord);
+        Cursor = Cursors.Default; return 1;
+      }
+      internal int OnSamples(object test)
+      {
+        if (test is ToolStripMenuItem item)
+        {
+          var ss = view.Samples.Split('\n');
+          for (int i = 1; i < ss.Length; i++)
+            item.DropDownItems.Add(new ToolStripMenuItem($"{ss[i]} Samples") { Tag = ss[i], Checked = ss[i] == ss[0] });
+          return 0;
+        }
+        Cursor = Cursors.WaitCursor; view.Samples = (string)test;
+        drvsettings = (drvsettings & 0xffffffff) | ((long)uint.Parse((string)test) << 32);
+        Application.UserAppDataRegistry.SetValue("drv", drvsettings, Microsoft.Win32.RegistryValueKind.QWord);
+        Cursor = Cursors.Default; return 1;
+      }
+      internal int OnCenter(object test)
+      {
+        if (!view.Scene.Descendants().Any(p => p.Mesh != null && p.Mesh.VertexCount != 0)) return 0;
+        if (test != null) return 1;
+        float abst = 100; view.Command(CDX.Cmd.Center, new IntPtr(&abst));
+        Invalidate(); return 1;
+      }
+
+      Action<int, object> tool;
+      protected override void OnMouseDown(MouseEventArgs e)
+      {
+        if (e.Button != MouseButtons.Left) return;
+        tool = camera_free(); Capture = true;
+      }
+      protected override void OnMouseMove(MouseEventArgs e)
+      {
+        if (tool != null) { tool(0, null); return; }
+        //var i = view.MouseOverNode;
+        //this.Text = i != -1 ? $"over: {i} {view.Scene[i].Name} {view.MouseOverPoint}" : "";
+      }
+      protected override void OnMouseUp(MouseEventArgs e)
+      {
+        if (tool == null) return;
+        tool(1, null); tool = null; Capture = true;
+      }
+      protected override void OnLostFocus(EventArgs e)
+      {
+        if (tool == null) return;
+        tool(1, null); tool = null;
+      }
+      protected override void OnMouseWheel(MouseEventArgs e)
+      {
+        if (tool != null) return;
+        if (view.MouseOverNode == -1) return;
+        var camera = view.Camera.GetTransformF();
+        var node = view.Scene[view.MouseOverNode];
+        var v = (view.MouseOverPoint * node.GetTransformF()) - camera[3];
+        var l = (float)Math.Sqrt(length(v));
+        //var t = Environment.TickCount; var cm = camera;
+        setcwma(camera * (v * (l * 0.01f * e.Delta * 1/*DpiScale*/ * (1f / 120))));
+        //if (t - lastwheel > 500) AddUndo(setcwmb(cm)); lastwheel = t;
+      }
+      unsafe Action<int, object> camera_free()
+      {
+        float3box box; var pbox = (float3*)&box; //var recs = cont.Nodes;
+        boxempty(pbox); //box.min = box.max = 0;//for (int i = 0; i < recs.Count; i++) recs[i].getbox(recs[i].gettrans(), pbox);
+        foreach (var node in view.Scene.Descendants())
+        {
+          var m = node.Mesh; if (m == null) continue;
+          var t = node.GetTransformF();
+          foreach (var v in m.VerticesF3()) boxadd(&v, &t, pbox);
+        }
+        var pm = (box.min + box.max) * 0.5f; var tm = (float4x3)pm;
+        var cm = view.Camera.TransformF; var p1 = (float2)Cursor.Position; bool moves = false;
+        return (id, p) =>
+        {
+          if (id == 0)
+          {
+            var v = (Cursor.Position - p1) * -0.01f;
+            if (!moves && dot(v) < 0.03) return; moves = true;
+            setcwma(cm * !tm * rotaxis(cm[0], -v.y) * rotz(v.x) * tm);
+          }
+          //if (id == 1) { if (moves) AddUndo(setcwmb(cm)); else Select(null); }
+        };
+      }
+      bool setcwma(in float4x3 m)
+      {
+        if (m == view.Camera.TransformF) return false;
+        view.Camera.TransformF = m; Invalidate(); return true;
+      }
+
+      internal void setcamera() { }
+      internal void onstep()
+      {
+        Invalidate();
+      }
+      internal static System.Drawing.Bitmap CreatePreview(int dx, int dy, float4x3 camera, bool shadows, IEnumerable<Container.Node> nodes)
+      {
+        return null;
+      }
+
+    }
+#else
     unsafe class View : D3DView
     {
-      internal int flags; internal float3x4 camera;
+      internal int flags; internal float4x3 camera;
       float z1 = 0.1f, z2 = 1000, vscale, minwz;
       internal Container cont;
       protected override void OnHandleCreated(EventArgs e)
@@ -372,7 +508,7 @@ namespace csg3mf
         vscale = 0.0004f / DpiScale;
         camera = !LookAt(new float3(-6, -6, 4), new float3(0, 0, 0), new float3(0, 0, 1));
       }
-      bool setcwma(in float3x4 m)
+      bool setcwma(in float4x3 m)
       {
         if (m == camera) return false;
         camera = m; Invalidate(); return true;
@@ -522,7 +658,7 @@ namespace csg3mf
               var v = (pc.Point * pc.Transform) - camera[3];
               var l = (float)Math.Sqrt(length(v));
               var t = Environment.TickCount; var cm = camera;
-              setcwma(camera * (float3x4)(v * (l * 0.01f * (id >> 16) * DpiScale * (1f / 120))));
+              setcwma(camera * (float4x3)(v * (l * 0.01f * (id >> 16) * DpiScale * (1f / 120))));
               //if (t - lastwheel > 500) AddUndo(setcwmb(cm)); lastwheel = t;
               return 1;
             }
@@ -533,7 +669,7 @@ namespace csg3mf
       {
         float3box box; var pbox = (float3*)&box; var recs = cont.Nodes;
         boxempty(pbox); for (int i = 0; i < recs.Count; i++) recs[i].getbox(recs[i].gettrans(), pbox);
-        var pm = (box.min + box.max) * 0.5f; var tm = (float3x4)pm;
+        var pm = (box.min + box.max) * 0.5f; var tm = (float4x3)pm;
         var cm = camera; var p1 = (float2)Cursor.Position; bool moves = false;
         return (id, p) =>
         {
@@ -555,9 +691,9 @@ namespace csg3mf
         z2 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z2)) + 2); minwz = r.wb.min.z;
         setcwma(r.cm); return 1;
       }
-      static (float3x4 cm, float z1, float z2, float3box wb) center(IEnumerable<Container.Node> nodes, float2 size, float scale, in float3x4 cwm)
+      static (float4x3 cm, float z1, float z2, float3box wb) center(IEnumerable<Container.Node> nodes, float2 size, float scale, in float4x3 cwm)
       {
-        float3x4 box; float3box wb; boxempty((float3*)&wb);
+        float4x3 box; float3box wb; boxempty((float3*)&wb);
         box._31 = size.x * scale;
         box._32 = size.y * scale;
         var min = (float3*)&box + 0; boxempty(min);
@@ -575,12 +711,12 @@ namespace csg3mf
         float fm = -Math.Max(nx / box._31, ny / box._32);
         return (new float3(min->x + nx, min->y + ny, fm) + cwm, min->z - fm, max->z - fm, wb);
       }
-      static (float3x4 cm, float z1, float z2, float3box wb) center(in float3x4 cm, in float4x4 proj, IEnumerable<float3> points)
+      static (float4x3 cm, float z1, float z2, float3box wb) center(in float4x3 cm, in float4x4 proj, IEnumerable<float3> points)
       {
         float aspekt = proj._22 / proj._11, a = proj._22; float3box wb; boxempty((float3*)&wb);
         float ax = a / aspekt, _ax = 1 / ax, ay = a, _ay = 1 / ay; var vmat = !cm;
         var mi = new float3(float.MaxValue, float.MaxValue, float.MaxValue); var ma = -mi;
-        var m1 = (float4x4)(float3x4)1; var m2 = m1;
+        var m1 = (float4x4)(float4x3)1; var m2 = m1;
         m1._31 = +_ax; m1._32 = +_ay; m1 = vmat * m1;
         m2._31 = -_ax; m2._32 = -_ay; m2 = vmat * m2;
         foreach (var p in points) { mi = min(mi, p * m1); ma = max(ma, p * m2); boxadd(&p, &wb.min); }
@@ -590,7 +726,7 @@ namespace csg3mf
         float fm = Math.Min(ny * -ay, nx * -ax); // near = bmi.Min.Z - fm; far = bma.Max.Z - fm;
         return (new float3(mi.x + nx, mi.y + ny, fm) + cm, mi.z - fm, ma.z - fm, wb);
       }
-      internal static System.Drawing.Bitmap CreatePreview(int dx, int dy, float3x4 camera, bool shadows, IEnumerable<Container.Node> nodes)
+      internal static System.Drawing.Bitmap CreatePreview(int dx, int dy, float4x3 camera, bool shadows, IEnumerable<Container.Node> nodes)
       {
         return Print(dx, dy, 4, 0x00000000, dc =>
         {
@@ -669,6 +805,7 @@ namespace csg3mf
         }
       }
     }
+#endif
   }
 
   class MenuItem : ToolStripMenuItem
@@ -716,7 +853,7 @@ namespace csg3mf
       public Button(int id, string text, Image img)
       {
         this.id = id; Text = text; Image = img; DisplayStyle = ToolStripItemDisplayStyle.Image;
-        AutoSize = false; Size = new Size(40, 40); 
+        AutoSize = false; Size = new Size(40, 40);
       }
       protected override void OnClick(EventArgs e) => CommandRoot(id, Tag);
 

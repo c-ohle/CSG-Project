@@ -1,0 +1,179 @@
+
+import "oaidl.idl";
+import "ocidl.idl";
+import "shobjidl.idl";
+
+interface ICSGFactory;
+interface ICSGTesselator;
+interface ICSGVector;
+interface ICSGMesh;
+
+typedef enum CSG_TESS
+{
+  CSG_TESS_EVENODD = 0x01,
+  CSG_TESS_NONZERO = 0x02,
+  CSG_TESS_POSITIVE = 0x04,
+  CSG_TESS_NEGATIVE = 0x08,
+  CSG_TESS_ABSGEQTWO = 0x10,
+  CSG_TESS_GEQTHREE = 0x20,
+  CSG_TESS_FILL = 0x0100, CSG_TESS_FILLFAST = 0x0200, CSG_TESS_INDEXONLY = 0x0800,
+  CSG_TESS_OUTLINE = 0x1000, CSG_TESS_OUTLINEPRECISE = 0x2000, CSG_TESS_NOTRIM = 0x4000,
+  CSG_TESS_NORMX = 0x10000, CSG_TESS_NORMY = 0x20000, CSG_TESS_NORMZ = 0x40000, CSG_TESS_NORMNEG = 0x80000,
+} CSG_TESS;
+
+typedef enum CSG_JOIN
+{
+  CSG_JOIN_UNION = 0,
+  CSG_JOIN_DIFFERENCE = 1,
+  CSG_JOIN_INTERSECTION = 2
+} CSG_JOIN;
+
+typedef enum CSG_TYPE
+{
+  CSG_TYPE_NULL = 0,
+  CSG_TYPE_INT = 1,
+  CSG_TYPE_FLOAT = 2,
+  CSG_TYPE_DOUBLE = 3,
+  CSG_TYPE_DECIMAL = 4,
+  CSG_TYPE_RATIONAL = 5,
+  CSG_TYPE_BSTR = 6,
+} CSG_TYPE;
+
+typedef struct CSGVAR
+{
+  BYTE vt; // CSG_TYPE
+  BYTE count;
+  USHORT dummy;
+  UINT length;
+  ULONGLONG p;
+} CSGVAR;
+
+[object, uuid(d210bdc1-65a3-43f7-a296-bf8d4bb7b962), pointer_default(unique)]
+interface ICSGTesselator : IUnknown
+{
+  [propget] HRESULT Mode([out, retval] CSG_TESS* p);
+  [propput] HRESULT Mode([in] CSG_TESS v);
+  HRESULT SetNormal([in] CSGVAR v);
+  HRESULT BeginPolygon();
+  HRESULT BeginContour();
+  HRESULT AddVertex([in] CSGVAR v);
+  HRESULT EndContour();
+  HRESULT EndPolygon();
+  [propget] HRESULT VertexCount([out, retval] UINT* p);
+  HRESULT GetVertex([in] UINT i, [in, out] CSGVAR* z);
+  [propget] HRESULT IndexCount([out, retval] UINT* p);
+  HRESULT GetIndex([in] UINT i, [out, retval] UINT* p);
+  [propget] HRESULT OutlineCount([out, retval] UINT* p);
+  HRESULT GetOutline([in] UINT i, [out, retval] UINT* p);
+  HRESULT Update([in] ICSGMesh* mesh, [in] CSGVAR v, [in] UINT flags);
+  HRESULT Cut([in] ICSGMesh* a, [in] CSGVAR plane);
+  HRESULT Join([in] ICSGMesh* a, [in] ICSGMesh* b, [in] CSG_JOIN op);
+};
+
+typedef enum CSG_OP1
+{
+  CSG_OP1_COPY = 0,
+  CSG_OP1_NEG = 1,
+  CSG_OP1_TRANSPM = 2,
+  CSG_OP1_INV3X4 = 3,
+  CSG_OP1_DOT2 = 4,
+  CSG_OP1_DOT3 = 5,
+  CSG_OP1_NORM3 = 6,
+  CSG_OP1_NUM = 7,
+  CSG_OP1_DEN = 8,
+  CSG_OP1_LSB = 9,
+  CSG_OP1_MSB = 10,
+  CSG_OP1_TRUNC = 11,
+  CSG_OP1_FLOOR = 12,
+  CSG_OP1_CEIL = 13,
+  CSG_OP1_ROUND = 14,
+  CSG_OP1_RND10 = 15,
+  CSG_OP1_COMPL = 16,
+} CSG_OP1;
+
+typedef enum CSG_OP2
+{
+  CSG_OP2_ADD = 0,
+  CSG_OP2_SUB = 1,
+  CSG_OP2_MUL = 2,
+  CSG_OP2_DIV = 3,
+  CSG_OP2_MUL3X4 = 4,
+  CSG_OP2_PLANEP3 = 5,
+  CSG_OP2_PLANEPN = 6,
+  CSG_OP2_POW = 7,
+} CSG_OP2;
+
+[object, uuid(DB6EBD51-D2FC-4D75-B2AF-543326AEED48), pointer_default(unique)]
+interface ICSGVector : IUnknown
+{
+  [propget] HRESULT Length([out, retval] UINT* n);
+  HRESULT GetString([in] UINT i, [in] UINT digits, [in] UINT flags, [out, retval] BSTR* p);
+  HRESULT GetHashCode([in] UINT i, [in] UINT n, [out, retval] UINT* v);
+  HRESULT Equals([in] UINT i, [in] ICSGVector* pb, [in] UINT ib, [in] UINT c, [out, retval] BOOL* p);
+  HRESULT CompareTo([in] UINT i, [in] ICSGVector* pb, [in] UINT ib, [out, retval] INT* sign);
+  HRESULT Copy([in] UINT i, [in] ICSGVector* pb, [in] UINT ib, [in] UINT c);
+  HRESULT GetValue([in] UINT i, [in, out] CSGVAR* p);
+  HRESULT SetValue([in] UINT i, [in] CSGVAR p);
+  HRESULT Execute1([in] CSG_OP1 op, [in] UINT ic, [in] const ICSGVector* pa, [in] UINT ia);
+  HRESULT Execute2([in] CSG_OP2 op, [in] UINT ic, [in] const ICSGVector* pa, [in] UINT ia, [in] const ICSGVector* pb, [in] UINT ib);
+  HRESULT SinCos([in] UINT i, [in] DOUBLE angel, [in] UINT prec);
+};
+
+typedef enum CSG_MESH_CHECK
+{
+  CSG_MESH_CHECK_ALL = 0,
+  CSG_MESH_CHECK_DUP_POINTS = 1,
+  CSG_MESH_CHECK_BAD_INDEX = 2,
+  CSG_MESH_CHECK_UNUSED_POINT = 4,
+  CSG_MESH_CHECK_OPENINGS = 8,
+  CSG_MESH_CHECK_PLANES = 16,
+} CSG_MESH_CHECK;
+
+[object, uuid(BE338702-B776-4178-AA13-963B4EB53EDF), pointer_default(unique)]
+interface ICSGMesh : IUnknown
+{
+  HRESULT Update([in] CSGVAR vertices, [in] CSGVAR indices);
+  HRESULT CopyTo(ICSGMesh* p);
+  HRESULT Transform([in] CSGVAR m);
+  HRESULT CopyBuffer([in] UINT ib, [in] UINT ab, [in, out] CSGVAR* p);
+  [propget] HRESULT VertexCount([out, retval] UINT* p);
+  HRESULT GetVertex([in] UINT i, [in, out] CSGVAR* p);
+  HRESULT SetVertex([in] UINT i, [in] CSGVAR p);
+  [propget] HRESULT IndexCount([out, retval] UINT* p);
+  HRESULT GetIndex([in] UINT i, [out, retval] UINT* p);
+  HRESULT SetIndex([in] UINT i, [in] UINT p);
+  [propget] HRESULT PlaneCount([out, retval] UINT* p);
+  HRESULT GetPlane([in] UINT i, [in, out] CSGVAR* p);
+  HRESULT WriteToStream(IStream* str);
+  HRESULT ReadFromStream(IStream* str);
+  HRESULT CreateBox([in] CSGVAR a, [in] CSGVAR b);
+  HRESULT Check([in] CSG_MESH_CHECK check, [out] CSG_MESH_CHECK* p);
+};
+
+typedef enum CSG_UNIT
+{
+  CSG_UNIT_DOUBLE = 0,
+  CSG_UNIT_RATIONAL = 1,
+} CSG_UNIT;
+
+[object, uuid(2a576402-2276-435d-bd1a-640ff1c19f90), pointer_default(unique)]
+interface ICSGFactory : IUnknown
+{
+  [propget] HRESULT Version([out, retval] UINT* pVal);
+  HRESULT CreateTesselator([in] CSG_UNIT unit, [out, retval] ICSGTesselator** p);
+  HRESULT CreateVector([in] UINT len, [out, retval] ICSGVector** p);
+  HRESULT CreateMesh([out, retval] ICSGMesh** p);
+};
+
+[uuid(41c66e67-2de1-4273-a1bb-f0a013dc2a0f), version(1.0)]
+library csgLib
+{
+  importlib("stdole2.tlb");
+  [uuid(54ca8e82-bdb3-41db-8ed5-3b890279c431)]
+  coclass CSGFactory
+  {
+    [default] interface ICSGFactory;
+  };
+};
+
+import "shobjidl.idl";

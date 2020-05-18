@@ -1,0 +1,131 @@
+
+import "oaidl.idl";
+import "ocidl.idl";
+ 
+interface ICDXFactory;
+interface ICDXView;
+interface ICDXSink;
+interface ICDXScene;
+interface ICDXNode;
+
+cpp_quote("#if(0)")
+typedef IUnknown ICSGMesh;
+typedef DECIMAL CSGVAR;
+typedef DECIMAL XMFLOAT3;
+typedef DECIMAL XMFLOAT4X3;
+typedef DECIMAL XMFLOAT4X4;
+cpp_quote("#endif")
+
+typedef enum CDX_RENDER
+{
+  CDX_RENDER_BOUNDINGBOX = 0x0001,
+  CDX_RENDER_COORDINATES = 0x0002,
+  CDX_RENDER_NORMALS     = 0x0004,
+  CDX_RENDER_WIREFRAME   = 0x0008,
+  CDX_RENDER_OUTLINES    = 0x0010,
+  CDX_RENDER_SHADOWS     = 0x0400,
+} CDX_RENDER;
+
+typedef enum CDX_CMD
+{
+  CDX_CMD_CENTER = 1
+} CDX_CMD;
+
+[object, uuid(4C0EC273-CA2F-48F4-B871-E487E2774492), pointer_default(unique)]
+interface ICDXView : IUnknown
+{
+  [propget] HRESULT Samples([out, retval] BSTR* p);
+  [propput] HRESULT Samples([in] BSTR p);
+  [propget] HRESULT BkColor([out, retval] UINT* p);
+  [propput] HRESULT BkColor([in] UINT p);
+  [propget] HRESULT Render([out, retval] CDX_RENDER* p);
+  [propput] HRESULT Render([in] CDX_RENDER p);
+  [propget] HRESULT Scene([out, retval] ICDXScene** p);
+  [propput] HRESULT Scene([in] ICDXScene* p);
+  [propget] HRESULT Camera([out, retval] ICDXNode** p);
+  [propput] HRESULT Camera([in] ICDXNode* p);
+  [propget] HRESULT OverNode([out, retval] UINT* p);
+  [propget] HRESULT OverPoint([out, retval] XMFLOAT3* p);
+  [propget] HRESULT OverPlane([out, retval] XMFLOAT4X4* p);
+  HRESULT Command([in] CDX_CMD cmd, [in] UINT* data);
+  HRESULT Print([in] UINT dx, [in] UINT dy, [in] UINT samples, [in] UINT bkcolor, [in] IStream* str);
+};
+
+[object, uuid(982A1DBA-0C12-4342-8F58-A34D83956F0D), pointer_default(unique)]
+interface ICDXSink : IUnknown
+{
+  HRESULT Render();
+};
+
+[object, uuid(98068F4F-7768-484B-A2F8-21D4F7B5D811), pointer_default(unique)]
+interface ICDXScene : IUnknown
+{
+  [propget] HRESULT Count([out, retval] UINT* p);
+  HRESULT GetNode([in] UINT i, [out, retval] ICDXNode** p);
+  HRESULT AddNode([in] BSTR name, [out, retval] ICDXNode** p);
+  HRESULT Remove([in] UINT i);
+  HRESULT Clear();
+  HRESULT SaveToStream([in] IStream* s);
+  HRESULT LoadFromStream([in] IStream* s);
+};
+
+[object, uuid(C0667169-81D3-405E-9C16-E4C22177BBAA), pointer_default(unique)]
+interface ICDXMaterial : IUnknown
+{
+  [propget] HRESULT Index([out, retval] UINT* p);
+  [propput] HRESULT Index([in] UINT p);
+  [propget] HRESULT Length([out, retval] UINT* p);
+  [propput] HRESULT Length([in] UINT p);
+  [propget] HRESULT Color([out, retval] UINT* p);
+  [propput] HRESULT Color([in] UINT p);
+  [propget] HRESULT Texture([out, retval] IStream** p);
+  [propput] HRESULT Texture([in] IStream* p);
+};
+
+[object, uuid(2BB87169-81D3-405E-9C16-E4C22177BBAA), pointer_default(unique)]
+interface ICDXNode : IUnknown
+{
+  [propget] HRESULT Name([out, retval] BSTR* p);
+  [propput] HRESULT Name([in] BSTR p);
+  [propget] HRESULT Parent([out, retval] ICDXNode** p);
+  [propput] HRESULT Parent([in] ICDXNode* p);
+  [propget] HRESULT Scene([out, retval] ICDXScene** p);
+  [propget] HRESULT TransformF([out, retval] XMFLOAT4X3* p);
+  [propput] HRESULT TransformF([in] XMFLOAT4X3 p);
+  [propget] HRESULT Transform([out, retval] CSGVAR* p);
+  [propput] HRESULT Transform([in] CSGVAR p);
+  [propget] HRESULT Mesh([out, retval] ICSGMesh** p);
+  [propput] HRESULT Mesh([in] ICSGMesh* p);
+  [propget] HRESULT Color([out, retval] UINT* p);
+  [propput] HRESULT Color([in] UINT p);
+  [propget] HRESULT MaterialCount([out, retval] UINT* p);
+  [propput] HRESULT MaterialCount([in] UINT p);
+  HRESULT GetMaterial([in] UINT i, [out] UINT* start, [out] UINT* count, [out] UINT* color, [out] IStream** tex);
+  HRESULT SetMaterial([in] UINT i, [in] UINT start, [in] UINT count, [in] UINT color, [in] IStream* tex);
+  HRESULT GetTexturCoords([out] CSGVAR* m);
+  HRESULT SetTexturCoords([in] CSGVAR m);
+  HRESULT AddNode([in] BSTR name, [out, retval] ICDXNode** p);
+  HRESULT SetTransform([in] CSGVAR m);
+};
+
+[object, uuid(f0993d73-ea2a-4bf1-b128-826d4a3ba584), pointer_default(unique)]
+interface ICDXFactory : IUnknown
+{
+  [propget] HRESULT Devices([out, retval] BSTR* p);
+  HRESULT SetDevice([in] UINT id);
+  HRESULT CreateView([in] HWND hwnd, [in] ICDXSink* sink, [in] UINT sampels, [out, retval] ICDXView** p);
+  HRESULT CreateScene([in] UINT reserve, [out, retval] ICDXScene** p);
+};
+
+[uuid(6d43a611-b5a3-489c-aa3a-dc01bb9225e8), version(1.0)]
+library cdxLib
+{
+  importlib("stdole2.tlb");
+  [uuid(4e957503-5aeb-41f2-975b-3e6ae9f9c75a)]
+  coclass Factory
+  {
+    [default] interface ICDXFactory;
+  };
+};
+
+import "shobjidl.idl";

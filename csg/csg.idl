@@ -132,6 +132,7 @@ typedef enum CSG_MESH_CHECK
   CSG_MESH_CHECK_UNUSED_POINT = 4,
   CSG_MESH_CHECK_OPENINGS = 8,
   CSG_MESH_CHECK_PLANES = 16,
+  CSG_MESH_CHECK_DUP_PLANES = 32,
 } CSG_MESH_CHECK;
 
 [object, uuid(BE338702-B776-4178-AA13-963B4EB53EDF), pointer_default(unique)]
@@ -153,7 +154,7 @@ interface ICSGMesh : IUnknown
   HRESULT ReadFromStream([in] IStream* str);
   HRESULT CreateBox([in] CSGVAR a, [in] CSGVAR b);
   HRESULT Check([in] CSG_MESH_CHECK check, [out] CSG_MESH_CHECK* p);
-  [propget] HRESULT Generation([out, retval] UINT* p);
+  HRESULT GetModified([out, retval] BOOL* p);
 };
 
 typedef enum CSG_UNIT

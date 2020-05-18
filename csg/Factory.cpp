@@ -6,7 +6,7 @@
 
 thread_local UINT Rational::buffer[];
 
-HRESULT CCSGFactory::get_Version(UINT* pVal)
+HRESULT CFactory::get_Version(UINT* pVal)
 {
   auto p = (BYTE*)pVal;
   p[0] = sizeof(void*);
@@ -14,7 +14,7 @@ HRESULT CCSGFactory::get_Version(UINT* pVal)
   p[2] = p[3] = 1;
   return S_OK;
 }
-HRESULT CCSGFactory::CreateTesselator(CSG_UNIT unit, ICSGTesselator** ptess)
+HRESULT CFactory::CreateTesselator(CSG_UNIT unit, ICSGTesselator** ptess)
 {
   switch (unit)
   {
@@ -23,21 +23,14 @@ HRESULT CCSGFactory::CreateTesselator(CSG_UNIT unit, ICSGTesselator** ptess)
   }
   return E_NOTIMPL;
 }
-HRESULT CCSGFactory::CreateVector(UINT len, ICSGVector** p)
+HRESULT CFactory::CreateVector(UINT len, ICSGVector** p)
 {
   *p = CVector::Create(max(len, 1));
   return 0;
 }
-HRESULT CCSGFactory::CreateMesh(ICSGMesh** p)
+HRESULT CFactory::CreateMesh(ICSGMesh** p)
 {
   *p = new CMesh(); return 0;
-}
-
-static UINT rtid;
-UINT getrtid()
-{
-  auto id = InterlockedIncrement(&rtid);
-  return id ? id : getrtid();
 }
 
 void conv(Rational* rr, UINT nr, const CSGVAR& v)

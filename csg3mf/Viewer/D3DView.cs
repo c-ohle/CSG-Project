@@ -664,12 +664,12 @@ namespace csg3mf
       get { return (uint)cb2->Ambient; }
       set { cb2->Ambient = (float4)value; cbsok &= ~1; }
     }
-    float3x4 IDisplay.Transform
+    float4x3 IDisplay.Transform
     {
-      get { return (float3x4)cb1->World; }
+      get { return (float4x3)cb1->World; }
       //set { cb1->World = value; cbsok &= ~2; }
     }
-    void IDisplay.SetTransform(in float3x4 m)
+    void IDisplay.SetTransform(in float4x3 m)
     {
       cb1->World = m; cbsok &= ~2;
     }
@@ -783,10 +783,10 @@ namespace csg3mf
             }
             continue;
           case 0x8: //wm = p * wm
-            cb1->World = *(float3x4*)p * (float3x4)cb1->World; cbsok &= ~2;
+            cb1->World = *(float4x3*)p * (float4x3)cb1->World; cbsok &= ~2;
             continue;
           case 0x9: //conv float2
-            { var t = (float3x4*)StackPtr + 2; *t = 1; *(float2*)&t->_41 = *(float2*)p; p = t; }
+            { var t = (float4x3*)StackPtr + 2; *t = 1; *(float2*)&t->_41 = *(float2*)p; p = t; }
             continue;
         }
     }
@@ -830,7 +830,7 @@ namespace csg3mf
 
     System.Drawing.Point point;
     object pickdata, pickview; int pickid, pickprim, pickz;
-    float4x4 pickplane; float3x4 picktrans, viewtrans; float3 pickp;
+    float4x4 pickplane; float4x3 picktrans, viewtrans; float3 pickp;
 
     static void initpixel()
     {
@@ -916,7 +916,7 @@ namespace csg3mf
       get { return pickplane; }
       set { pickplane = value; }
     }
-    float3x4 ISelector.Transform
+    float4x3 ISelector.Transform
     {
       get { return picktrans; }
     }
@@ -950,7 +950,7 @@ namespace csg3mf
     {
       get { return pickp * !(picktrans * pickplane); }
     }
-    void ISelector.SetPlane(in float3x4 m)
+    void ISelector.SetPlane(in float4x3 m)
     {
       pickplane = m * pickplane;
     }
@@ -1103,9 +1103,9 @@ namespace csg3mf
     {
       float2 Viewport { get; }
       float4x4 Projection { get; /*set;*/ }
-      float3x4 Transform { get; /*set;*/ }
+      float4x3 Transform { get; /*set;*/ }
       void SetProjection(in float4x4 v);
-      void SetTransform(in float3x4 v);
+      void SetTransform(in float4x3 v);
       float3 Light { get; set; }
       float LightZero { get; set; }
       uint Ambient { get; set; }
@@ -1136,7 +1136,7 @@ namespace csg3mf
     public interface ISelector
     {
       float4x4 Plane { get; set; }
-      float3x4 Transform { get; }
+      float4x3 Transform { get; }
       object View { get; }
       object Hover { get; set; }
       object Tag { get; set; }
@@ -1144,7 +1144,7 @@ namespace csg3mf
       int Primitive { get; }
       float3 Point { get; }
       void SetTool(Action<int, object> tool);
-      void SetPlane(in float3x4 m);
+      void SetPlane(in float4x3 m);
       float2 Pick();
       void Invalidate();
     }
@@ -1330,28 +1330,28 @@ namespace csg3mf
       s->z = a->z + (b->z - a->z) * w;
     }
 
-    public static float determiante(float3x4* m)
+    public static float determiante(float4x3* m)
     {
       return m->_11 * (m->_22 * m->_33 - m->_23 * m->_32) -
              m->_12 * (m->_21 * m->_33 - m->_23 * m->_31) +
              m->_13 * (m->_21 * m->_32 - m->_22 * m->_31);
     }
 
-    public static void mul(float3* p, float3x4* m, float2* r)
+    public static void mul(float3* p, float4x3* m, float2* r)
     {
       r->x = m->_11 * p->x + m->_21 * p->y + m->_31 * p->z + m->_41;
       r->y = m->_12 * p->x + m->_22 * p->y + m->_32 * p->z + m->_42;
     }
 
-    public static float3x4 move(float x, float y, float z)
+    public static float4x3 move(float x, float y, float z)
     {
-      float3x4 m; (&m)->_11 = m._22 = m._33 = 1; m._41 = x; m._42 = y; m._43 = z; return m;
+      float4x3 m; (&m)->_11 = m._22 = m._33 = 1; m._41 = x; m._42 = y; m._43 = z; return m;
     }
-    public static float3x4 scale(float x, float y, float z)
+    public static float4x3 scale(float x, float y, float z)
     {
-      float3x4 m; (&m)->_11 = x; m._22 = y; m._33 = z; return m;
+      float4x3 m; (&m)->_11 = x; m._22 = y; m._33 = z; return m;
     }
-    public static void rot(float3x4* m, int x, double a)
+    public static void rot(float4x3* m, int x, double a)
     {
       var s = (float)Math.Round(Math.Sin(a), 15);
       var c = (float)Math.Round(Math.Cos(a), 15);
@@ -1359,21 +1359,21 @@ namespace csg3mf
       if (x == 1) { m->_22 = 1; m->_11 = m->_33 = c; m->_13 = -(m->_31 = s); return; }
       if (x == 2) { m->_33 = 1; m->_11 = m->_22 = c; m->_21 = -(m->_12 = s); return; }
     }
-    public static float3x4 rotx(double a)
+    public static float4x3 rotx(double a)
     {
-      float3x4 m; rot(&m, 0, a); return m;
+      float4x3 m; rot(&m, 0, a); return m;
     }
-    public static float3x4 roty(double a)
+    public static float4x3 roty(double a)
     {
-      float3x4 m; rot(&m, 1, a); return m;
+      float4x3 m; rot(&m, 1, a); return m;
     }
-    public static float3x4 rotz(double a)
+    public static float4x3 rotz(double a)
     {
-      float3x4 m; rot(&m, 2, a); return m;
+      float4x3 m; rot(&m, 2, a); return m;
     }
-    public static float3x4 rotaxis(float3 v, float a)
+    public static float4x3 rotaxis(float3 v, float a)
     {
-      var m = new float3x4(); float s = (float)Math.Sin(a), c = (float)Math.Cos(a), cc = 1 - c;
+      var m = new float4x3(); float s = (float)Math.Sin(a), c = (float)Math.Cos(a), cc = 1 - c;
       m._11 = cc * v.x * v.x + c;
       m._21 = cc * v.x * v.y - s * v.z;
       m._31 = cc * v.x * v.z + s * v.y;
@@ -1386,18 +1386,18 @@ namespace csg3mf
       return m;
     }
 
-    public static float euler(float3x4* m, double3* e)
+    public static float euler(float4x3* m, double3* e)
     {
       var s = length(*(float3*)&m->_11); var t = m->_13 / s;
       e->x = +Math.Atan2(m->_23, m->_33);
       e->y = -Math.Asin(t);
       e->z = t == 1 || t == -1 ? -Math.Atan2(m->_21, m->_22) : Math.Atan2(m->_12, m->_11); return s;
     }
-    public static void euler(double3* e, float3x4* m)
+    public static void euler(double3* e, float4x3* m)
     {
-      float3x4 x; rot(&x, 0, e->x);
-      float3x4 y; rot(&y, 1, e->y); x = x * y;
-      float3x4 z; rot(&z, 2, e->z); x = x * z;
+      float4x3 x; rot(&x, 0, e->x);
+      float4x3 y; rot(&y, 1, e->y); x = x * y;
+      float4x3 z; rot(&z, 2, e->z); x = x * z;
       memcpy(m, &x, (void*)(9 * sizeof(float)));
     }
     public static void euler(float4* q, double3* e)
@@ -1417,7 +1417,7 @@ namespace csg3mf
       q->w = (float)(cz * cy * cx + sz * sy * sx);
     }
 
-    public static void quaternion(float3x4* m, float4* q)
+    public static void quaternion(float4x3* m, float4* q)
     {
       var scale = m->_11 + m->_22 + m->_33;
       if (scale > 0.0f)
@@ -1456,7 +1456,7 @@ namespace csg3mf
         q->w = (m->_12 - m->_21) * h;
       }
     }
-    public static void quaternion(float4* q, float3x4* m)
+    public static void quaternion(float4* q, float4x3* m)
     {
       var xx = q->x * q->x;
       var yy = q->y * q->y;
@@ -1478,10 +1478,10 @@ namespace csg3mf
       m->_33 = 1.0f - (2.0f * (yy + xx));
     }
 
-    public static bool decompose(float3x4* m, float3* s, float3x4* r)
+    public static bool decompose(float4x3* m, float3* s, float4x3* r)
     {
       const float eps = 0.0001f; *r = 1;// identity(r); //if (m->_12 == 0 && m->_13 == 0 && m->_21 == 0 && m->_23 == 0 && m->_31 == 0 && m->_32 == 0) { s->x = m->_11; s->y = m->_22; s->z = m->_33; return true; }
-      float3x4 t2; var pc = (float3*)&t2;
+      float4x3 t2; var pc = (float3*)&t2;
       float2x3 t3; var pv = (float3**)&t3;
       pc[0].x = pc[1].y = pc[2].z = 1;
       pv[0] = (float3*)&r->_11; *pv[0] = *(float3*)&m->_11;
@@ -1512,7 +1512,7 @@ namespace csg3mf
       return eps > det;
     }
 
-    public static float3x4 saturate(float3x4 m)
+    public static float4x3 saturate(float4x3 m)
     {
       for (int i = 0; i < 3; i++)
       {
@@ -1527,7 +1527,7 @@ namespace csg3mf
       return m;
     }
 
-    public static float3x4 LookAt(float3 eye, float3 pos, float3 up)
+    public static float4x3 LookAt(float3 eye, float3 pos, float3 up)
     {
       var R2 = normalize(pos - eye);
       var R0 = normalize(up ^ R2);
@@ -1536,7 +1536,7 @@ namespace csg3mf
       var D0 = R0 & eye;
       var D1 = R1 & eye;
       var D2 = R2 & eye;
-      float3x4 m;
+      float4x3 m;
       m._11 = R0.x; m._12 = R1.x; m._13 = R2.x;
       m._21 = R0.y; m._22 = R1.y; m._23 = R2.y;
       m._31 = R0.z; m._32 = R1.z; m._33 = R2.z;
@@ -1597,7 +1597,7 @@ namespace csg3mf
       if (box[1].y < p->y) box[1].y = p->y;
       if (box[1].z < p->z) box[1].z = p->z;
     }
-    public static void boxadd(float3* p, float3x4* m, float3* box)
+    public static void boxadd(float3* p, float4x3* m, float3* box)
     {
       var r = p[0] * m[0]; boxadd(&r, box);
     }
@@ -1849,7 +1849,7 @@ namespace csg3mf
       public float _41, _42;
     }
 
-    public struct float3x4
+    public struct float4x3
     {
       public float _11, _12, _13;
       public float _21, _22, _23;
@@ -1861,13 +1861,13 @@ namespace csg3mf
       }
       public override bool Equals(object p)
       {
-        return p is float3x4 && !((float3x4)p != this);
+        return p is float4x3 && !((float4x3)p != this);
       }
-      public static bool operator ==(in float3x4 a, in float3x4 b)
+      public static bool operator ==(in float4x3 a, in float4x3 b)
       {
         return !(a != b);
       }
-      public static bool operator !=(in float3x4 a, in float3x4 b)
+      public static bool operator !=(in float4x3 a, in float4x3 b)
       {
         return a._11 != b._11 || a._12 != b._12 || a._13 != b._13 || //a._14 != b._14 ||
                a._21 != b._21 || a._22 != b._22 || a._23 != b._23 || //a._24 != b._24 || 
@@ -1876,20 +1876,20 @@ namespace csg3mf
         //for (int i = 0; i < 12; i++) if ((&a._11)[i] != (&b._11)[i]) return true; return false;
       }
 
-      public static implicit operator float3x4(float s)
+      public static implicit operator float4x3(float s)
       {
-        return new float3x4() { _11 = s, _22 = s, _33 = s };
+        return new float4x3() { _11 = s, _22 = s, _33 = s };
       }
-      public static implicit operator float3x4(float2 p)
+      public static implicit operator float4x3(float2 p)
       {
-        float3x4 m; *(float*)&m = m._22 = m._33 = 1; *(float2*)&m._41 = p; return m;
+        float4x3 m; *(float*)&m = m._22 = m._33 = 1; *(float2*)&m._41 = p; return m;
       }
-      public static implicit operator float3x4(float3 p)
+      public static implicit operator float4x3(float3 p)
       {
-        float3x4 m; *(float*)&m = m._22 = m._33 = 1; *(float3*)&m._41 = p; return m;
+        float4x3 m; *(float*)&m = m._22 = m._33 = 1; *(float3*)&m._41 = p; return m;
       }
 
-      public static float3x4 operator !(in float3x4 p)
+      public static float4x3 operator !(in float4x3 p)
       {
         //inv(&v, &v); return v;
         var b0 = p._31 * p._42 - p._32 * p._41;
@@ -1907,7 +1907,7 @@ namespace csg3mf
         var d6 = p._11 * p._33 + p._13 * -p._31;
         var d7 = p._11 * p._32 + p._12 * -p._31;
         var d8 = p._11 * b3 + p._12 * -b1 + p._13 * b0;
-        var d9 = p._41 * a3 + p._42 * -a1 + p._43 * a0; float3x4 r;
+        var d9 = p._41 * a3 + p._42 * -a1 + p._43 * a0; float4x3 r;
         r._11 = +d1 * de; r._12 = -d5 * de;
         r._13 = +a3 * de;
         r._21 = -d2 * de; r._22 = +d6 * de;
@@ -1917,10 +1917,10 @@ namespace csg3mf
         r._41 = -d4 * de; r._42 = +d8 * de;
         r._43 = -d9 * de; return r;
       }
-      public static float3x4 operator *(in float3x4 a, in float3x4 b)
+      public static float4x3 operator *(in float4x3 a, in float4x3 b)
       {
         //float3x4 c; mul(&a, &b, &c); return c;
-        float x = a._11, y = a._12, z = a._13; float3x4 r;
+        float x = a._11, y = a._12, z = a._13; float4x3 r;
         r._11 = b._11 * x + b._21 * y + b._31 * z;
         r._12 = b._12 * x + b._22 * y + b._32 * z;
         r._13 = b._13 * x + b._23 * y + b._33 * z; x = a._21; y = a._22; z = a._23;
@@ -1934,11 +1934,11 @@ namespace csg3mf
         r._42 = b._12 * x + b._22 * y + b._32 * z + b._42;
         r._43 = b._13 * x + b._23 * y + b._33 * z + b._43; return r;
       }
-      public static float3x4 operator *(float a, in float3x4 b)
+      public static float4x3 operator *(float a, in float4x3 b)
       {
-        return (float3x4)a * b;
+        return (float4x3)a * b;
       }
-      public static float3 operator *(float3 a, in float3x4 b)
+      public static float3 operator *(float3 a, in float4x3 b)
       {
         float3 c;
         c.x = b._11 * a.x + b._21 * a.y + b._31 * a.z + b._41;
@@ -1947,28 +1947,28 @@ namespace csg3mf
         return c;
       }
 
-      public static float3x4 operator +(float2 a, in float3x4 b)
+      public static float4x3 operator +(float2 a, in float4x3 b)
       {
-        return new float3x4 { _11 = 1, _22 = 1, _33 = 1, _41 = a.x, _42 = a.y } * b;
+        return new float4x3 { _11 = 1, _22 = 1, _33 = 1, _41 = a.x, _42 = a.y } * b;
       }
-      public static float3x4 operator +(float3 a, in float3x4 b)
+      public static float4x3 operator +(float3 a, in float4x3 b)
       {
-        return new float3x4 { _11 = 1, _22 = 1, _33 = 1, _41 = a.x, _42 = a.y, _43 = a.z } * b;
+        return new float4x3 { _11 = 1, _22 = 1, _33 = 1, _41 = a.x, _42 = a.y, _43 = a.z } * b;
       }
 
-      public static float3x4 operator ^(float a, in float3x4 b)
+      public static float4x3 operator ^(float a, in float4x3 b)
       {
-        return new float3x4 { _11 = a, _22 = a, _33 = a } * b;
+        return new float4x3 { _11 = a, _22 = a, _33 = a } * b;
       }
-      public static float3x4 operator ^(float2 a, in float3x4 b)
+      public static float4x3 operator ^(float2 a, in float4x3 b)
       {
-        return new float3x4 { _11 = a.x, _22 = a.y, _33 = 1 } * b;
+        return new float4x3 { _11 = a.x, _22 = a.y, _33 = 1 } * b;
       }
-      public static float3x4 operator ^(float3 a, in float3x4 b)
+      public static float4x3 operator ^(float3 a, in float4x3 b)
       {
-        return new float3x4 { _11 = a.x, _22 = a.y, _33 = a.z } * b;
+        return new float4x3 { _11 = a.x, _22 = a.y, _33 = a.z } * b;
       }
-      public static float3 operator &(float3 a, in float3x4 b)
+      public static float3 operator &(float3 a, in float4x3 b)
       {
         float3 c;
         c.x = b._11 * a.x + b._21 * a.y + b._31 * a.z;
@@ -2051,7 +2051,7 @@ namespace csg3mf
         r._41 = -d14 * dei; r._42 = +d24 * dei;
         r._43 = -d34 * dei; r._44 = +d44 * dei; return r;
       }
-      public static implicit operator float4x4(in float3x4 a)
+      public static implicit operator float4x4(in float4x3 a)
       {
         float4x4 b;
         b._11 = a._11; b._12 = a._12; b._13 = a._13; b._14 = 0;
@@ -2059,9 +2059,9 @@ namespace csg3mf
         b._31 = a._31; b._32 = a._32; b._33 = a._33; b._34 = 0;
         b._41 = a._41; b._42 = a._42; b._43 = a._43; b._44 = 1; return b;
       }
-      public static explicit operator float3x4(in float4x4 a)
+      public static explicit operator float4x3(in float4x4 a)
       {
-        float3x4 b;
+        float4x3 b;
         b._11 = a._11; b._12 = a._12; b._13 = a._13;
         b._21 = a._21; b._22 = a._22; b._23 = a._23;
         b._31 = a._31; b._32 = a._32; b._33 = a._33;
@@ -2257,7 +2257,7 @@ namespace csg3mf
       public double _21, _22, _23;
       public double _31, _32, _33;
       public double _41, _42, _43;
-      public static implicit operator double3x4(in float3x4 p)
+      public static implicit operator double3x4(in float4x3 p)
       {
         double3x4 d;
         d._11 = p._11; d._12 = p._12; d._13 = p._13;
@@ -2266,9 +2266,9 @@ namespace csg3mf
         d._41 = p._41; d._42 = p._42; d._43 = p._43;
         return d;
       }
-      public static explicit operator float3x4(in double3x4 p)
+      public static explicit operator float4x3(in double3x4 p)
       {
-        float3x4 d;
+        float4x3 d;
         d._11 = (float)p._11; d._12 = (float)p._12; d._13 = (float)p._13;
         d._21 = (float)p._21; d._22 = (float)p._22; d._23 = (float)p._23;
         d._31 = (float)p._31; d._32 = (float)p._32; d._33 = (float)p._33;
@@ -2802,7 +2802,7 @@ namespace csg3mf
           {
             if (srvs == null || srvn == srvs.Length) Array.Resize(ref srvs, srvn == 0 ? 4 : srvn << 1);
 
-            byte* pp; float3x4 m12; var bi = (int*)&m12; bi[0] = 40; bi[1] = mx; bi[2] = -my; bi[3] = 1 | (32 << 16);
+            byte* pp; float4x3 m12; var bi = (int*)&m12; bi[0] = 40; bi[1] = mx; bi[2] = -my; bi[3] = 1 | (32 << 16);
             var dib = CreateDIBSection(null, bi, 0, &pp, null, 0);
             var ddc = CreateCompatibleDC(hdcnull);
             var obmp = SelectObject(ddc, dib);
@@ -2911,7 +2911,7 @@ namespace csg3mf
         }
       }
 
-      for (int i = 0; i < np; i++) { vv[i].n = normalize(vv[i].n); if ((fl & 1) != 0) mul(&vv[i].p, (float3x4*)tex, &vv[i].t); else *(long*)&vv[i].t = 0; }
+      for (int i = 0; i < np; i++) { vv[i].n = normalize(vv[i].n); if ((fl & 1) != 0) mul(&vv[i].p, (float4x3*)tex, &vv[i].t); else *(long*)&vv[i].t = 0; }
 
       if ((fl & 2) != 0)
       {
@@ -4727,7 +4727,7 @@ namespace csg3mf
 
   public static unsafe class Extensions
   {
-    public static void PushTransform(this IDisplay dc, float3x4 m)
+    public static void PushTransform(this IDisplay dc, float4x3 m)
     {
       dc.Operator(0x82, &m); //push wm, wm = m * wm
     }
@@ -4855,7 +4855,7 @@ namespace csg3mf
     }
     public static void DrawRect(this IDisplay dc, float x, float y, float dx, float dy)
     {
-      float3x4 m; var p = (float3*)&m;
+      float4x3 m; var p = (float3*)&m;
       p[0].x = p[3].x = x;
       p[0].y = p[1].y = y;
       p[1].x = p[2].x = x + dx;

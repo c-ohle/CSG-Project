@@ -197,7 +197,7 @@ HRESULT CTesselatorRat::Skeleton(ICSGMesh* mesh, CSGVAR va)
     for (int t = 0; t < ic; t++) ii[ni++] = csg.addpp(*(Vector3R*)&this->pp[this->ss[t]].x);
     for (int t = ab; t < ni; t += 3) encode((UINT*)ii + t, t == ab); ff[nn++] = i; //Planes.p[Planes.n++] = ee[i];
   }
-  me.rtgen = getrtid(); me.flags = 1 | 2;
+  me.flags = MESH_FL_ENCODE | MESH_FL_SHELL | MESH_FL_MODIFIED;
   me.ee.setsize(nn << 1); for (int i = 0; i < nn; i++) me.ee[i] = -(me.ee[nn + i] = ee[ff[i]]);
   ni = join(ni, 1); csg.trim(ni);
   me.pp.copy(csg.pp.p, csg.np);

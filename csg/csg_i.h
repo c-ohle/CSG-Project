@@ -758,7 +758,8 @@ enum CSG_MESH_CHECK
         CSG_MESH_CHECK_BAD_INDEX	= 2,
         CSG_MESH_CHECK_UNUSED_POINT	= 4,
         CSG_MESH_CHECK_OPENINGS	= 8,
-        CSG_MESH_CHECK_PLANES	= 16
+        CSG_MESH_CHECK_PLANES	= 16,
+        CSG_MESH_CHECK_DUP_PLANES	= 32
     } 	CSG_MESH_CHECK;
 
 
@@ -839,8 +840,8 @@ EXTERN_C const IID IID_ICSGMesh;
             /* [in] */ CSG_MESH_CHECK check,
             /* [out] */ CSG_MESH_CHECK *p) = 0;
         
-        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Generation( 
-            /* [retval][out] */ UINT *p) = 0;
+        virtual HRESULT STDMETHODCALLTYPE GetModified( 
+            /* [retval][out] */ BOOL *p) = 0;
         
     };
     
@@ -937,9 +938,9 @@ EXTERN_C const IID IID_ICSGMesh;
             /* [in] */ CSG_MESH_CHECK check,
             /* [out] */ CSG_MESH_CHECK *p);
         
-        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Generation )( 
+        HRESULT ( STDMETHODCALLTYPE *GetModified )( 
             ICSGMesh * This,
-            /* [retval][out] */ UINT *p);
+            /* [retval][out] */ BOOL *p);
         
         END_INTERFACE
     } ICSGMeshVtbl;
@@ -1012,8 +1013,8 @@ EXTERN_C const IID IID_ICSGMesh;
 #define ICSGMesh_Check(This,check,p)	\
     ( (This)->lpVtbl -> Check(This,check,p) ) 
 
-#define ICSGMesh_get_Generation(This,p)	\
-    ( (This)->lpVtbl -> get_Generation(This,p) ) 
+#define ICSGMesh_GetModified(This,p)	\
+    ( (This)->lpVtbl -> GetModified(This,p) ) 
 
 #endif /* COBJMACROS */
 
