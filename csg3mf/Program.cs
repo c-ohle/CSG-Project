@@ -218,14 +218,12 @@ namespace csg3mf
       splitter.Panel1.Controls.Add(e); e.BringToFront(); splitter.Panel1.Update();
       if (this.edit != null) this.edit.Dispose(); this.edit = e;
       Neuron.Debugger = (p, v) => this.edit.Show(v);
-      view.cont.update();
-      view.setcamera(); view.Invalidate();
       view.cont.OnUpdate = view.onstep;
       if (view.IsHandleCreated)
       {
         view.view.Camera = null;
         view.view.Scene = view.cont.Nodes;
-        view.OnCenter(null);
+        view.OnCenter(null); view.Invalidate();
       }
       this.path = path; UpdateTitle(); if (path != null) mru(path, path);
     }
@@ -365,7 +363,6 @@ namespace csg3mf
       WindowState = z ? FormWindowState.Maximized : FormWindowState.Normal;
     }
 
-#if(true)
     unsafe class View : UserControl
     {
       internal Container cont;
@@ -423,6 +420,7 @@ namespace csg3mf
       protected override void OnMouseDown(MouseEventArgs e)
       {
         if (e.Button != MouseButtons.Left) return;
+        if (view.Camera == null) return;
         tool = camera_free(); Capture = true;
       }
       protected override void OnMouseMove(MouseEventArgs e)
@@ -482,18 +480,13 @@ namespace csg3mf
         view.Camera.TransformF = m; Invalidate(); return true;
       }
 
-      internal void setcamera() { }
       internal void onstep()
       {
         Invalidate();
       }
-      internal static System.Drawing.Bitmap CreatePreview(int dx, int dy, float4x3 camera, bool shadows, IEnumerable<Container.Node> nodes)
-      {
-        return null;
-      }
-
     }
-#else
+
+#if(false)
     unsafe class View : D3DView
     {
       internal int flags; internal float4x3 camera;
@@ -806,6 +799,7 @@ namespace csg3mf
       }
     }
 #endif
+
   }
 
   class MenuItem : ToolStripMenuItem

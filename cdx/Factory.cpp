@@ -539,19 +539,21 @@ void CView::RenderScene()
         box[1] = XMVectorMax(box[1], p);
       }
     }
-
-    if (flags & CDX_RENDER_COORDINATES)
+    if (XMVector3LessOrEqual(box[0], box[1]))//box[0].m128_f32[0] < box[1].m128_f32[0])
     {
-      XMVECTOR ma = box[1] + XMVectorReplicate(0.3f), va = XMVectorReplicate(0.2f), vt;
-      SetVector(VV_LIGHTDIR, light);
-      SetMatrix(MM_WORLD, XMMatrixIdentity());
-      SetColor(VV_DIFFUSE, 0xffff0000); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskX)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskX), 0.05f);
-      SetColor(VV_DIFFUSE, 0xff00ff00); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskY)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskY), 0.05f);
-      SetColor(VV_DIFFUSE, 0xff0000ff); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskZ)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskZ), 0.05f);
-    }
-    if (flags & CDX_RENDER_BOUNDINGBOX)
-    {
-      SetColor(VV_DIFFUSE, 0xffffffff); DrawBox(box[0], box[1]);
+      if (flags & CDX_RENDER_COORDINATES)
+      {
+        XMVECTOR ma = box[1] + XMVectorReplicate(0.3f), va = XMVectorReplicate(0.2f), vt;
+        SetVector(VV_LIGHTDIR, light);
+        SetMatrix(MM_WORLD, XMMatrixIdentity());
+        SetColor(VV_DIFFUSE, 0xffff0000); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskX)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskX), 0.05f);
+        SetColor(VV_DIFFUSE, 0xff00ff00); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskY)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskY), 0.05f);
+        SetColor(VV_DIFFUSE, 0xff0000ff); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskZ)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskZ), 0.05f);
+      }
+      if (flags & CDX_RENDER_BOUNDINGBOX)
+      {
+        SetColor(VV_DIFFUSE, 0xffffffff); DrawBox(box[0], box[1]);
+      }
     }
   }
   if (transp != 0)
@@ -740,9 +742,11 @@ HRESULT CView::put_BkColor(UINT p)
 DXGI_SAMPLE_DESC chksmp(ID3D11Device* device, UINT samples)
 {
   DXGI_SAMPLE_DESC desc; desc.Count = 1; desc.Quality = 0;
-  for (UINT i = samples, q; i > 0; i--) 
-    if (device->CheckMultisampleQualityLevels(DXGI_FORMAT_B8G8R8A8_UNORM, i, &q) == 0 && q > 0) 
-    { desc.Count = i; desc.Quality = q - 1; break; }
+  for (UINT i = samples, q; i > 0; i--)
+    if (device->CheckMultisampleQualityLevels(DXGI_FORMAT_B8G8R8A8_UNORM, i, &q) == 0 && q > 0)
+    {
+      desc.Count = i; desc.Quality = q - 1; break;
+    }
   return desc;
 }
 

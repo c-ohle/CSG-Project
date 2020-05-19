@@ -2,6 +2,9 @@
 #include "Factory.h"
 #include "Scene.h"
 
+extern CComPtr<ID3D11Device> device;
+extern CComPtr<ID3D11DeviceContext> context;
+
 CScene* getscene(CNode* p)
 {
   if (*(void**)p != *(void**)p->parent) return static_cast<CScene*>(p->parent);
@@ -40,42 +43,11 @@ static int msb(int v)
   if ((v & 0x00000002) != 0) { i |= 0x01; }
   return i;
 }
-XMFLOAT3 normalize(XMFLOAT3 v)
-{
-  auto l = 1 / (float)sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-  v.x = v.x * l;
-  v.y = v.y * l;
-  v.z = v.z * l;
-  return v;
-}
-float dot(XMFLOAT3 a)
-{
-  return a.x * a.x + a.y * a.y + a.z * a.z;
-}
-static XMFLOAT3 operator -(XMFLOAT3 a, XMFLOAT3 b)
-{
-  return XMFLOAT3(a.x - b.x, a.y - b.y, a.z - b.z);
-}
-static XMFLOAT3 operator +(XMFLOAT3 a, XMFLOAT3 b)
-{
-  return XMFLOAT3(a.x + b.x, a.y + b.y, a.z + b.z);
-}
-static XMFLOAT3 operator ^(XMFLOAT3 a, XMFLOAT3 b)
-{
-  return XMFLOAT3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
-}
+
 static bool operator ==(XMFLOAT2 a, XMFLOAT2 b)
 {
   return a.x == b.x && a.y == b.y;
 }
-void mul(XMFLOAT3* p, XMFLOAT4X3* m, XMFLOAT2* r)
-{
-  r->x = m->_11 * p->x + m->_21 * p->y + m->_31 * p->z + m->_41;
-  r->y = m->_12 * p->x + m->_22 * p->y + m->_32 * p->z + m->_42;
-}
-
-extern CComPtr<ID3D11Device> device;
-extern CComPtr<ID3D11DeviceContext> context;
 
 bool equals(ID3D11Buffer* buffer, const void* p, UINT n)
 {
@@ -103,9 +75,10 @@ bool equals(ID3D11Buffer* buffer, const void* p, UINT n)
 
 void CNode::update(XMFLOAT3* pp, UINT np, UINT* ii, UINT ni, float smooth, void* tex, UINT fl)
 {
-  //auto kk = (int*)__align16(stackptr); auto tt = (int*)__align16(kk + ni);
-  auto kk = (int*)stackptr; auto tt = kk + ni;
-  auto e = msb(ni); e = 1 << (e + 1); auto w = e - 1; //if(e > 15) e = 15 // 64k?
+  auto kk = (int*)__align16(stackptr); auto tt = (int*)__align16(kk + ni); XMASSERT(ni != 0);
+  //auto kk = (int*)stackptr; auto tt = kk + ni; 
+  DWORD e; _BitScanReverse(&e, ni); //auto e = msb(ni); 
+  e = 1 << (e + 1); auto w = e - 1; //if(e > 15) e = 15 // 64k?
   auto dict = tt; memset(dict, 0, e << 2);
   for (UINT i = ni - 1, m = 0b010010; (int)i >= 0; i--, m = (m >> 1) | ((m & 1) << 5))
   {
@@ -119,29 +92,43 @@ void CNode::update(XMFLOAT3* pp, UINT np, UINT* ii, UINT ni, float smooth, void*
     for (t = dict[h]; t != 0; t = dict[t + 2]) if (dict[t] == k) { dict[t] = -1; break; }
     kk[i] = ii[t != 0 ? dict[t + 1] : j + ((m >> 1) & 3)];
   }
-  auto vv = (VERTEX*)tt;
-  for (UINT i = 0; i < np; i++) { vv[i].p = pp[i]; vv[i].t.x = vv[i].t.y = 0; }
+  auto vv = (VERTEX*)tt; auto vsmooth = XMVectorReplicate(smooth);
+  for (UINT i = 0; i < np; i++)
+  {
+    XMStoreFloat4A((XMFLOAT4A*)&vv[i].p, XMLoadFloat4((XMFLOAT4*)&pp[i]));
+    *(UINT64*)&vv[i].t.x = 0;
+  }
   /////////////////
   for (UINT i = 0; i < ni; i += 3)
   {
-    auto& p1 = vv[ii[i + 0]].p;
-    auto& p2 = vv[ii[i + 1]].p;
-    auto& p3 = vv[ii[i + 2]].p;
-    auto no = normalize(p2 - p1 ^ p3 - p1); //if (float.IsNaN(no.x)) no = 0.1f;
+    auto v1 = XMLoadFloat4A((XMFLOAT4A*)&vv[ii[i + 0]].p);
+    auto v2 = XMLoadFloat4A((XMFLOAT4A*)&vv[ii[i + 1]].p);
+    auto v3 = XMLoadFloat4A((XMFLOAT4A*)&vv[ii[i + 2]].p);
+    auto vn = XMVector3Normalize(XMVector3Cross(v2 - v1, v3 - v1));
     for (int k = 0, j; k < 3; k++)
     {
       for (j = ii[i + k]; ;)
       {
-        auto c = *(int*)&vv[j].t.x; if (c == 0) { vv[j].n = no; *(int*)&vv[j].t.x = 1; break; }
-        auto nt = vv[j].n;
-        if (dot((c == 1 ? nt : normalize(nt)) - no) <= smooth) { vv[j].n = no + nt; *(int*)&vv[j].t.x = c + 1; break; }
-        auto l = *(int*)&vv[j].t.y; if (l != 0) { j = l - 1; continue; }
-        *(int*)&vv[j].t.y = np + 1; vv[np].p = vv[j].p; vv[np].t.x = vv[np].t.y = 0; j = np++;
+        auto c = *(UINT*)&vv[j].t.x; if (c == 0) { XMStoreFloat3(&vv[j].n, vn); *(UINT*)&vv[j].t.x = 1; break; }
+        auto nt = XMLoadFloat3(&vv[j].n);
+        if (XMVector3LessOrEqual(XMVector3LengthSq((c == 1 ? nt : XMVector3Normalize(nt)) - vn), vsmooth))
+        {
+          XMStoreFloat3(&vv[j].n, vn + nt); 
+          *(UINT*)&vv[j].t.x = c + 1; break;
+        }
+        auto l = *(UINT*)&vv[j].t.y; if (l != 0) { j = l - 1; continue; }
+        *(UINT*)&vv[j].t.y = np + 1; vv[np].p = vv[j].p; *(UINT64*)&vv[np].t.x = 0; j = np++;
       }
       kk[i + k] = (kk[i + k] << 16) | j;
     }
   }
-  for (UINT i = 0; i < np; i++) { vv[i].n = normalize(vv[i].n); if ((fl & 1) != 0) { mul(&vv[i].p, (XMFLOAT4X3*)tex, &vv[i].t); } else *(UINT64*)&vv[i].t = 0; }
+  XMMATRIX mt; if ((fl & 1) != 0) mt = XMLoadFloat4x3((XMFLOAT4X3*)tex);
+  for (UINT i = 0; i < np; i++)
+  {
+    XMStoreFloat3(&vv[i].n, XMVector3Normalize(XMLoadFloat3(&vv[i].n)));
+    if ((fl & 1) == 0) { *(UINT64*)&vv[i].t = 0; continue; }
+    XMStoreFloat2(&vv[i].t, XMVector3Transform(XMLoadFloat4A((XMFLOAT4A*)&vv[i].p), mt));
+  }
   if ((fl & 2) != 0)
   {
     for (UINT i = 0, j; i < ni; i++)

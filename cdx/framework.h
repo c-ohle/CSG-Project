@@ -48,7 +48,7 @@ using namespace DirectX::PackedVector;
 #define CHR(F) { int __hr; if((__hr = (F)) < 0) return __hr; }
 
 extern void* baseptr, * stackptr;
-#define __align16(p) ((size_t)(p) & 7 ? (void*)((((size_t)(p) >> 4) + 1) << 4) : p)
+#define __align16(p) ((size_t)(p) & 0xf ? (void*)((((size_t)(p) >> 4) + 1) << 4) : p)
 
 template<class T>
 struct sarray

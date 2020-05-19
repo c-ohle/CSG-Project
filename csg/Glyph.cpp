@@ -68,7 +68,7 @@ static void QSpline2Polyline(CTX& ctx, QS* qs)
     ctx.AddVertex(p);
     DY += DDY;
   } while (--i);
-}
+} 
 
 HRESULT AddGlyphContour(ICSGTesselator* tess, sarray<int> buff[2], const CSGVAR& text, HFONT font, int flat)
 {
