@@ -79,6 +79,13 @@ typedef interface ICDXNode ICDXNode;
 #endif 	/* __ICDXNode_FWD_DEFINED__ */
 
 
+#ifndef __ICDXFont_FWD_DEFINED__
+#define __ICDXFont_FWD_DEFINED__
+typedef interface ICDXFont ICDXFont;
+
+#endif 	/* __ICDXFont_FWD_DEFINED__ */
+
+
 #ifndef __ICDXFactory_FWD_DEFINED__
 #define __ICDXFactory_FWD_DEFINED__
 typedef interface ICDXFactory ICDXFactory;
@@ -116,6 +123,7 @@ extern "C"{
 
 
 
+
 #if(0)
 typedef IUnknown ICSGMesh;
 
@@ -144,6 +152,21 @@ enum CDX_CMD
     {
         CDX_CMD_CENTER	= 1
     } 	CDX_CMD;
+
+typedef 
+enum CDX_DRAW
+    {
+        CDX_DRAW_ORTHOGRAPHIC	= 0,
+        CDX_DRAW_GET_TRANSFORM	= 1,
+        CDX_DRAW_SET_TRANSFORM	= 2,
+        CDX_DRAW_GET_COLOR	= 3,
+        CDX_DRAW_SET_COLOR	= 4,
+        CDX_DRAW_GET_FONT	= 5,
+        CDX_DRAW_SET_FONT	= 6,
+        CDX_DRAW_FILL_RECT	= 7,
+        CDX_DRAW_FILL_ELLIPSE	= 8,
+        CDX_DRAW_DRAW_TEXT	= 9
+    } 	CDX_DRAW;
 
 
 
@@ -203,6 +226,10 @@ EXTERN_C const IID IID_ICDXView;
         
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_OverPlane( 
             /* [retval][out] */ XMFLOAT4X4 *p) = 0;
+        
+        virtual HRESULT STDMETHODCALLTYPE Draw( 
+            /* [in] */ CDX_DRAW idc,
+            /* [in] */ UINT *data) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE Command( 
             /* [in] */ CDX_CMD cmd,
@@ -288,6 +315,11 @@ EXTERN_C const IID IID_ICDXView;
             ICDXView * This,
             /* [retval][out] */ XMFLOAT4X4 *p);
         
+        HRESULT ( STDMETHODCALLTYPE *Draw )( 
+            ICDXView * This,
+            /* [in] */ CDX_DRAW idc,
+            /* [in] */ UINT *data);
+        
         HRESULT ( STDMETHODCALLTYPE *Command )( 
             ICDXView * This,
             /* [in] */ CDX_CMD cmd,
@@ -363,6 +395,9 @@ EXTERN_C const IID IID_ICDXView;
 #define ICDXView_get_OverPlane(This,p)	\
     ( (This)->lpVtbl -> get_OverPlane(This,p) ) 
 
+#define ICDXView_Draw(This,idc,data)	\
+    ( (This)->lpVtbl -> Draw(This,idc,data) ) 
+
 #define ICDXView_Command(This,cmd,data)	\
     ( (This)->lpVtbl -> Command(This,cmd,data) ) 
 
@@ -384,7 +419,7 @@ EXTERN_C const IID IID_ICDXView;
 #define __ICDXSink_INTERFACE_DEFINED__
 
 /* interface ICDXSink */
-/* [unique][uuid][object] */ 
+/* [local][unique][uuid][object] */ 
 
 
 EXTERN_C const IID IID_ICDXSink;
@@ -395,7 +430,7 @@ EXTERN_C const IID IID_ICDXSink;
     ICDXSink : public IUnknown
     {
     public:
-        virtual HRESULT STDMETHODCALLTYPE Render( void) = 0;
+        virtual void STDMETHODCALLTYPE Render( void) = 0;
         
     };
     
@@ -418,7 +453,7 @@ EXTERN_C const IID IID_ICDXSink;
         ULONG ( STDMETHODCALLTYPE *Release )( 
             ICDXSink * This);
         
-        HRESULT ( STDMETHODCALLTYPE *Render )( 
+        void ( STDMETHODCALLTYPE *Render )( 
             ICDXSink * This);
         
         END_INTERFACE
@@ -1048,6 +1083,136 @@ EXTERN_C const IID IID_ICDXNode;
 #endif 	/* __ICDXNode_INTERFACE_DEFINED__ */
 
 
+#ifndef __ICDXFont_INTERFACE_DEFINED__
+#define __ICDXFont_INTERFACE_DEFINED__
+
+/* interface ICDXFont */
+/* [unique][uuid][object] */ 
+
+
+EXTERN_C const IID IID_ICDXFont;
+
+#if defined(__cplusplus) && !defined(CINTERFACE)
+    
+    MIDL_INTERFACE("F063C32D-59D1-4A0D-B209-323268059C12")
+    ICDXFont : public IUnknown
+    {
+    public:
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Name( 
+            /* [retval][out] */ BSTR *p) = 0;
+        
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Size( 
+            /* [retval][out] */ FLOAT *p) = 0;
+        
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Style( 
+            /* [retval][out] */ UINT *p) = 0;
+        
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Ascent( 
+            /* [retval][out] */ FLOAT *p) = 0;
+        
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Descent( 
+            /* [retval][out] */ FLOAT *p) = 0;
+        
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Height( 
+            /* [retval][out] */ FLOAT *p) = 0;
+        
+    };
+    
+    
+#else 	/* C style interface */
+
+    typedef struct ICDXFontVtbl
+    {
+        BEGIN_INTERFACE
+        
+        HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
+            ICDXFont * This,
+            /* [in] */ REFIID riid,
+            /* [annotation][iid_is][out] */ 
+            _COM_Outptr_  void **ppvObject);
+        
+        ULONG ( STDMETHODCALLTYPE *AddRef )( 
+            ICDXFont * This);
+        
+        ULONG ( STDMETHODCALLTYPE *Release )( 
+            ICDXFont * This);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Name )( 
+            ICDXFont * This,
+            /* [retval][out] */ BSTR *p);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Size )( 
+            ICDXFont * This,
+            /* [retval][out] */ FLOAT *p);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Style )( 
+            ICDXFont * This,
+            /* [retval][out] */ UINT *p);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Ascent )( 
+            ICDXFont * This,
+            /* [retval][out] */ FLOAT *p);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Descent )( 
+            ICDXFont * This,
+            /* [retval][out] */ FLOAT *p);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Height )( 
+            ICDXFont * This,
+            /* [retval][out] */ FLOAT *p);
+        
+        END_INTERFACE
+    } ICDXFontVtbl;
+
+    interface ICDXFont
+    {
+        CONST_VTBL struct ICDXFontVtbl *lpVtbl;
+    };
+
+    
+
+#ifdef COBJMACROS
+
+
+#define ICDXFont_QueryInterface(This,riid,ppvObject)	\
+    ( (This)->lpVtbl -> QueryInterface(This,riid,ppvObject) ) 
+
+#define ICDXFont_AddRef(This)	\
+    ( (This)->lpVtbl -> AddRef(This) ) 
+
+#define ICDXFont_Release(This)	\
+    ( (This)->lpVtbl -> Release(This) ) 
+
+
+#define ICDXFont_get_Name(This,p)	\
+    ( (This)->lpVtbl -> get_Name(This,p) ) 
+
+#define ICDXFont_get_Size(This,p)	\
+    ( (This)->lpVtbl -> get_Size(This,p) ) 
+
+#define ICDXFont_get_Style(This,p)	\
+    ( (This)->lpVtbl -> get_Style(This,p) ) 
+
+#define ICDXFont_get_Ascent(This,p)	\
+    ( (This)->lpVtbl -> get_Ascent(This,p) ) 
+
+#define ICDXFont_get_Descent(This,p)	\
+    ( (This)->lpVtbl -> get_Descent(This,p) ) 
+
+#define ICDXFont_get_Height(This,p)	\
+    ( (This)->lpVtbl -> get_Height(This,p) ) 
+
+#endif /* COBJMACROS */
+
+
+#endif 	/* C style interface */
+
+
+
+
+#endif 	/* __ICDXFont_INTERFACE_DEFINED__ */
+
+
 #ifndef __ICDXFactory_INTERFACE_DEFINED__
 #define __ICDXFactory_INTERFACE_DEFINED__
 
@@ -1078,6 +1243,12 @@ EXTERN_C const IID IID_ICDXFactory;
         virtual HRESULT STDMETHODCALLTYPE CreateScene( 
             /* [in] */ UINT reserve,
             /* [retval][out] */ ICDXScene **p) = 0;
+        
+        virtual HRESULT STDMETHODCALLTYPE GetFont( 
+            /* [in] */ BSTR name,
+            FLOAT size,
+            UINT style,
+            /* [retval][out] */ ICDXFont **p) = 0;
         
     };
     
@@ -1120,6 +1291,13 @@ EXTERN_C const IID IID_ICDXFactory;
             /* [in] */ UINT reserve,
             /* [retval][out] */ ICDXScene **p);
         
+        HRESULT ( STDMETHODCALLTYPE *GetFont )( 
+            ICDXFactory * This,
+            /* [in] */ BSTR name,
+            FLOAT size,
+            UINT style,
+            /* [retval][out] */ ICDXFont **p);
+        
         END_INTERFACE
     } ICDXFactoryVtbl;
 
@@ -1154,6 +1332,9 @@ EXTERN_C const IID IID_ICDXFactory;
 
 #define ICDXFactory_CreateScene(This,reserve,p)	\
     ( (This)->lpVtbl -> CreateScene(This,reserve,p) ) 
+
+#define ICDXFactory_GetFont(This,name,size,style,p)	\
+    ( (This)->lpVtbl -> GetFont(This,name,size,style,p) ) 
 
 #endif /* COBJMACROS */
 

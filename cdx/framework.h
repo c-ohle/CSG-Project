@@ -50,6 +50,13 @@ using namespace DirectX::PackedVector;
 extern void* baseptr, * stackptr;
 #define __align16(p) ((size_t)(p) & 0xf ? (void*)((((size_t)(p) >> 4) + 1) << 4) : p)
 
+struct Critical 
+{ 
+  Critical() { EnterCriticalSection(&p); }
+  ~Critical() { LeaveCriticalSection(&p); }
+  static CRITICAL_SECTION p;
+};
+
 template<class T>
 struct sarray
 {
@@ -162,10 +169,11 @@ struct VERTEX { XMFLOAT3 p, n; XMFLOAT2 t; };
 
 #define MO_RASTERIZER_MASK			0x00000f00
 #define MO_RASTERIZER_SHIFT			8
-#define MO_RASTERIZER_COUNT			6 //3 lh + 3 rh
+#define MO_RASTERIZER_COUNT			8 //4 lh + 4 rh
 #define MO_RASTERIZER_SOLID			0x00000000
 #define MO_RASTERIZER_WIRE			0x00000100
 #define MO_RASTERIZER_NOCULL		0x00000200
+#define MO_RASTERIZER_FRCULL    0x00000300
 
 #define MO_SAMPLERSTATE_MASK		0x0000f000
 #define MO_SAMPLERSTATE_SHIFT		12

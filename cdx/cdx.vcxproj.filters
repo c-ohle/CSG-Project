@@ -49,6 +49,9 @@
     <ClInclude Include="View.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="Font.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cdx.cpp">
@@ -73,6 +76,9 @@
       <Filter>Quelldateien</Filter>
     </ClCompile>
     <ClCompile Include="Texture.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="Font.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
   </ItemGroup>

@@ -7,6 +7,7 @@ interface ICDXView;
 interface ICDXSink;
 interface ICDXScene;
 interface ICDXNode;
+interface ICDXFont;
 
 cpp_quote("#if(0)")
 typedef IUnknown ICSGMesh;
@@ -28,8 +29,22 @@ typedef enum CDX_RENDER
 
 typedef enum CDX_CMD
 {
-  CDX_CMD_CENTER = 1
+  CDX_CMD_CENTER = 1 //FLOAT border
 } CDX_CMD;
+
+typedef enum CDX_DRAW
+{
+  CDX_DRAW_ORTHOGRAPHIC = 0,
+  CDX_DRAW_GET_TRANSFORM = 1, //XMFLOAT4X3
+  CDX_DRAW_SET_TRANSFORM = 2, //XMFLOAT4X3
+  CDX_DRAW_GET_COLOR = 3, //UINT
+  CDX_DRAW_SET_COLOR = 4, //UINT
+  CDX_DRAW_GET_FONT = 5, //ICDXFont
+  CDX_DRAW_SET_FONT = 6, //ICDXFont
+  CDX_DRAW_FILL_RECT = 7, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
+  CDX_DRAW_FILL_ELLIPSE = 8, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
+  CDX_DRAW_DRAW_TEXT = 9, //FLOAT x, FLOAT y, LPCWSTR s, UINT n  
+} CDX_DRAW;
 
 [object, uuid(4C0EC273-CA2F-48F4-B871-E487E2774492), pointer_default(unique)]
 interface ICDXView : IUnknown
@@ -47,14 +62,15 @@ interface ICDXView : IUnknown
   [propget] HRESULT OverNode([out, retval] UINT* p);
   [propget] HRESULT OverPoint([out, retval] XMFLOAT3* p);
   [propget] HRESULT OverPlane([out, retval] XMFLOAT4X4* p);
+  HRESULT Draw([in] CDX_DRAW idc, [in] UINT* data);
   HRESULT Command([in] CDX_CMD cmd, [in] UINT* data);
   HRESULT Print([in] UINT dx, [in] UINT dy, [in] UINT samples, [in] UINT bkcolor, [in] IStream* str);
 };
 
-[object, uuid(982A1DBA-0C12-4342-8F58-A34D83956F0D), pointer_default(unique)]
+[object, uuid(982A1DBA-0C12-4342-8F58-A34D83956F0D), pointer_default(unique), local]
 interface ICDXSink : IUnknown
 {
-  HRESULT Render();
+  void Render();
 };
 
 [object, uuid(98068F4F-7768-484B-A2F8-21D4F7B5D811), pointer_default(unique)]
@@ -108,6 +124,17 @@ interface ICDXNode : IUnknown
   HRESULT SetTransform([in] CSGVAR m);
 };
 
+[object, uuid(F063C32D-59D1-4A0D-B209-323268059C12), pointer_default(unique)]
+interface ICDXFont : IUnknown
+{
+  [propget] HRESULT Name([out, retval] BSTR* p);
+  [propget] HRESULT Size([out, retval] FLOAT* p);
+  [propget] HRESULT Style([out, retval] UINT* p);
+  [propget] HRESULT Ascent([out, retval] FLOAT* p);
+  [propget] HRESULT Descent([out, retval] FLOAT* p);
+  [propget] HRESULT Height([out, retval] FLOAT* p);
+};
+
 [object, uuid(f0993d73-ea2a-4bf1-b128-826d4a3ba584), pointer_default(unique)]
 interface ICDXFactory : IUnknown
 {
@@ -115,6 +142,7 @@ interface ICDXFactory : IUnknown
   HRESULT SetDevice([in] UINT id);
   HRESULT CreateView([in] HWND hwnd, [in] ICDXSink* sink, [in] UINT sampels, [out, retval] ICDXView** p);
   HRESULT CreateScene([in] UINT reserve, [out, retval] ICDXScene** p);
+  HRESULT GetFont([in] BSTR name, FLOAT size, UINT style, [out, retval] ICDXFont** p);
 };
 
 [uuid(6d43a611-b5a3-489c-aa3a-dc01bb9225e8), version(1.0)]

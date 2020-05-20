@@ -5,9 +5,9 @@
 #include "dllmain.h"
 
 CcdxModule _AtlModule;
+CRITICAL_SECTION Critical::p;
 void* baseptr, * stackptr;
 ICSGFactory* csgfac;
-extern CComPtr<ID3D11Device> device;
 
 extern "C" BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpReserved)
 {
@@ -19,6 +19,7 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpRes
 #endif
   if (dwReason == DLL_PROCESS_ATTACH)
   {
+    InitializeCriticalSection(&Critical::p);
     baseptr = stackptr = VirtualAlloc(0, 100000000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
   }
   return _AtlModule.DllMain(dwReason, lpReserved);

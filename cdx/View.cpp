@@ -129,8 +129,8 @@ HRESULT __stdcall CView::Command(CDX_CMD  cmd, UINT* data)
   {
   case CDX_CMD_CENTER:
   {
-    float rand = 50; 
-    inits(1 | 2);
+    float rand = ((float*)data)[0];
+    inits(1 | 2); setproject();
     auto& nodes = scene.p->nodes;
     auto cwm = camera.p->matrix; // gettrans(camera.p->parent ? scene.p : 0);
     auto icw = XMMatrixInverse(0, cwm);

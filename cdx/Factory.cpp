@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Factory.h"
 #include "view.h"
+#include "font.h"
 
 #include "ShaderInc\VSMain.h"
 #include "ShaderInc\VSWorld.h"
@@ -134,7 +135,7 @@ static void CreateRasterizerState(ID3D11Device* device, UINT m, UINT rh, ID3D11R
 {
   D3D11_RASTERIZER_DESC desc;
   desc.FillMode = (m & MO_RASTERIZER_MASK) == MO_RASTERIZER_WIRE ? D3D11_FILL_WIREFRAME : D3D11_FILL_SOLID;
-  desc.CullMode = (m & MO_RASTERIZER_MASK) == MO_RASTERIZER_NOCULL ? D3D11_CULL_NONE : D3D11_CULL_BACK;
+  desc.CullMode = (m & MO_RASTERIZER_MASK) == MO_RASTERIZER_NOCULL ? D3D11_CULL_NONE : (m & MO_RASTERIZER_MASK) == MO_RASTERIZER_FRCULL ? D3D11_CULL_FRONT : D3D11_CULL_BACK;
   desc.FrontCounterClockwise = rh;
   desc.DepthBias = 0;
   desc.DepthBiasClamp = 0;
@@ -190,6 +191,8 @@ CComPtr<ID3D11PixelShader>				pixelshader[MO_PSSHADER_COUNT];
 CComPtr<ID3D11InputLayout>        vertexlayout;
 CComPtr<ID3D11Buffer>             cbbuffer[3];
 void* currentbuffer[3];
+
+CComPtr<CFont>                    d_font; UINT d_blend;
 
 static void SetMode(UINT mode)
 {
@@ -261,7 +264,7 @@ static void SetIndexBuffer(ID3D11Buffer* p)
   if (currentbuffer[1] == p) return; currentbuffer[1] = p;
   context->IASetIndexBuffer(p, DXGI_FORMAT_R16_UINT, 0);
 }
-static void SetTexture(ID3D11ShaderResourceView* p)
+void SetTexture(ID3D11ShaderResourceView* p)
 {
   if (currentbuffer[2] == p) return; currentbuffer[2] = p;
   context->PSSetShaderResources(0, 1, &p);
@@ -403,6 +406,7 @@ void CView::Pick(const short* pt)
   context->ClearDepthStencilView(dsv1.p, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
   if (scene.p)
   {
+    setproject();
     auto& nodes = scene.p->nodes; const UINT stride = 32, offs = 0;
     SetMode(MO_TOPO_TRIANGLELISTADJ | MO_PSSHADER_COLOR | MO_DEPTHSTENCIL_ZWRITE);
     for (UINT i = 0; i < scene.p->count; i++)
@@ -574,6 +578,15 @@ void CView::RenderScene()
   }
 }
 
+void CView::setproject()
+{
+  auto vpx = viewport.Width * znear * vscale; //var vp = size * (vscale * z1);
+  auto vpy = viewport.Height * znear * vscale;
+  SetMatrix(MM_VIEWPROJ, XMMatrixInverse(0,
+    camera.p->gettrans(camera.p->parent ? scene.p : 0)) *
+    XMMatrixPerspectiveOffCenterLH(vpx, -vpx, -vpy, vpy, znear, zfar));
+}
+
 void CView::Render()
 {
   context.p->RSSetViewports(1, &viewport);
@@ -582,14 +595,7 @@ void CView::Render()
   context.p->ClearRenderTargetView(rtv.p, vv[VV_BKCOLOR].m128_f32);
   if (scene.p)
   {
-    if (!camera.p) inits(1);
-    auto vpx = viewport.Width * znear * vscale; //var vp = size * (vscale * z1);
-    auto vpy = viewport.Height * znear * vscale;
-    auto m0 = XMMatrixInverse(0,
-      camera.p->gettrans(camera.p->parent ? scene.p : 0)) *
-      XMMatrixPerspectiveOffCenterLH(vpx, -vpx, -vpy, vpy, znear, zfar);
-    SetMatrix(MM_VIEWPROJ, m0);
-
+    if (!camera.p) inits(1); setproject();
     SetColor(VV_AMBIENT, 0x00404040);
     auto light = XMVector3Normalize(XMVectorSet(1, -1, 2, 0));
     SetVector(VV_LIGHTDIR, flags & CDX_RENDER_SHADOWS ? XMVectorSetW(XMVectorMultiply(light, XMVectorSet(0.3f, 0.3f, 0.3f, 0)), minwz) : light);
@@ -686,19 +692,21 @@ void CView::Render()
           box[1] = XMVectorMax(box[1], p);
         }
       }
-
-      if (flags & CDX_RENDER_COORDINATES)
+      if (XMVector3LessOrEqual(box[0], box[1]))
       {
-        XMVECTOR ma = box[1] + XMVectorReplicate(0.3f), va = XMVectorReplicate(0.2f), vt;
-        SetVector(VV_LIGHTDIR, light);
-        SetMatrix(MM_WORLD, XMMatrixIdentity());
-        SetColor(VV_DIFFUSE, 0xffff0000); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskX)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskX), 0.05f);
-        SetColor(VV_DIFFUSE, 0xff00ff00); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskY)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskY), 0.05f);
-        SetColor(VV_DIFFUSE, 0xff0000ff); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskZ)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskZ), 0.05f);
-      }
-      if (flags & CDX_RENDER_BOUNDINGBOX)
-      {
-        SetColor(VV_DIFFUSE, 0xffffffff); DrawBox(box[0], box[1]);
+        if (flags & CDX_RENDER_COORDINATES)
+        {
+          XMVECTOR ma = box[1] + XMVectorReplicate(0.3f), va = XMVectorReplicate(0.2f), vt;
+          SetVector(VV_LIGHTDIR, light);
+          SetMatrix(MM_WORLD, XMMatrixIdentity());
+          SetColor(VV_DIFFUSE, 0xffff0000); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskX)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskX), 0.05f);
+          SetColor(VV_DIFFUSE, 0xff00ff00); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskY)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskY), 0.05f);
+          SetColor(VV_DIFFUSE, 0xff0000ff); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskZ)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskZ), 0.05f);
+        }
+        if (flags & CDX_RENDER_BOUNDINGBOX)
+        {
+          SetColor(VV_DIFFUSE, 0xffffffff); DrawBox(box[0], box[1]);
+        }
       }
     }
     if (transp != 0)
@@ -718,7 +726,12 @@ void CView::Render()
       }
     }
   }
+  if (sink.p)
+  {
+    sink.p->Render();
+  }
   auto hr = swapchain.p->Present(0, 0);
+  XMASSERT(stackptr == baseptr);
 }
 
 HRESULT CView::get_Samples(BSTR* p)
@@ -847,23 +860,9 @@ HRESULT CreateDevice()
   return 0;
 }
 
-HRESULT __stdcall CFactory::get_Devices(BSTR* p)
-{
-  if (!device.p) CHR(CreateDevice());
-  CComQIPtr<IDXGIDevice> dev(device);
-  CComPtr<IDXGIAdapter> adapter; dev->GetAdapter(&adapter.p);
-  CComPtr<IDXGIFactory> factory; adapter->GetParent(__uuidof(IDXGIFactory), (void**)&factory);
-  DXGI_ADAPTER_DESC desc; adapter->GetDesc(&desc);
-  CComBSTR ss; WCHAR tt[32]; wsprintf(tt, L"%i", desc.DeviceId); ss = tt; adapter.Release();
-  for (UINT t = 0; factory->EnumAdapters(t, &adapter) == 0; adapter.Release(), t++)
-  {
-    adapter->GetDesc(&desc); wsprintf(tt, L"\n%i\n", desc.DeviceId); ss += tt; ss += desc.Description;
-  }
-  return ss.CopyTo(p);
-}
 void releasedx()
 {
-  for (auto p = CView::first; p; p = p->next) p->relres(1 | 2);
+  for (auto p = CView::first; p; p = p->next) p->relres(1 | 2); CFont::relres();
   for (UINT i = 0; i < sizeof(cbbuffer) / sizeof(void*); i++) cbbuffer[i].Release();
   for (UINT i = 0; i < sizeof(vertexshader) / sizeof(void*); i++) vertexshader[i].Release();
   for (UINT i = 0; i < sizeof(depthstencilstates) / sizeof(void*); i++) depthstencilstates[i].Release();
@@ -881,9 +880,26 @@ void releasedx()
   int rc = device.p->Release(); device.p = 0;
   XMASSERT(rc == 0);
 }
+
+HRESULT __stdcall CFactory::get_Devices(BSTR* p)
+{
+  if (!device.p) CHR(CreateDevice());
+  CComQIPtr<IDXGIDevice> dev(device);
+  CComPtr<IDXGIAdapter> adapter; dev->GetAdapter(&adapter.p);
+  CComPtr<IDXGIFactory> factory; adapter->GetParent(__uuidof(IDXGIFactory), (void**)&factory);
+  DXGI_ADAPTER_DESC desc; adapter->GetDesc(&desc);
+  CComBSTR ss; WCHAR tt[32]; wsprintf(tt, L"%i", desc.DeviceId); ss = tt; adapter.Release();
+  for (UINT t = 0, last = -1; factory->EnumAdapters(t, &adapter) == 0; adapter.Release(), t++)
+  {
+    adapter->GetDesc(&desc); if (desc.DeviceId == last) continue;
+    wsprintf(tt, L"\n%i\n", last = desc.DeviceId); ss += tt; ss += desc.Description;
+  }
+  return ss.CopyTo(p);
+}
+
 HRESULT __stdcall CFactory::SetDevice(UINT id)
 {
-  if (id == -1) { releasedx(); return 0; }
+  if (id == -1) { d_font.Release(); releasedx(); return 0; }
   if (adapterid == id) return 0;
   adapterid = id; if (device.p == 0) return 0;
   releasedx(); CHR(CreateDevice());
@@ -904,4 +920,63 @@ HRESULT __stdcall CFactory::CreateScene(UINT reserve, ICDXScene** p)
   return 0;
 }
 
+HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
+{
+  switch (id)
+  {
+  case CDX_DRAW_ORTHOGRAPHIC:
+    SetMatrix(MM_VIEWPROJ, XMMatrixOrthographicOffCenterLH(0, viewport.Width, viewport.Height, 0, -1, 1));
+    SetMatrix(MM_WORLD, XMMatrixIdentity());
+    return 0;
+  case CDX_DRAW_GET_TRANSFORM:
+    XMStoreFloat4x3((XMFLOAT4X3*)data, mm[MM_WORLD]);
+    return 0;
+  case CDX_DRAW_SET_TRANSFORM:
+    SetMatrix(MM_WORLD, XMLoadFloat4x3((XMFLOAT4X3*)data));
+    return 0;
+  case CDX_DRAW_GET_COLOR:
+    XMStoreColor((XMCOLOR*)data, vv[VV_DIFFUSE]);
+    return 0;
+  case CDX_DRAW_SET_COLOR:
+    SetColor(VV_DIFFUSE, data[0]); d_blend = data[0] >> 24 != 0xff ? MO_BLENDSTATE_ALPHA : 0;
+    return 0;
+  case CDX_DRAW_GET_FONT:
+    return d_font.CopyTo((CFont**)data);
+  case CDX_DRAW_SET_FONT:
+    d_font = (CFont*)data;
+    return 0;
+  case CDX_DRAW_FILL_RECT:
+  {
+    auto p = BeginVertices(4);
+    p[0].p.x = p[2].p.x = ((float*)data)[0];
+    p[0].p.y = p[1].p.y = ((float*)data)[1];
+    p[1].p.x = p[3].p.x = ((float*)data)[0] + ((float*)data)[2];
+    p[2].p.y = p[3].p.y = ((float*)data)[1] + ((float*)data)[3];
+    EndVertices(4, MO_TOPO_TRIANGLESTRIP | MO_PSSHADER_COLOR | MO_RASTERIZER_NOCULL | d_blend);
+    return 0;
+  }
+  case CDX_DRAW_FILL_ELLIPSE:
+  {
+    float dx = ((float*)data)[2] * 0.5f, dy = ((float*)data)[3] * 0.5f, x = dx + ((float*)data)[0], y = dy + ((float*)data)[1];
+    auto se = (int)(max(abs(dx), abs(dy)) * 0.25f);
+    se = max(8, min(100, se)) >> 1 << 1; //var tt = (int)((float)Math.Pow(Math.Max(Math.Abs(rx), Math.Abs(ry)), 0.95f) * dc.PixelScale);
+    auto fa = (2 * XM_PI) / se; auto nv = se + 2;
+    auto vv = BeginVertices(nv);
+    for (int i = 0, j = 0; j < nv; i++)
+    {
+      float u, v; XMScalarSinCosEst(&u, &v, i * fa); u *= dx; v *= dy;
+      vv[j].p.x = x + u; vv[j++].p.y = y + v;
+      vv[j].p.x = x - u; vv[j++].p.y = y + v;
+    }
+    EndVertices(nv, MO_TOPO_TRIANGLESTRIP | MO_PSSHADER_COLOR | MO_RASTERIZER_NOCULL | d_blend);
+    return 0;
+  }
+  case CDX_DRAW_DRAW_TEXT:
+  {
+    d_font.p->draw(this, ((float*)data)[0], ((float*)data)[1], *(LPCWSTR*)(data + 2), *(UINT*)((LPCWSTR*)(data + 2) + 1));
+    return 0;
+  }
+  }
+  return E_FAIL;
+}
 

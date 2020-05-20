@@ -27,6 +27,7 @@ public:
 	HRESULT __stdcall SetSamples(UINT id);
 	HRESULT __stdcall CreateView(HWND hwnd, ICDXSink* sink, UINT samp, ICDXView** p);
 	HRESULT __stdcall CreateScene(UINT reserve, ICDXScene** p);
+	HRESULT __stdcall GetFont(BSTR name, FLOAT size, UINT style, ICDXFont** p);
 };
 
 OBJECT_ENTRY_AUTO(__uuidof(Factory), CFactory)

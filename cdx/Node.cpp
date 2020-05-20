@@ -113,7 +113,7 @@ void CNode::update(XMFLOAT3* pp, UINT np, UINT* ii, UINT ni, float smooth, void*
         auto nt = XMLoadFloat3(&vv[j].n);
         if (XMVector3LessOrEqual(XMVector3LengthSq((c == 1 ? nt : XMVector3Normalize(nt)) - vn), vsmooth))
         {
-          XMStoreFloat3(&vv[j].n, vn + nt); 
+          XMStoreFloat3(&vv[j].n, vn + nt);
           *(UINT*)&vv[j].t.x = c + 1; break;
         }
         auto l = *(UINT*)&vv[j].t.y; if (l != 0) { j = l - 1; continue; }
@@ -249,16 +249,29 @@ void Material::serialize(Archive& ar)
   else fl = ar.ReadCount();
   if (fl & 1) ar.SerialCount(i); ar.SerialCount(n);
   ar.Serialize(&color);
-  if (fl & 2)
+  if (!(fl & 2)) return;
+
+  UINT x; IStream* ss, * ds;
+  if (ar.storing)
   {
-    assert(0); //todo: //ar.Serialize(str);
+    x = ar.getmap(str.p); ar.WriteCount(x); if (x != 0) return;
+    ar.addmap(str.p); STATSTG stat; str.p->Stat(&stat, STATFLAG_NONAME);
+    x = *(UINT*)&stat.cbSize; ar.WriteCount(x);
+    UINT64 l = 0; str.p->Seek(*(LARGE_INTEGER*)&l, 0, 0); ss = str.p; ds = ar.str;
   }
+  else
+  {
+    x = ar.ReadCount(); if (x != 0) { str = (IStream*)ar.map.p[x - 1]; return; }
+    x = ar.ReadCount(); str = SHCreateMemStream(0, 0); ar.addmap(str.p); ss = ar.str; ds = str.p;
+  }
+  UINT nv = 32768; auto pv = _alloca(nv);
+  while (x) { ULONG c = min(x, nv); x -= c; ss->Read(pv, c, 0); ds->Write(pv, c, 0); }
 }
 void CNode::serialize(Archive& ar)
 {
   if (ar.storing)
   {
-    UINT fl = (name.n ? 1 : 0) | (transform.p ? 2 : 0) | (mesh.p ? 4 : 0) | (materials.n ? 8 : 0);
+    UINT fl = (name.n ? 1 : 0) | (transform.p ? 2 : 0) | (mesh.p ? 4 : 0) | (materials.n ? 8 : 0) | (texcoords.p ? 0x10 : 0);
     ar.WriteCount(fl);
     if (fl & 1) { ar.WriteCount(name.n); ar.Write(name.p, name.n); }
     if (fl & 2) transform.p->WriteToStream(ar.str, 0, 12);
@@ -269,6 +282,15 @@ void CNode::serialize(Archive& ar)
       if (x == 0) { ar.addmap(mesh.p); mesh.p->WriteToStream(ar.str); }
     }
     if (fl & 8) ar.WriteCount(materials.n);
+    if (fl & 0x10)
+    {
+      UINT x = ar.getmap(texcoords.p); ar.WriteCount(x);
+      if (x == 0) 
+      { 
+        ar.addmap(texcoords.p); ar.WriteCount(texcoords.p->n); 
+        ar.str->Write(texcoords.p->p, texcoords.p->n * sizeof(XMFLOAT2), 0); 
+      }
+    }
   }
   else
   {
@@ -287,6 +309,18 @@ void CNode::serialize(Archive& ar)
       else mesh = (ICSGMesh*)ar.map.p[x - 1];
     }
     if (fl & 8) materials.setsize(ar.ReadCount());
+    if (fl & 0x10)
+    {
+      UINT x = ar.ReadCount();
+      if (x == 0) 
+      {
+        texcoords.p = new CTexCoords(); ar.addmap(texcoords.p);
+        texcoords.p->setsize(ar.ReadCount());
+        ar.str->Read(texcoords.p->p, texcoords.p->n * sizeof(XMFLOAT2), 0);
+     }
+      else texcoords = (CTexCoords*)ar.map.p[x - 1];
+    }
+  
   }
   for (UINT i = 0; i < materials.n; i++) materials.p[i].serialize(ar);
 }

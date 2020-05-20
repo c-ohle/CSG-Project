@@ -206,13 +206,17 @@ namespace csg3mf
     {
       Text = string.Format("{0} - {1} {2} Bit {3}", path ?? string.Format("({0})", "Untitled"), Application.ProductName, Environment.Is64BitProcess ? "64" : "32", COM.DEBUG ? "Debug" : "Release");
     }
-    void Open(string path)
+    unsafe void Open(string path)
     {
       Cursor.Current = Cursors.WaitCursor;
       string script = null;
       if (path == null) { view.cont = new Container(); script = "using static csg3mf.CSG;\n"; }
       else if (path != null && path.EndsWith(".3cs", true, null)) { view.cont = new Container(); script = File.ReadAllText(path); }
       else view.cont = csg3mf.Container.Import3MF(path, out script);
+      //var str = COM.SHCreateMemStream();
+      //view.cont.Nodes.SaveToStream(str); long x; str.Seek(0, 2, &x);
+      //str.Seek(0); view.cont.Nodes.Clear();
+      //view.cont.Nodes.LoadFromStream(str); str.Seek(0, 1, &x);
       NeuronEditor.InitNeuron(view.cont, script ?? "");
       var e = new NeuronEditor { Dock = DockStyle.Fill, Tag = view.cont };
       splitter.Panel1.Controls.Add(e); e.BringToFront(); splitter.Panel1.Update();
@@ -363,7 +367,7 @@ namespace csg3mf
       WindowState = z ? FormWindowState.Maximized : FormWindowState.Normal;
     }
 
-    unsafe class View : UserControl
+    unsafe class View : UserControl, CDX.ISink
     {
       internal Container cont;
       internal Action Timer;
@@ -374,7 +378,7 @@ namespace csg3mf
         var reg = Application.UserAppDataRegistry;
         var drv = reg.GetValue("drv"); if (drv is long v) drvsettings = v;
         CDX.Factory.SetDevice((uint)drvsettings);
-        view = CDX.Factory.CreateView(Handle, null, (uint)(drvsettings >> 32));
+        view = CDX.Factory.CreateView(Handle, this, (uint)(drvsettings >> 32));
         view.Render = (CDX.Render)reg.GetValue("fl", (int)(CDX.Render.BoundingBox | CDX.Render.Coordinates | CDX.Render.Wireframe | CDX.Render.Shadows));
         view.BkColor = 0xffcccccc;
         view.Scene = cont.Nodes;
@@ -412,7 +416,7 @@ namespace csg3mf
       {
         if (!view.Scene.Descendants().Any(p => p.Mesh != null && p.Mesh.VertexCount != 0)) return 0;
         if (test != null) return 1;
-        float abst = 100; view.Command(CDX.Cmd.Center, new IntPtr(&abst));
+        float abst = 100; view.Command(CDX.Cmd.Center, &abst);
         Invalidate(); return 1;
       }
 
@@ -483,6 +487,39 @@ namespace csg3mf
       internal void onstep()
       {
         Invalidate();
+      }
+
+      CDX.IFont font = CDX.Factory.GetFont("Arial", 13, System.Drawing.FontStyle.Bold);
+
+      void CDX.ISink.Render()
+      {
+        var dc = new CDX.DC(view);
+        dc.SetOrtographic();
+
+        var ss = cont.Infos; 
+        dc.Font = font;
+        dc.Color = 0x80000000;
+        var y = 10 + font.Ascent;
+        for (int i = 0; i < ss.Count; i++, y += font.Height)
+          dc.DrawText(10, y, ss[i]);
+
+        // dc.Transform *= move(0, 300, 0);
+        // dc.Color = 0x80ff0000; dc.FillRect(00, 00, 40, 15);
+        // dc.Color = 0x8000ff00; dc.FillRect(10, 10, 40, 15);
+        // dc.Color = 0x800000ff; dc.FillRect(20, 20, 40, 15);
+        // 
+        // //dc.Transform *= scale(3, 3, 3);
+        // dc.Color = 0x80ff0000; dc.FillEllipse(00, 50 + 00, 40, 15);
+        // dc.Color = 0x8000ff00; dc.FillEllipse(10, 50 + 10, 40, 15);
+        // dc.Color = 0x800000ff; dc.FillEllipse(20, 50 + 20, 40, 15);
+        // 
+        // dc.Font = CDX.Factory.GetFont("Arial", 72, 0);
+        // dc.Color = 0xff000000;
+        // dc.DrawText(100, 100, "Hello World!");
+        // dc.DrawText(100, 200, "Text 123 Ready");
+        // //dc.DrawText(100, 100, "He");
+
+
       }
     }
 

@@ -45,6 +45,7 @@ struct CView : ICDXView
   void SetColor(UINT i, UINT v);
   void XM_CALLCONV SetVector(UINT i, const XMVECTOR& p);
   void XM_CALLCONV SetMatrix(UINT i, const XMMATRIX& p);
+  void setproject();
   void Render();
   void RenderScene();
   void Pick(const short* pt);
@@ -117,6 +118,7 @@ struct CView : ICDXView
   {
     XMStoreFloat4x4(p, mm[MM_PLANE]); return 0;
   }
+  HRESULT __stdcall Draw(CDX_DRAW id, UINT* data);
   HRESULT __stdcall Command(CDX_CMD  cmd, UINT* data);
   HRESULT __stdcall Print(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* str);
 };

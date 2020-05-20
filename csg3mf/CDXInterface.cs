@@ -22,6 +22,7 @@ namespace csg3mf
       void SetDevice(uint id);
       IView CreateView(IntPtr wnd, ISink sink, uint samples);
       IScene CreateScene(int reserve = 0);
+      IFont GetFont(string name, float size, System.Drawing.FontStyle style);
     }
 
     public enum Render
@@ -39,6 +40,17 @@ namespace csg3mf
       Center = 1
     }
 
+    public enum Draw
+    {
+      Orthographic = 0,
+      GetTransform = 1, SetTransform = 2,
+      GetColor = 3, SetColor = 4,
+      GetFont = 5, SetFont = 6,
+      FillRect = 7,
+      FillEllipse = 8,
+      DrawText = 9,
+    }
+
     [ComImport, Guid("4C0EC273-CA2F-48F4-B871-E487E2774492"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     public interface IView
     {
@@ -50,14 +62,15 @@ namespace csg3mf
       int MouseOverNode { get; }
       float3 MouseOverPoint { get; }
       float4x4 MouseOverPlane { get; }
-      void Command(Cmd id, IntPtr data);
+      void Draw(Draw draw, void* data);
+      void Command(Cmd cmd, void* data);
       void Print(int dx, int dy, int samples, uint bkcolor, COM.IStream str);
     }
 
     [ComImport, Guid("982A1DBA-0C12-4342-8F58-A34D83956F0D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     public interface ISink
     {
-      void Render();
+      [PreserveSig] void Render();
     }
 
     [ComImport, Guid("98068F4F-7768-484B-A2F8-21D4F7B5D811"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
@@ -89,6 +102,17 @@ namespace csg3mf
       void SetTexturCoords(CSG.Variant v);
       INode AddNode(string name);
       void SetTransform(CSG.Variant v);
+    }
+
+    [ComImport, Guid("F063C32D-59D1-4A0D-B209-323268059C12"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
+    public interface IFont
+    {
+      string Name { get; }
+      float Size { get; }
+      int Style { get; }
+      float Ascent { get; }
+      float Descent { get; }
+      float Height { get; }
     }
 
     public static float4x3 GetTransformF(this INode p, INode site = null)
@@ -135,9 +159,52 @@ namespace csg3mf
       COM.IStream s; if (tex != null) fixed (byte* p = tex) s = COM.SHCreateMemStream(p, tex.Length); else s = null;
       node.SetMaterial(i, -1, -1, color, s);
     }
-    public static void SetTexturCoords(this INode node, float2[] a) 
+    public static void SetTexturCoords(this INode node, float2[] a)
     {
       fixed (float2* p = a) node.SetTexturCoords(new CSG.Variant(&p->x, 2, a.Length));
+    }
+
+    public struct DC
+    {
+      IView p;
+      public DC(IView p) => this.p = p;
+      public void SetOrtographic()
+      {
+        p.Draw(Draw.Orthographic, null);
+      }
+      public float4x3 Transform
+      {
+        get { float4x3 c; p.Draw(Draw.GetTransform, &c); return c; }
+        set => p.Draw(Draw.SetTransform, &value);
+      }
+      public uint Color
+      {
+        get { uint c; p.Draw(Draw.GetColor, &c); return c; }
+        set => p.Draw(Draw.SetColor, &value);
+      }
+      public IFont Font
+      {
+        get
+        {
+          IntPtr t; p.Draw(Draw.GetFont, &t); if (t == IntPtr.Zero) return null;
+          var f = (IFont)Marshal.GetObjectForIUnknown(t); Marshal.Release(t); return f;
+        }
+        set { var t = Marshal.GetIUnknownForObject(value); p.Draw(Draw.SetFont, t.ToPointer()); Marshal.Release(t); }
+      }
+      public void FillRect(float x, float y, float dx, float dy)
+      {
+        var r = new float4(x, y, dx, dy); p.Draw(Draw.FillRect, &r);
+      }
+      public void FillEllipse(float x, float y, float dx, float dy)
+      {
+        var r = new float4(x, y, dx, dy); p.Draw(Draw.FillEllipse, &r);
+      }
+      public void DrawText(float x, float y, string s)
+      {
+        float2x3 v; var f = (float*)&v; f[0] = x; f[1] = y; 
+        var o = (char**)(f + 2); *(int*)(o + 1) = s.Length;
+        fixed (char* t = s) { *o = t; p.Draw(Draw.DrawText, &v); } 
+      }
     }
   }
 

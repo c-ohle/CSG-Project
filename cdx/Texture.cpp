@@ -13,7 +13,7 @@ extern CComPtr<ID3D11Device> device;
 extern CComPtr<ID3D11DeviceContext> context;
 DXGI_SAMPLE_DESC chksmp(ID3D11Device* device, UINT samples);
 
-static HRESULT CreateTexture(UINT dx, UINT dy, UINT pitch, DXGI_FORMAT fmt, UINT mips, void* p, ID3D11ShaderResourceView** srv)
+HRESULT CreateTexture(UINT dx, UINT dy, UINT pitch, DXGI_FORMAT fmt, UINT mips, void* p, ID3D11ShaderResourceView** srv)
 {
   if (pitch == 0) pitch = fmt == DXGI_FORMAT_A8_UNORM ? dx : dx << 2;
   D3D11_TEXTURE2D_DESC td = { 0 }; D3D11_SHADER_RESOURCE_VIEW_DESC rv; memset(&rv, 0, sizeof(rv));

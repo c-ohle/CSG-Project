@@ -259,6 +259,7 @@
     <ClInclude Include="cdx_i.h" />
     <ClInclude Include="dllmain.h" />
     <ClInclude Include="Factory.h" />
+    <ClInclude Include="Font.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
@@ -297,6 +298,7 @@
       </PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Factory.cpp" />
+    <ClCompile Include="Font.cpp" />
     <ClCompile Include="Node.cpp">
       <AssemblerOutput Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
       </AssemblerOutput>
