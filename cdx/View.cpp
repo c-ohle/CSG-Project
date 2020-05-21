@@ -123,7 +123,7 @@ void CView::inits(int fl)
   }
 }
 
-HRESULT __stdcall CView::Command(CDX_CMD  cmd, UINT* data)
+HRESULT __stdcall CView::Command(CDX_CMD cmd, UINT* data)
 {
   switch (cmd)
   {
@@ -170,6 +170,27 @@ HRESULT __stdcall CView::Command(CDX_CMD  cmd, UINT* data)
     z1 = powf(10, roundf(log10f(z1)) - 1);
     z2 = powf(10, roundf(log10f(z2)) + 2);
     znear = z1; zfar = z2; minwz = box[0].m128_f32[2];
+  }
+  break;
+  case CDX_CMD_GETBOX:
+  {
+    auto ma = XMLoadFloat4x3((XMFLOAT4X3*)data);
+    auto& nodes = scene.p->nodes;
+    XMVECTOR box[4]; box[1] = box[3] = -(box[0] = box[2] = g_XMFltMax);
+    for (UINT i = 0; i < scene.p->count; i++)
+    {
+      auto& node = *nodes.p[i]; if (!node.ib.p) continue;
+      auto& pts = *HullPoints::get(node);
+      auto wm = node.gettrans(scene.p) * ma;
+      for (UINT i = 0; i < pts.n; i++)
+      {
+        auto p = XMVector3Transform(XMLoadFloat3(&pts.p[i]), wm);
+        box[0] = XMVectorMin(box[0], p);
+        box[1] = XMVectorMax(box[1], p);
+      }
+    }
+    XMStoreFloat4(((XMFLOAT4*)data) + 0, box[0]);
+    XMStoreFloat4(((XMFLOAT4*)data) + 1, box[1]);
   }
   break;
   }

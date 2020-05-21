@@ -1811,10 +1811,10 @@ namespace csg3mf
             for (int i = usingst.Count - 1; i >= 0; i--)
             {
               var xx = usingst[i].GetMember(ss, BindingFlags.Static | BindingFlags.Public);
-              if (xx.Length != 0)
+              for (int t = 0; t < xx.Length; t++)
               {
-                //if (xx[0] is Type) { type = usingst[i]; }
-                atbase = true; basetype = usingst[i]; break;
+                if (xx[t].MemberType == MemberTypes.Method && !(b.Length > 1 && b[1].Equals('('))) continue;
+                atbase = true; basetype = usingst[i]; i = -1; break;
               }
             }
           if (!atbase)

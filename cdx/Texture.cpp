@@ -118,6 +118,7 @@ HRESULT CView::Print(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* str)
   context->ClearDepthStencilView(dsv.p, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
   
   auto t1 = flags; flags = (CDX_RENDER)(flags & ~(CDX_RENDER_BOUNDINGBOX | CDX_RENDER_COORDINATES | CDX_RENDER_NORMALS | CDX_RENDER_WIREFRAME | CDX_RENDER_OUTLINES));
+  setproject();
   RenderScene(); flags = t1;
 
   dsv.Release(); ds.Release(); rtv.Release();

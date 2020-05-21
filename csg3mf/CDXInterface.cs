@@ -2,13 +2,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
 using System.Security;
-using static csg3mf.D3DView;
 
 namespace csg3mf
 {
-  public static unsafe class CDX
+  public static unsafe partial class CDX
   {
     public static readonly IFactory Factory = COM.CreateInstance<IFactory>(IntPtr.Size == 8 ? "cdx64.dll" : "cdx32.dll", typeof(CFactory).GUID);
 
@@ -37,7 +35,8 @@ namespace csg3mf
 
     public enum Cmd
     {
-      Center = 1
+      Center = 1, //float border
+      GetBox = 2, //in float4x3, out float4[2] 
     }
 
     public enum Draw
@@ -121,11 +120,11 @@ namespace csg3mf
       if (p.Parent == site) return p.TransformF;
       return p.TransformF * p.Parent.GetTransformF(site);
     }
-    public static IEnumerable<INode> Descendants(this IScene p)
+    public static IEnumerable<INode> Nodes(this IScene p)
     {
       for (int i = 0; i < p.Count; i++) yield return p[i];
     }
-    public static IEnumerable<INode> Descendants(this INode p) => p.Scene.Descendants().Where(t => t.Parent == p);
+    public static IEnumerable<INode> Nodes(this INode p) => p.Scene.Nodes().Where(t => t.Parent == p);
     public static void Join(this INode a, INode b, CSG.JoinOp op)
     {
       if (a.Mesh == null || b.Mesh == null) return;
@@ -199,13 +198,396 @@ namespace csg3mf
       {
         var r = new float4(x, y, dx, dy); p.Draw(Draw.FillEllipse, &r);
       }
+      struct t1 { public float x, y; public char* s; public int n; }
       public void DrawText(float x, float y, string s)
       {
-        float2x3 v; var f = (float*)&v; f[0] = x; f[1] = y; 
-        var o = (char**)(f + 2); *(int*)(o + 1) = s.Length;
-        fixed (char* t = s) { *o = t; p.Draw(Draw.DrawText, &v); } 
+        t1 v; v.x = x; v.y = y; v.n = s.Length;
+        fixed (char* t = s) { v.s = t; p.Draw(Draw.DrawText, &v); }
       }
     }
   }
 
+  public static unsafe partial class CDX
+  {
+    public struct float2 : IEquatable<float2>
+    {
+      public float x, y;
+      public override string ToString()
+      {
+        return $"{x:R}; {y:R}";
+      }
+      public float2(float x, float y)
+      {
+        this.x = x; this.y = y;
+      }
+      public float2(double a)
+      {
+        x = (float)Math.Cos(a); if (Math.Abs(x) == 1) { y = 0; return; }
+        y = (float)Math.Sin(a); if (Math.Abs(y) == 1) { x = 0; return; }
+      }
+      public override int GetHashCode()
+      {
+        var h1 = (uint)x.GetHashCode();
+        var h2 = (uint)y.GetHashCode();
+        h2 = ((h2 << 7) | (h1 >> 25)) ^ h1;
+        h1 = ((h1 << 7) | (h2 >> 25)) ^ h2;
+        return (int)h1;
+      }
+      public bool Equals(float2 v)
+      {
+        return x == v.x && y == v.y;
+      }
+      public override bool Equals(object obj)
+      {
+        return obj is float2 && Equals((float2)obj);
+      }
+      public static implicit operator float2((float x, float y) p)
+      {
+        float2 v; v.x = p.x; v.y = p.y; return v;
+      }
+      public static implicit operator float2(System.Drawing.Size p)
+      {
+        float2 v; v.x = p.Width; v.y = p.Height; return v;
+      }
+      public static implicit operator float2(System.Drawing.Point p)
+      {
+        float2 v; v.x = p.X; v.y = p.Y; return v;
+      }
+      public float LengthSq => x * x + y * y;
+      public static bool operator ==(float2 a, float2 b) { return a.x == b.x && a.y == b.y; }
+      public static bool operator !=(float2 a, float2 b) { return a.x != b.x || a.y != b.y; }
+      public static float2 operator -(float2 v) { v.x = -v.x; v.y = -v.y; return v; }
+      public static float2 operator *(float2 v, float f)
+      {
+        v.x *= f; v.y *= f; return v;
+      }
+      public static float2 operator /(float2 v, float f)
+      {
+        v.x /= f; v.y /= f; return v;
+      }
+      public static float2 operator /(float2 a, float2 b)
+      {
+        a.x /= b.x; a.y /= b.y; return a;
+      }
+      public static float2 operator /(float f, float2 v)
+      {
+        v.x = f / v.x; v.y = f / v.y; return v;
+      }
+      public static float2 operator +(float2 a, float2 b) { a.x = a.x + b.x; a.y = a.y + b.y; return a; }
+      public static float2 operator -(float2 a, float2 b) { a.x = a.x - b.x; a.y = a.y - b.y; return a; }
+      public static float2 operator *(float2 a, float2 b) { a.x = a.x * b.x; a.y = a.y * b.y; return a; }
+      public static float2 operator ~(float2 v) { float2 b; b.x = -v.y; b.y = v.x; return b; }
+      public static float operator ^(float2 a, float2 b) => a.x * b.y - a.y * b.x;
+      public static float operator &(float2 a, float2 b) => a.x * b.x + a.y * b.y;
+    }
+    public struct float3 : IEquatable<float3>
+    {
+      public float x, y, z;
+      public override string ToString()
+      {
+        return $"{x:R}; {y:R}; {z:R}";
+      }
+      public override int GetHashCode()
+      {
+        var h1 = (uint)x.GetHashCode();
+        var h2 = (uint)y.GetHashCode();
+        var h3 = (uint)z.GetHashCode();
+        h2 = ((h2 << 7) | (h3 >> 25)) ^ h3;
+        h1 = ((h1 << 7) | (h2 >> 25)) ^ h2;
+        return (int)h1;
+      }
+      public bool Equals(float3 v)
+      {
+        return x == v.x && y == v.y && z == v.z;
+      }
+      public override bool Equals(object obj)
+      {
+        return obj is float3 && Equals((float3)obj);
+      }
+      public float3(float x, float y, float z)
+      {
+        this.x = x; this.y = y; this.z = z;
+      }
+      public float LengthSq => x * x + y * y + z * z;
+      public float Length => (float)Math.Sqrt(x * x + y * y + z * z);
+      public float3 Normalize() { var l = Length; return l != 0 ? this / l : default; }
+      public static implicit operator float3(float p)
+      {
+        float3 b; b.x = p; b.y = b.z = 0; return b;
+      }
+      public static implicit operator float3(float2 p)
+      {
+        float3 b; b.x = p.x; b.y = p.y; b.z = 0; return b;
+      }
+      public static explicit operator float2(float3 p)
+      {
+        float2 b; b.x = p.x; b.y = p.y; return b;
+      }
+      public static bool operator ==(float3 a, float3 b)
+      {
+        return a.x == b.x && a.y == b.y && a.z == b.z;
+      }
+      public static bool operator !=(float3 a, float3 b)
+      {
+        return a.x != b.x || a.y != b.y || a.z != b.z;
+      }
+      public static float3 operator -(float3 v)
+      {
+        v.x = -v.x; v.y = -v.y; v.z = -v.z; return v;
+      }
+      public static float3 operator +(float3 a, float3 b)
+      {
+        a.x += b.x; a.y += b.y; a.z += b.z; return a;
+      }
+      public static float3 operator -(float3 a, float3 b)
+      {
+        a.x -= b.x; a.y -= b.y; a.z -= b.z; return a;
+      }
+      public static float3 operator *(float3 v, float f)
+      {
+        v.x *= f; v.y *= f; v.z *= f; return v;
+      }
+      public static float3 operator /(float3 v, float f)
+      {
+        v.x /= f; v.y /= f; v.z /= f; return v;
+      }
+      public static float3 operator /(float3 a, float3 b)
+      {
+        a.x /= b.x; a.y /= b.y; a.z /= b.z; return a;
+      }
+      public static float3 operator ^(float3 a, float3 b)
+      {
+        float3 c;
+        c.x = a.y * b.z - a.z * b.y;
+        c.y = a.z * b.x - a.x * b.z;
+        c.z = a.x * b.y - a.y * b.x;
+        return c;
+      }
+      public static float operator &(float3 a, float3 b)
+      {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+      }
+    }
+    public struct float4 : IEquatable<float4>
+    {
+      public float x, y, z, w;
+      public float4(float x, float y, float z, float w)
+      {
+        this.x = x; this.y = y; this.z = z; this.w = w;
+      }
+      public override string ToString()
+      {
+        return $"{x:R}; {y:R}; {z:R}; {w:R}";
+      }
+      public override int GetHashCode()
+      {
+        var h1 = (uint)x.GetHashCode();
+        var h2 = (uint)y.GetHashCode();
+        var h3 = (uint)z.GetHashCode();
+        var h4 = (uint)w.GetHashCode();
+        h2 = ((h2 << 7) | (h3 >> 25)) ^ h3;
+        h1 = ((h1 << 7) | (h2 >> 25)) ^ h2 ^ h4;
+        return (int)h1;
+      }
+      public bool Equals(float4 v)
+      {
+        return this == v;
+      }
+      public override bool Equals(object obj)
+      {
+        return obj is float4 && Equals((float4)obj);
+      }
+      public static bool operator ==(in float4 a, in float4 b)
+      {
+        return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+      }
+      public static bool operator !=(float4 a, float4 b)
+      {
+        return !(a == b);
+      }
+      public static float4 operator *(float4 v, float f)
+      {
+        v.x *= f; v.y *= f; v.z *= f; v.w *= f; return v;
+      }
+      public static explicit operator uint(in float4 p)
+      {
+        uint d;
+        ((byte*)&d)[0] = (byte)(p.z * 255);
+        ((byte*)&d)[1] = (byte)(p.y * 255);
+        ((byte*)&d)[2] = (byte)(p.x * 255);
+        ((byte*)&d)[3] = (byte)(p.w * 255); return d;
+      }
+      public static explicit operator float4(uint p)
+      {
+        float4 d;
+        d.z = ((byte*)&p)[0] * (1.0f / 255);
+        d.y = ((byte*)&p)[1] * (1.0f / 255);
+        d.x = ((byte*)&p)[2] * (1.0f / 255);
+        d.w = ((byte*)&p)[3] * (1.0f / 255); return d;
+      }
+    }
+    public struct float4x3
+    {
+      public float _11, _12, _13;
+      public float _21, _22, _23;
+      public float _31, _32, _33;
+      public float _41, _42, _43;
+      public override int GetHashCode()
+      {
+        return base.GetHashCode();
+      }
+      public override bool Equals(object p)
+      {
+        return p is float4x3 && !((float4x3)p != this);
+      }
+      public float3 mx => new float3(_11, _12, _13);
+      public float3 my => new float3(_21, _22, _23);
+      public float3 mz => new float3(_31, _32, _33);
+      public float3 mp => new float3(_41, _42, _43);
+      public static bool operator ==(in float4x3 a, in float4x3 b)
+      {
+        return !(a != b);
+      }
+      public static bool operator !=(in float4x3 a, in float4x3 b)
+      {
+        return a._11 != b._11 || a._12 != b._12 || a._13 != b._13 || //a._14 != b._14 ||
+               a._21 != b._21 || a._22 != b._22 || a._23 != b._23 || //a._24 != b._24 || 
+               a._31 != b._31 || a._32 != b._32 || a._33 != b._33 || //a._34 != b._34 ||  
+               a._41 != b._41 || a._42 != b._42 || a._43 != b._43;//|| a._44 != b._44;
+        //for (int i = 0; i < 12; i++) if ((&a._11)[i] != (&b._11)[i]) return true; return false;
+      }
+      public static float4x3 Identity => 1;
+      public static float4x3 LookAt(float3 eye, float3 pos, float3 up)
+      {
+        var R2 = (pos - eye).Normalize();
+        var R0 = (up ^ R2).Normalize();
+        var R1 = R2 ^ R0;
+        eye = -eye;
+        var D0 = R0 & eye;
+        var D1 = R1 & eye;
+        var D2 = R2 & eye;
+        float4x3 m;
+        m._11 = R0.x; m._12 = R1.x; m._13 = R2.x;
+        m._21 = R0.y; m._22 = R1.y; m._23 = R2.y;
+        m._31 = R0.z; m._32 = R1.z; m._33 = R2.z;
+        m._41 = D0; m._42 = D1; m._43 = D2;
+        return m;
+      }
+      public static float4x3 Translation(float x, float y, float z)
+      {
+        float4x3 m; (&m)->_11 = m._22 = m._33 = 1; m._41 = x; m._42 = y; m._43 = z; return m;
+      }
+      public static float4x3 Scaling(float x, float y, float z)
+      {
+        float4x3 m; (&m)->_11 = x; m._22 = y; m._33 = z; return m;
+      }
+      static void rot(float4x3* m, int x, double a)
+      {
+        var sc = new float2(a);
+        if (x == 0) { m->_11 = 1; m->_22 = m->_33 = sc.x; m->_32 = -(m->_23 = sc.y); return; }
+        if (x == 1) { m->_22 = 1; m->_11 = m->_33 = sc.x; m->_13 = -(m->_31 = sc.y); return; }
+        if (x == 2) { m->_33 = 1; m->_11 = m->_22 = sc.x; m->_21 = -(m->_12 = sc.y); return; }
+      }
+      public static float4x3 RotationX(double a)
+      {
+        float4x3 m; rot(&m, 0, a); return m;
+      }
+      public static float4x3 RotationY(double a)
+      {
+        float4x3 m; rot(&m, 1, a); return m;
+      }
+      public static float4x3 RotationZ(double a)
+      {
+        float4x3 m; rot(&m, 2, a); return m;
+      }
+      public static float4x3 RotationAxis(float3 v, float a)
+      {
+        var sc = new float2(a); float s = sc.y, c = sc.x, cc = 1 - c;
+        var m = new float4x3();
+        m._11 = cc * v.x * v.x + c;
+        m._21 = cc * v.x * v.y - s * v.z;
+        m._31 = cc * v.x * v.z + s * v.y;
+        m._12 = cc * v.y * v.x + s * v.z;
+        m._22 = cc * v.y * v.y + c;
+        m._32 = cc * v.y * v.z - s * v.x;
+        m._13 = cc * v.z * v.x - s * v.y;
+        m._23 = cc * v.z * v.y + s * v.x;
+        m._33 = cc * v.z * v.z + c;
+        return m;
+      }
+
+      public static implicit operator float4x3(float s)
+      {
+        return new float4x3() { _11 = s, _22 = s, _33 = s };
+      }
+      public static implicit operator float4x3(float2 p)
+      {
+        float4x3 m; *(float*)&m = m._22 = m._33 = 1; *(float2*)&m._41 = p; return m;
+      }
+      public static implicit operator float4x3(float3 p)
+      {
+        float4x3 m; *(float*)&m = m._22 = m._33 = 1; *(float3*)&m._41 = p; return m;
+      }
+      public static float4x3 operator !(in float4x3 p)
+      {
+        //inv(&v, &v); return v;
+        var b0 = p._31 * p._42 - p._32 * p._41;
+        var b1 = p._31 * p._43 - p._33 * p._41;
+        var b3 = p._32 * p._43 - p._33 * p._42;
+        var d1 = p._22 * p._33 + p._23 * -p._32;
+        var d2 = p._21 * p._33 + p._23 * -p._31;
+        var d3 = p._21 * p._32 + p._22 * -p._31;
+        var d4 = p._21 * b3 + p._22 * -b1 + p._23 * b0;
+        var de = p._11 * d1 - p._12 * d2 + p._13 * d3; de = 1f / de; //if (det == 0) throw new Exception();
+        var a0 = p._11 * p._22 - p._12 * p._21;
+        var a1 = p._11 * p._23 - p._13 * p._21;
+        var a3 = p._12 * p._23 - p._13 * p._22;
+        var d5 = p._12 * p._33 + p._13 * -p._32;
+        var d6 = p._11 * p._33 + p._13 * -p._31;
+        var d7 = p._11 * p._32 + p._12 * -p._31;
+        var d8 = p._11 * b3 + p._12 * -b1 + p._13 * b0;
+        var d9 = p._41 * a3 + p._42 * -a1 + p._43 * a0; float4x3 r;
+        r._11 = +d1 * de; r._12 = -d5 * de;
+        r._13 = +a3 * de;
+        r._21 = -d2 * de; r._22 = +d6 * de;
+        r._23 = -a1 * de;
+        r._31 = +d3 * de; r._32 = -d7 * de;
+        r._33 = +a0 * de;
+        r._41 = -d4 * de; r._42 = +d8 * de;
+        r._43 = -d9 * de; return r;
+      }
+      public static float4x3 operator *(in float4x3 a, in float4x3 b)
+      {
+        //float3x4 c; mul(&a, &b, &c); return c;
+        float x = a._11, y = a._12, z = a._13; float4x3 r;
+        r._11 = b._11 * x + b._21 * y + b._31 * z;
+        r._12 = b._12 * x + b._22 * y + b._32 * z;
+        r._13 = b._13 * x + b._23 * y + b._33 * z; x = a._21; y = a._22; z = a._23;
+        r._21 = b._11 * x + b._21 * y + b._31 * z;
+        r._22 = b._12 * x + b._22 * y + b._32 * z;
+        r._23 = b._13 * x + b._23 * y + b._33 * z; x = a._31; y = a._32; z = a._33;
+        r._31 = b._11 * x + b._21 * y + b._31 * z;
+        r._32 = b._12 * x + b._22 * y + b._32 * z;
+        r._33 = b._13 * x + b._23 * y + b._33 * z; x = a._41; y = a._42; z = a._43;
+        r._41 = b._11 * x + b._21 * y + b._31 * z + b._41;
+        r._42 = b._12 * x + b._22 * y + b._32 * z + b._42;
+        r._43 = b._13 * x + b._23 * y + b._33 * z + b._43; return r;
+      }
+      public static float3 operator *(float3 a, in float4x3 b)
+      {
+        float3 c;
+        c.x = b._11 * a.x + b._21 * a.y + b._31 * a.z + b._41;
+        c.y = b._12 * a.x + b._22 * a.y + b._32 * a.z + b._42;
+        c.z = b._13 * a.x + b._23 * a.y + b._33 * a.z + b._43;
+        return c;
+      }
+    }
+    public struct float4x4
+    {
+      public float _11, _12, _13, _14;
+      public float _21, _22, _23, _24;
+      public float _31, _32, _33, _34;
+      public float _41, _42, _43, _44;
+    }
+  }
 }

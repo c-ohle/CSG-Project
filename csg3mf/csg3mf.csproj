@@ -64,9 +64,6 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Viewer\D3DView.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
@@ -87,19 +84,6 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
     <EmbeddedResource Include="Resources\Resources.resx" />
-    <EmbeddedResource Include="Viewer\Shader\gs_line" />
-    <EmbeddedResource Include="Viewer\Shader\gs_outl3d" />
-    <EmbeddedResource Include="Viewer\Shader\gs_shadows" />
-    <EmbeddedResource Include="Viewer\Shader\ps_font" />
-    <EmbeddedResource Include="Viewer\Shader\ps_main_0" />
-    <EmbeddedResource Include="Viewer\Shader\ps_main_1" />
-    <EmbeddedResource Include="Viewer\Shader\ps_main_2" />
-    <EmbeddedResource Include="Viewer\Shader\ps_main_3" />
-    <EmbeddedResource Include="Viewer\Shader\ps_main_a" />
-    <EmbeddedResource Include="Viewer\Shader\vs_main" />
-    <EmbeddedResource Include="Viewer\Shader\vs_main_1" />
-    <EmbeddedResource Include="Viewer\Shader\vs_main_2" />
-    <EmbeddedResource Include="Viewer\Shader\vs_world" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\typicons.bmp" />

@@ -1,22 +1,14 @@
-﻿using System;
+﻿using csg3mf.Properties;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Design;
 using System.IO;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Reflection;
-using System.Reflection.Emit;
 using System.Runtime.InteropServices;
-using System.Security;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using csg3mf.Properties;
-using csg3mf;
-using static csg3mf.D3DView;
-using System.Runtime.InteropServices.WindowsRuntime;
+using static csg3mf.CDX;
 
 namespace csg3mf
 {
@@ -414,7 +406,7 @@ namespace csg3mf
       }
       internal int OnCenter(object test)
       {
-        if (!view.Scene.Descendants().Any(p => p.Mesh != null && p.Mesh.VertexCount != 0)) return 0;
+        if (!view.Scene.Nodes().Any(p => p.Mesh != null && p.Mesh.VertexCount != 0)) return 0;
         if (test != null) return 1;
         float abst = 100; view.Command(CDX.Cmd.Center, &abst);
         Invalidate(); return 1;
@@ -449,31 +441,33 @@ namespace csg3mf
         if (view.MouseOverNode == -1) return;
         var camera = view.Camera.GetTransformF();
         var node = view.Scene[view.MouseOverNode];
-        var v = (view.MouseOverPoint * node.GetTransformF()) - camera[3];
-        var l = (float)Math.Sqrt(length(v));
+        var v = (view.MouseOverPoint * node.GetTransformF()) - camera.mz;
+        var l = v.Length; // (float)Math.Sqrt(v.Length);
         //var t = Environment.TickCount; var cm = camera;
-        setcwma(camera * (v * (l * 0.01f * e.Delta * 1/*DpiScale*/ * (1f / 120))));
+        setcwma(camera * (v * (l * 0.01f * e.Delta /* * DpiScale*/ * (1f / 120))));
         //if (t - lastwheel > 500) AddUndo(setcwmb(cm)); lastwheel = t;
       }
       unsafe Action<int, object> camera_free()
       {
-        float3box box; var pbox = (float3*)&box; //var recs = cont.Nodes;
-        boxempty(pbox); //box.min = box.max = 0;//for (int i = 0; i < recs.Count; i++) recs[i].getbox(recs[i].gettrans(), pbox);
-        foreach (var node in view.Scene.Descendants())
-        {
-          var m = node.Mesh; if (m == null) continue;
-          var t = node.GetTransformF();
-          foreach (var v in m.VerticesF3()) boxadd(&v, &t, pbox);
-        }
-        var pm = (box.min + box.max) * 0.5f; var tm = (float4x3)pm;
+        var m = float4x3.Identity; view.Command(CDX.Cmd.GetBox, &m);
+        var boxmin = *(float3*)&m._11; var boxmax = *(float3*)&m._22;
+        //float3box box; var pbox = (float3*)&box; //var recs = cont.Nodes;
+        //boxempty(pbox); //box.min = box.max = 0;//for (int i = 0; i < recs.Count; i++) recs[i].getbox(recs[i].gettrans(), pbox);
+        //foreach (var node in view.Scene.Nodes())
+        //{
+        //  var m = node.Mesh; if (m == null) continue;
+        //  var t = node.GetTransformF();
+        //  foreach (var v in m.VerticesF3()) boxadd(&v, &t, pbox);
+        //}
+        var pm = (boxmin + boxmax) * 0.5f; var tm = (float4x3)pm;
         var cm = view.Camera.TransformF; var p1 = (float2)Cursor.Position; bool moves = false;
         return (id, p) =>
         {
           if (id == 0)
           {
             var v = (Cursor.Position - p1) * -0.01f;
-            if (!moves && dot(v) < 0.03) return; moves = true;
-            setcwma(cm * !tm * rotaxis(cm[0], -v.y) * rotz(v.x) * tm);
+            if (!moves && v.LengthSq < 0.03) return; moves = true;
+            setcwma(cm * !tm * float4x3.RotationAxis(cm.mx, -v.y) * float4x3.RotationZ(v.x) * tm);
           }
           //if (id == 1) { if (moves) AddUndo(setcwmb(cm)); else Select(null); }
         };
@@ -496,7 +490,7 @@ namespace csg3mf
         var dc = new CDX.DC(view);
         dc.SetOrtographic();
 
-        var ss = cont.Infos; 
+        var ss = cont.Infos;
         dc.Font = font;
         dc.Color = 0x80000000;
         var y = 10 + font.Ascent;

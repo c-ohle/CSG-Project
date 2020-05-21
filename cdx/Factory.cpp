@@ -726,10 +726,7 @@ void CView::Render()
       }
     }
   }
-  if (sink.p)
-  {
-    sink.p->Render();
-  }
+  if (sink.p) sink.p->Render();
   auto hr = swapchain.p->Present(0, 0);
   XMASSERT(stackptr == baseptr);
 }

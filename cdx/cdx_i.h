@@ -150,7 +150,8 @@ enum CDX_RENDER
 typedef 
 enum CDX_CMD
     {
-        CDX_CMD_CENTER	= 1
+        CDX_CMD_CENTER	= 1,
+        CDX_CMD_GETBOX	= 2
     } 	CDX_CMD;
 
 typedef 

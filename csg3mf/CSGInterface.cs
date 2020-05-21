@@ -4,10 +4,8 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security;
-using System.Xml.Linq;
 
 namespace csg3mf
 {
@@ -307,20 +305,6 @@ namespace csg3mf
         public override bool Equals(object p) => p is Matrix b && Equals(b);
         public bool Equals(Matrix b) => m.p.Equals(m.i, b.m.p, b.m.i, 12);
         public static implicit operator Variant(Matrix m) => new Variant(m.m.p, 12, m.m.i);
-        //public static explicit operator Matrix(Variant m)
-        //{
-        //  if (m.vt == ((ushort)VarType.Rational | (12 << 8)))
-        //  {
-        //    var t = new Matrix(0); var p = Marshal.GetObjectForIUnknown(*(IntPtr*)&m.vp);
-        //    t.m.p.Copy(t.m.i, (IVector)p, ((int*)&m)[1], 12); return t;
-        //  }
-        //  if (m.vt == ((ushort)VarType.Float | (16 << 8)))
-        //  {
-        //    var s = *(D3DView.float4x4**)&m.vp; var t = new Matrix(0);
-        //    for (int i = 0, k = 0; i < 12; k += i % 3 == 2 ? 2 : 1, i++) t[i] = (&s->_11)[k]; return t;
-        //  }
-        //  throw new NotImplementedException();
-        //}
         public static Matrix Identity()
         {
           var m = new Matrix(0); m.SetIdentity(); return m;
@@ -386,7 +370,7 @@ namespace csg3mf
         internal void GetValues(Variant v) => m.p.GetValue(m.i, ref v);
         internal void SetValues(Variant v) => m.p.SetValue(m.i, v);
         internal void SetIdentity() { var v = stackalloc int[12] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 }; m.p.SetValue(m.i, new Variant(v, 12)); }
-        public static explicit operator D3DView.float4x3(Matrix m) { D3DView.float4x3 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
+        public static explicit operator CDX.float4x3(Matrix m) { CDX.float4x3 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
         //public void Save()
         //{
         //  var str = COM.SHCreateMemStream();
@@ -420,9 +404,9 @@ namespace csg3mf
     {
       var p = new Rational.Vector3(0); mesh.GetVertex(i, p); return p;
     }
-    public static D3DView.float3 GetVertexF3(this IMesh mesh, int i)
+    public static CDX.float3 GetVertexF3(this IMesh mesh, int i)
     {
-      D3DView.float3 p; mesh.GetVertex(i, new Variant((float*)&p, 3)); return p;
+      CDX.float3 p; mesh.GetVertex(i, new Variant((float*)&p, 3)); return p;
     }
     public static Rational.Plane GetPlaneR4(this IMesh mesh, int i)
     {
@@ -431,14 +415,14 @@ namespace csg3mf
     public static IMesh Clone(this IMesh p) { var d = Factory.CreateMesh(); p.CopyTo(d); return d; }
     public static void InitPlanes(this IMesh mesh) => Tesselator.Cut(mesh, new Variant());
     public static IEnumerable<Rational.Vector3> Vertices(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexR3(i); }
-    public static IEnumerable<D3DView.float3> VerticesF3(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexF3(i); }
+    public static IEnumerable<CDX.float3> VerticesF3(this IMesh mesh) { for (int i = 0, n = mesh.VertexCount; i < n; i++) yield return mesh.GetVertexF3(i); }
     public static IEnumerable<int> Indices(this IMesh mesh) { for (int i = 0, n = mesh.IndexCount; i < n; i++) yield return mesh.GetIndex(i); }
     public static IEnumerable<Rational.Plane> Planes(this IMesh mesh) { for (int i = 0, n = mesh.PlaneCount; i < n; i++) yield return mesh.GetPlaneR4(i); }
     public static void AddGlyphContour(this ITesselator tess, string text, Font font, int flat = 8)
     {
       var h = font.ToHfont(); try { fixed (char* p = text) tess.AddGlyphContour(new Variant(p, 1), h, flat); } finally { Native.DeleteObject(h); }
     }
-    public static void Skeleton(this ITesselator tess, IMesh mesh, D3DView.float2[][][] pp)
+    public static void Skeleton(this ITesselator tess, IMesh mesh, CDX.float2[][][] pp)
     {
       tess.BeginPolygon();
       for (int i = 0; i < pp.Length; i++)

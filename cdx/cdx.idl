@@ -29,7 +29,8 @@ typedef enum CDX_RENDER
 
 typedef enum CDX_CMD
 {
-  CDX_CMD_CENTER = 1 //FLOAT border
+  CDX_CMD_CENTER = 1, //FLOAT border
+  CDX_CMD_GETBOX = 2, //XMFLOAT4X3
 } CDX_CMD;
 
 typedef enum CDX_DRAW

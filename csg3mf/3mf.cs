@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Xml.Linq;
+using static csg3mf.CDX;
 using static csg3mf.CSG;
-using static csg3mf.D3DView;
 
 namespace csg3mf
 {
@@ -23,7 +21,7 @@ namespace csg3mf
       using (var package = System.IO.Packaging.Package.Open(path))
       {
         var xml = package.GetPart(new Uri("/3D/3dmodel.model", UriKind.Relative));
-        XDocument doc; using (var str = xml.GetStream()) doc = XDocument.Load(str); //doc.Save("C:\\Users\\cohle\\Desktop\\test1.xml");
+        XDocument doc; long len; using (var str = xml.GetStream()) { doc = XDocument.Load(str); len = str.Length; } //560280 doc.Save("C:\\Users\\cohle\\Desktop\\test1.xml");
         var model = doc.Root; var ns = model.Name.Namespace;
         var cont = new Container();
         switch ((string)model.Attribute("unit"))
@@ -35,14 +33,13 @@ namespace csg3mf
           case "inch": cont.BaseUnit = Unit.inch; break;
           case "foot": cont.BaseUnit = Unit.foot; break;
         }
-        //cont.BaseUnit = unit == "micron" ? 0.000001m : unit == "millimeter" ? 0.001m : unit == "centimeter" ? 0.01m : unit == "inch" ? 0.0254m : unit == "foot" ? 0.3048m : 1;
         var res = model.Element(ns + "resources");
-        var build = model.Element(ns + "build");
-        foreach (var p in build.Elements(ns + "item")) //.Select(item => convert(item))) cont.Nodes.Add(p);
-          convert(cont.Nodes.AddNode(null), p);
+        var build = model.Element(ns + "build"); var buffer = Marshal.AllocHGlobal((IntPtr)len);
+        try { foreach (var p in build.Elements(ns + "item")) convert(cont.Nodes.AddNode(null), p); }
+        finally { Marshal.FreeHGlobal(buffer); }
         /////////////
-        if (cont.Nodes.Count != 0 && dot((cont.Nodes[0].TransformF)[0]) > 10) //curiosity bug fix
-          foreach (var p in cont.Nodes.Descendants()) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
+        if (cont.Nodes.Count != 0 && cont.Nodes[0].TransformF.mx.LengthSq > 10) //curiosity bug fix
+          foreach (var p in cont.Nodes.Nodes()) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
         /////////////
         var uri = new Uri("/Metadata/csg.cs", UriKind.Relative);
         if (!package.PartExists(uri)) { script = null; return cont; }
@@ -58,9 +55,7 @@ namespace csg3mf
           var tra = (string)e.Attribute("transform");
           if (tra != null) fixed (char* p = tra) node.SetTransform(new Variant(p, 12)); //{ var m = node.Transform; m.SetValues(new Variant(p, 12)); node.Transform = m; }
           var cmp = obj.Element(ns + "components");
-          if (cmp != null)
-            foreach (var p in cmp.Elements(ns + "component"))//.Select(item => convert(item))) { p.Parent = node; cont.Nodes.Add(p); }
-              convert(node.AddNode(null), p);
+          if (cmp != null) foreach (var p in cmp.Elements(ns + "component")) convert(node.AddNode(null), p);
           if (mesh == null) return;
           var mid = (string)obj.Attribute("materialid"); var color = 0xffffffff;
           if (mid != null) //2013/01
@@ -82,9 +77,15 @@ namespace csg3mf
           var triangles = mesh.Element(ns + "triangles").Elements(ns + "triangle");
           var kk = triangles.OrderBy(p => p.Attribute("pid")?.Value).ToArray();
           var mm = kk.Select(p => p.Attribute("pid")?.Value).Distinct().ToArray();
-          var ii = (int*)StackPtr; var ni = kk.Length * 3;
-          for (int i = 0, k = 0; i < kk.Length; i++) { var p = kk[i]; ii[k++] = (int)p.Attribute("v1"); ii[k++] = (int)p.Attribute("v2"); ii[k++] = (int)p.Attribute("v3"); }
-#if(true)       
+          var ii = (int*)buffer.ToPointer(); var ni = kk.Length * 3;
+          for (int i = 0, k = 0; i < kk.Length; i++)
+          {
+            var p = kk[i];
+            ii[k++] = (int)p.Attribute("v1");
+            ii[k++] = (int)p.Attribute("v2");
+            ii[k++] = (int)p.Attribute("v3");
+          }
+#if(true) // fast using big buffer      
           var ss = (char*)(ii + ni); var cs = 0; var pw = ss;
           foreach (var p in vertices)
             for (int j = 0; j < 3; j++, cs++)
@@ -92,12 +93,12 @@ namespace csg3mf
               var s = p.Attribute(j == 0 ? "x" : j == 1 ? "y" : "z").Value;
               for (int l = 0; l < s.Length; l++) *pw++ = s[l]; *pw++ = ' ';
             }
-          var me = Factory.CreateMesh(); me.Update(new Variant(ss, 3, cs / 3), new Variant(ii, 1, ni));
+          var me = CSG.Factory.CreateMesh(); me.Update(new Variant(ss, 3, cs / 3), new Variant(ii, 1, ni));
 #else
-         var me = Factory.CreateMesh(); me.Update(vertices.Count(), new Variant(ii, 1, ni));
-#if (true)
+          var me = Factory.CreateMesh(); me.Update(vertices.Count(), new Variant(ii, 1, ni));
+#if (true) // vertex by vertex 
           int strcpy(char* p, string s) { int n = s.Length; for (int i = 0; i < n; i++) p[i] = s[i]; return n; }
-          int l = 0; var ss = (char*)StackPtr;
+          int l = 0; var ss = (char*)buffer.ToPointer();
           foreach (var p in vertices)
           {
             var n = strcpy(ss, p.Attribute("x").Value); ss[n++] = ' ';
@@ -105,7 +106,7 @@ namespace csg3mf
             n += strcpy(ss + n, p.Attribute("z").Value); ss[n++] = '\0';
             me.SetVertex(l++, new Variant(ss, 3));
           }
-#else // or
+#else // or simple with lot of garbage
           int l = 0;
           foreach (var p in vertices)
             fixed (char* t = $"{p.Attribute("x").Value} {p.Attribute("y").Value} {p.Attribute("z").Value}")
@@ -113,7 +114,6 @@ namespace csg3mf
 #endif
 #endif
           node.Mesh = me;
-#if(true)          
           node.MaterialCount = mm.Length; float2[] tt = null;//.Materials = new Node.Material[mm.Length];
           var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
           for (int i = 0, ab = 0, bis = 1; i < mm.Length; i++, ab = bis)
@@ -158,7 +158,6 @@ namespace csg3mf
           addmat: node.SetMaterial(i, ab * 3, (bis - ab) * 3, color, bin);
           }
           if (tt != null) fixed (float2* p = tt) node.SetTexturCoords(new Variant(&p->x, 2, tt.Length));
-#endif
         };
       }
     }
@@ -176,11 +175,14 @@ namespace csg3mf
       var basematerials = new XElement(ns + "basematerials"); resources.Add(basematerials);
       var bmid = uid++; basematerials.SetAttributeValue("id", bmid);
       var nodes = this;
+      var buffer = Marshal.AllocHGlobal(65536);
+      try { foreach (var group in nodes.Nodes.Nodes().Where(p => p.Parent == null)) add(group, build); }
+      finally { Marshal.FreeHGlobal(buffer); }
       void add(CDX.INode group, XElement dest)
       {
         var obj = new XElement(ns + "object"); obj.SetAttributeValue("id", 0);
         if (group.Name != null) obj.SetAttributeValue("name", group.Name);
-        var desc = nodes.Nodes.Descendants().Where(p => p.Parent == group);
+        var desc = nodes.Nodes.Nodes().Where(p => p.Parent == group);
         var components = desc.Any() ? new XElement(ns + "components") : null;
         if (group.Mesh != null)
         {
@@ -209,7 +211,7 @@ namespace csg3mf
           for (int i = 0; i < rmesh.VertexCount; i++)
           {
             var vertex = new XElement(ns + "vertex"); vertices.Add(vertex);
-            var p = (char*)StackPtr; rmesh.GetVertex(i, new Variant(p, 3));
+            var p = (char*)buffer.ToPointer(); rmesh.GetVertex(i, new Variant(p, 3));
             for (int k = 0, n; k < 3; k++)
             {
               for (n = 0; p[n] > ' '; n++) ; var s = new string(p, 0, n); p += n + 1;
@@ -269,16 +271,16 @@ namespace csg3mf
         var item = new XElement(ns + (dest.Name.LocalName == "build" ? "item" : "component"));
         var objectid = uid++; obj.SetAttributeValue("id", objectid);
         item.SetAttributeValue("objectid", objectid);
-        var ss = (char*)StackPtr; group.Transform.GetValues(new Variant(ss, 12));
+        var ss = (char*)buffer.ToPointer(); group.Transform.GetValues(new Variant(ss, 12));
         item.SetAttributeValue("transform", new string(ss));
         dest.Add(item);
       };
-      foreach (var group in nodes.Nodes.Descendants().Where(p => p.Parent == null)) add(group, build);
       if (path == null) return doc;//doc.Save("C:\\Users\\cohle\\Desktop\\test2.xml");
       var memstr = new MemoryStream();
       using (var package = System.IO.Packaging.Package.Open(memstr, FileMode.Create))
       {
-        var packdoc = package.CreatePart(new Uri("/3D/3dmodel.model", UriKind.Relative), "application/vnd.ms-package.3dmanufacturing-3dmodel+xml");
+        var packdoc = package.CreatePart(new Uri("/3D/3dmodel.model", UriKind.Relative), "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+          System.IO.Packaging.CompressionOption.Normal);
         using (var str = packdoc.GetStream()) doc.Save(str);
         package.CreateRelationship(packdoc.Uri, System.IO.Packaging.TargetMode.Internal, "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel", "rel0");
         var buff = new byte[4096];
@@ -304,7 +306,7 @@ namespace csg3mf
         }
         if (!string.IsNullOrEmpty(script))
         {
-          var packpng = package.CreatePart(new Uri("/Metadata/csg.cs", UriKind.Relative), System.Net.Mime.MediaTypeNames.Text.Plain);
+          var packpng = package.CreatePart(new Uri("/Metadata/csg.cs", UriKind.Relative), System.Net.Mime.MediaTypeNames.Text.Plain, System.IO.Packaging.CompressionOption.Normal);
           using (var str = packpng.GetStream()) using (var sw = new StreamWriter(str)) sw.Write(script);
         }
       }
