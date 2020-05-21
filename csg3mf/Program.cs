@@ -484,6 +484,7 @@ namespace csg3mf
       }
 
       CDX.IFont font = CDX.Factory.GetFont("Arial", 13, System.Drawing.FontStyle.Bold);
+      //Stopwatch sw;
 
       void CDX.ISink.Render()
       {
@@ -491,29 +492,44 @@ namespace csg3mf
         dc.SetOrtographic();
 
         var ss = cont.Infos;
-        dc.Font = font;
-        dc.Color = 0x80000000;
+        dc.Font = font; dc.Color = 0x80000000;
         var y = 10 + font.Ascent;
         for (int i = 0; i < ss.Count; i++, y += font.Height)
           dc.DrawText(10, y, ss[i]);
 
-        // dc.Transform *= move(0, 300, 0);
-        // dc.Color = 0x80ff0000; dc.FillRect(00, 00, 40, 15);
-        // dc.Color = 0x8000ff00; dc.FillRect(10, 10, 40, 15);
-        // dc.Color = 0x800000ff; dc.FillRect(20, 20, 40, 15);
-        // 
-        // //dc.Transform *= scale(3, 3, 3);
-        // dc.Color = 0x80ff0000; dc.FillEllipse(00, 50 + 00, 40, 15);
-        // dc.Color = 0x8000ff00; dc.FillEllipse(10, 50 + 10, 40, 15);
-        // dc.Color = 0x800000ff; dc.FillEllipse(20, 50 + 20, 40, 15);
-        // 
-        // dc.Font = CDX.Factory.GetFont("Arial", 72, 0);
-        // dc.Color = 0xff000000;
-        // dc.DrawText(100, 100, "Hello World!");
-        // dc.DrawText(100, 200, "Text 123 Ready");
-        // //dc.DrawText(100, 100, "He");
+#if (false)
+        var p = dc.GetTextExtent("Test GetTextExtent");
+        dc.DrawText(Width - p.x, font.Ascent, "Test GetTextExtent");
+        
+        var sw = this.sw ?? (this.sw = new Stopwatch());
+        var rnd = new Random();
+        sw.Restart();
+        for(int i = 0; i < 100000; i++)
+        {
+          dc.Color = 0x80000000 | (uint)rnd.Next();
+          dc.DrawText(100 + (float)(rnd.NextDouble()*800), 100 + (float)(rnd.NextDouble() * 800), "Alles nur eine Frage der Zeit");
+        }
+        sw.Stop();
+        dc.Color = 0xff000000;
+        dc.DrawText(10, 50,$"{sw.ElapsedMilliseconds} ms");
+#endif
 
-
+#if(false)
+        dc.Transform *= float4x3.Translation(0, 300, 0);
+         dc.Color = 0x80ff0000; dc.FillRect(00, 00, 40, 15);
+         dc.Color = 0x8000ff00; dc.FillRect(10, 10, 40, 15);
+         dc.Color = 0x800000ff; dc.FillRect(20, 20, 40, 15);
+         
+         //dc.Transform *= 3;
+         dc.Color = 0x80ff0000; dc.FillEllipse(00, 50 + 00, 40, 15);
+         dc.Color = 0x8000ff00; dc.FillEllipse(10, 50 + 10, 40, 15);
+         dc.Color = 0x800000ff; dc.FillEllipse(20, 50 + 20, 40, 15);
+         
+         dc.Font = Factory.GetFont("Arial", 72, 0);
+         dc.Color = 0xff000000;
+         dc.DrawText(100, 100, "Hello World!");
+         dc.DrawText(100, 200, "Text 123 Ready");
+#endif
       }
     }
 

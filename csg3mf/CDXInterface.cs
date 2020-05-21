@@ -47,7 +47,8 @@ namespace csg3mf
       GetFont = 5, SetFont = 6,
       FillRect = 7,
       FillEllipse = 8,
-      DrawText = 9,
+      GetTextExtent = 9,
+      DrawText = 10,
     }
 
     [ComImport, Guid("4C0EC273-CA2F-48F4-B871-E487E2774492"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
@@ -198,12 +199,17 @@ namespace csg3mf
       {
         var r = new float4(x, y, dx, dy); p.Draw(Draw.FillEllipse, &r);
       }
-      struct t1 { public float x, y; public char* s; public int n; }
+      public float2 GetTextExtent(string s)
+      {
+        t1 v; v.n = s.Length;
+        fixed (char* t = s) { v.s = t; p.Draw(Draw.GetTextExtent, &v); } return *(float2*)&v.x; 
+      }
       public void DrawText(float x, float y, string s)
       {
         t1 v; v.x = x; v.y = y; v.n = s.Length;
         fixed (char* t = s) { v.s = t; p.Draw(Draw.DrawText, &v); }
       }
+      struct t1 { public float x, y; public char* s; public int n; }
     }
   }
 

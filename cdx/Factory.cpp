@@ -968,11 +968,12 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
     EndVertices(nv, MO_TOPO_TRIANGLESTRIP | MO_PSSHADER_COLOR | MO_RASTERIZER_NOCULL | d_blend);
     return 0;
   }
-  case CDX_DRAW_DRAW_TEXT:
-  {
-    d_font.p->draw(this, ((float*)data)[0], ((float*)data)[1], *(LPCWSTR*)(data + 2), *(UINT*)((LPCWSTR*)(data + 2) + 1));
+  case CDX_DRAW_GET_TEXTEXTENT:
+    *(XMFLOAT2*)data = d_font.p->getextent(*(LPCWSTR*)(data + 2), *(UINT*)((LPCWSTR*)(data + 2) + 1));
     return 0;
-  }
+  case CDX_DRAW_DRAW_TEXT:
+    d_font.p->draw(this, *(XMFLOAT2*)data, *(LPCWSTR*)(data + 2), *(UINT*)((LPCWSTR*)(data + 2) + 1));
+    return 0;
   }
   return E_FAIL;
 }

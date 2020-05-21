@@ -7,8 +7,8 @@
 /* at Tue Jan 19 04:14:07 2038
  */
 /* Compiler settings for cdx.idl:
-    Oicf, W1, Zp8, env=Win32 (32b run), target_arch=X86 8.01.0622 
-    protocol : dce , ms_ext, c_ext, robust
+    Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0622 
+    protocol : all , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
     VC __declspec() decoration level: 
          __declspec(uuid()), __declspec(selectany), __declspec(novtable)
@@ -166,7 +166,8 @@ enum CDX_DRAW
         CDX_DRAW_SET_FONT	= 6,
         CDX_DRAW_FILL_RECT	= 7,
         CDX_DRAW_FILL_ELLIPSE	= 8,
-        CDX_DRAW_DRAW_TEXT	= 9
+        CDX_DRAW_GET_TEXTEXTENT	= 9,
+        CDX_DRAW_DRAW_TEXT	= 10
     } 	CDX_DRAW;
 
 
