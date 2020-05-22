@@ -466,7 +466,7 @@ namespace csg3mf
       void SetSize(long n);
     }
     [DllImport("shlwapi.dll")]
-    public static extern IStream SHCreateMemStream(void* p = null, int n = 0);
+    public static extern IStream SHCreateMemStream(void* p = null, int n = 0); //todo: check refcount 
     public static IStream Stream(byte[] a) { fixed(byte*p=a) return SHCreateMemStream(p, a.Length); }
     //public static long Position(this IStream str) { long v; str.Seek(0, 1, &v); return v; }
 #if (!DEBUG)

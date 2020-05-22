@@ -72,20 +72,10 @@ static HRESULT CreateTexture(IStream* str, UINT flags, ID3D11ShaderResourceView*
   return hr;
 }
 
-
 void Material::update(CScene* scene)
 {
-  for (UINT i = 0; i < scene->count; i++)
-  {
-    const auto& mm = scene->nodes.p[i]->materials;
-    for (UINT k = 0; k < mm.n; k++)
-    {
-      const auto& b = mm.p[k]; if (str.p != b.str.p || !b.srv.p) continue;
-      srv = b.srv.p; return;
-    }
-  }
-  auto hr = CreateTexture(str.p, 0, &srv.p);
-  if (hr < 0) str = 0;
+  auto hr = CreateTexture(tex->str.p, 0, &tex->p.p);
+  if (hr < 0) tex.Release();
 }
 
 struct __declspec(uuid("557cf406-1a04-11d3-9a73-0000f81ef32e")) _PNG {};

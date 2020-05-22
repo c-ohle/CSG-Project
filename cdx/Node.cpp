@@ -2,6 +2,10 @@
 #include "Factory.h"
 #include "Scene.h"
 
+CVertices* CVertices::first;
+CIndices* CIndices::first;
+CTexture* CTexture::first;
+
 extern CComPtr<ID3D11Device> device;
 extern CComPtr<ID3D11DeviceContext> context;
 
@@ -31,17 +35,6 @@ HRESULT CNode::get_Parent(ICDXNode** p)
 HRESULT CNode::put_Parent(ICDXNode* p)
 {
   return E_NOTIMPL;
-}
-
-static int msb(int v)
-{
-  int i = 0;
-  if ((v & 0xFFFF0000) != 0) { i |= 0x10; v >>= 0x10; }
-  if ((v & 0x0000FF00) != 0) { i |= 0x08; v >>= 0x08; }
-  if ((v & 0x000000F0) != 0) { i |= 0x04; v >>= 0x04; }
-  if ((v & 0x0000000C) != 0) { i |= 0x02; v >>= 0x02; }
-  if ((v & 0x00000002) != 0) { i |= 0x01; }
-  return i;
 }
 
 static bool operator ==(XMFLOAT2 a, XMFLOAT2 b)
@@ -148,27 +141,29 @@ void CNode::update(XMFLOAT3* pp, UINT np, UINT* ii, UINT ni, float smooth, void*
   }
 
   UINT nn = sizeof(GUID), bv = np * sizeof(VERTEX), bk = ni * sizeof(int);
-  hc_vb = bv; for (UINT i = 0, n = min(1000, bv >> 2); i < n; i++) hc_vb = hc_vb * 13 + ((UINT*)vv)[i];
-  hc_ib = bk; for (UINT i = 0, n = min(1000, bk >> 2); i < n; i++) hc_ib = hc_ib * 13 + ((UINT*)kk)[i];
-  auto scene = getscene(this);
-  for (UINT i = 0; i < scene->count; i++)
+  UINT hc_vb = bv; for (UINT i = 0, n = min(1000, bv >> 2); i < n; i++) hc_vb = hc_vb * 13 + ((UINT*)vv)[i];
+  UINT hc_ib = bk; for (UINT i = 0, n = min(1000, bk >> 2); i < n; i++) hc_ib = hc_ib * 13 + ((UINT*)kk)[i];
   {
-    auto p = scene->nodes.p[i]; if (!p->vb.p) continue;
-    if (!vb.p && p->hc_vb == hc_vb && equals(p->vb.p, vv, bv)) { vb = p->vb.p; if (ib.p) return; }
-    if (!ib.p && p->hc_ib == hc_ib && equals(p->ib.p, kk, bk)) { ib = p->ib.p; if (vb.p) return; }
+    Critical crit;
+    for (auto p = CVertices::first; p; p = p->next) if (p->hash == hc_vb && equals(p->p.p, vv, bv)) { vb = p; break; }
+    for (auto p = CIndices::first; p; p = p->next) if (p->hash == hc_ib && equals(p->p.p, kk, bk)) { ib = p; break; }
   }
+  if (vb.p && ib.p) return;
+
   D3D11_BUFFER_DESC bd = { 0, D3D11_USAGE_IMMUTABLE, 0, 0, 0, 0 }; D3D11_SUBRESOURCE_DATA data = { 0 };
   if (!vb.p)
   {
+    vb.p = new CVertices(); vb.p->hash = hc_vb;
     bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     bd.ByteWidth = np * sizeof(VERTEX); data.pSysMem = vv;
-    device.p->CreateBuffer(&bd, &data, &vb);
+    device.p->CreateBuffer(&bd, &data, &vb.p->p.p);
   }
   if (!ib.p)
   {
+    ib.p = new CIndices(); ib.p->hash = hc_ib;
     bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
     bd.ByteWidth = ni * sizeof(int); data.pSysMem = kk;
-    device.p->CreateBuffer(&bd, &data, &ib);
+    device.p->CreateBuffer(&bd, &data, &ib.p->p.p);
   }
 }
 
@@ -245,24 +240,23 @@ struct Archive
 
 void Material::serialize(Archive& ar)
 {
-  UINT fl; if (ar.storing) ar.WriteCount(fl = (i ? 1 : 0) | (str.p ? 2 : 0));
+  UINT fl; if (ar.storing) ar.WriteCount(fl = (i ? 1 : 0) | (tex.p ? 2 : 0));
   else fl = ar.ReadCount();
   if (fl & 1) ar.SerialCount(i); ar.SerialCount(n);
   ar.Serialize(&color);
   if (!(fl & 2)) return;
-
   UINT x; IStream* ss, * ds;
   if (ar.storing)
   {
-    x = ar.getmap(str.p); ar.WriteCount(x); if (x != 0) return;
-    ar.addmap(str.p); STATSTG stat; str.p->Stat(&stat, STATFLAG_NONAME);
+    x = ar.getmap(tex.p); ar.WriteCount(x); if (x != 0) return;
+    ar.addmap(tex.p); STATSTG stat; (ss = tex.p->str.p)->Stat(&stat, STATFLAG_NONAME);
     x = *(UINT*)&stat.cbSize; ar.WriteCount(x);
-    UINT64 l = 0; str.p->Seek(*(LARGE_INTEGER*)&l, 0, 0); ss = str.p; ds = ar.str;
+    UINT64 l = 0; ss->Seek(*(LARGE_INTEGER*)&l, 0, 0); ds = ar.str;
   }
   else
   {
-    x = ar.ReadCount(); if (x != 0) { str = (IStream*)ar.map.p[x - 1]; return; }
-    x = ar.ReadCount(); str = SHCreateMemStream(0, 0); ar.addmap(str.p); ss = ar.str; ds = str.p;
+    x = ar.ReadCount(); if (x != 0) { tex = (CTexture*)ar.map.p[x - 1]; return; }
+    x = ar.ReadCount(); tex.p = new CTexture(); ds = tex.p->str.p = SHCreateMemStream(0, 0); ar.addmap(tex.p); ss = ar.str;
   }
   UINT nv = 32768; auto pv = _alloca(nv);
   while (x) { ULONG c = min(x, nv); x -= c; ss->Read(pv, c, 0); ds->Write(pv, c, 0); }
@@ -285,10 +279,10 @@ void CNode::serialize(Archive& ar)
     if (fl & 0x10)
     {
       UINT x = ar.getmap(texcoords.p); ar.WriteCount(x);
-      if (x == 0) 
-      { 
-        ar.addmap(texcoords.p); ar.WriteCount(texcoords.p->n); 
-        ar.str->Write(texcoords.p->p, texcoords.p->n * sizeof(XMFLOAT2), 0); 
+      if (x == 0)
+      {
+        ar.addmap(texcoords.p); ar.WriteCount(texcoords.p->n);
+        ar.str->Write(texcoords.p->p, texcoords.p->n * sizeof(XMFLOAT2), 0);
       }
     }
   }
@@ -312,15 +306,15 @@ void CNode::serialize(Archive& ar)
     if (fl & 0x10)
     {
       UINT x = ar.ReadCount();
-      if (x == 0) 
+      if (x == 0)
       {
         texcoords.p = new CTexCoords(); ar.addmap(texcoords.p);
         texcoords.p->setsize(ar.ReadCount());
         ar.str->Read(texcoords.p->p, texcoords.p->n * sizeof(XMFLOAT2), 0);
-     }
+      }
       else texcoords = (CTexCoords*)ar.map.p[x - 1];
     }
-  
+
   }
   for (UINT i = 0; i < materials.n; i++) materials.p[i].serialize(ar);
 }
@@ -332,7 +326,7 @@ HRESULT CScene::Remove(UINT i)
   for (UINT k = 0; k < count; k++)
     if (nodes.p[k]->parent == p)
       nodes.p[k]->parent = p->parent;
-  p->relres(); p->Release();
+  p->Release();
   memcpy(nodes.p + i, nodes.p + i + 1, (--count - i) * sizeof(void*));
   return 0;
 }
@@ -342,7 +336,7 @@ HRESULT CScene::Clear()
   for (UINT i = 0; i < count; i++)
   {
     auto p = nodes.p[i]; p->parent = 0;
-    p->relres(); p->Release();
+    p->Release();
   }
   count = 0; return 0;
 }

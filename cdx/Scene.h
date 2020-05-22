@@ -1,10 +1,32 @@
 #pragma once
 
+struct CTexture
+{
+  UINT refcount = 1;// , hash;
+  CComPtr<ID3D11ShaderResourceView> p;
+  CComPtr<IStream> str;
+  static CTexture* first; CTexture* next;
+  CTexture() { Critical crit; next = first; first = this; }
+  ~CTexture() { auto p = &first; for (; *p != this; p = &(*p)->next); *p = next; }
+  ULONG __stdcall AddRef(void) { return InterlockedIncrement(&refcount); }
+  ULONG __stdcall Release(void)
+  {
+    auto count = InterlockedDecrement(&refcount);
+    if (!count)
+    {
+      Critical crit;
+      if (refcount != 0)
+        return refcount;
+      delete this;
+    }
+    return count;
+  }
+};
+
 struct Material
 {
   UINT i = 0, n = 0, color = 0xff808080;
-  CComPtr<IStream> str;
-  CComPtr<ID3D11ShaderResourceView> srv;
+  CComPtr<CTexture> tex;
   void serialize(struct Archive& ar);
   void update(struct CScene* scene);
 };
@@ -19,13 +41,51 @@ struct CCSGVAR : CSGVAR
   static XMMATRIX copy(ICSGVector* source) { XMFLOAT4X3A m; CCSGVAR r(m); source->GetValue(0, &r); return XMLoadFloat4x3A(&m); }
 };
 
-struct CTexCoords : sarray<XMFLOAT2>, IUnknown
+struct CVertices
+{
+  UINT refcount = 1, hash; CComPtr<ID3D11Buffer> p; sarray<XMFLOAT3> hull;
+  static CVertices* first; CVertices* next;
+  CVertices() { Critical crit; next = first; first = this; }
+  ~CVertices() { auto p = &first; for (; *p != this; p = &(*p)->next); *p = next; }
+  ULONG __stdcall AddRef(void) { return InterlockedIncrement(&refcount); }
+  ULONG __stdcall Release(void)
+  {
+    auto count = InterlockedDecrement(&refcount);
+    if (!count)
+    {
+      Critical crit;
+      if (refcount != 0)
+        return refcount;
+      delete this;
+    }
+    return count;
+  }
+};
+
+struct CIndices
+{
+  UINT refcount = 1, hash; CComPtr<ID3D11Buffer> p;
+  static CIndices* first; CIndices* next;
+  CIndices() { Critical crit; next = first; first = this; }
+  ~CIndices() { auto p = &first; for (; *p != this; p = &(*p)->next); *p = next; }
+  ULONG __stdcall AddRef(void) { return InterlockedIncrement(&refcount); }
+  ULONG __stdcall Release(void)
+  {
+    auto count = InterlockedDecrement(&refcount);
+    if (!count)
+    {
+      Critical crit;
+      if (refcount != 0)
+        return refcount;
+      delete this;
+    }
+    return count;
+  }
+};
+
+struct CTexCoords : sarray<XMFLOAT2>
 {
   UINT refcount = 1;
-  HRESULT __stdcall QueryInterface(REFIID riid, void** p)
-  {
-    return E_NOINTERFACE;
-  }
   ULONG __stdcall AddRef(void)
   {
     return InterlockedIncrement(&refcount);
@@ -50,12 +110,8 @@ struct CNode : public ICDXNode
   CComPtr<CTexCoords> texcoords;
   XMMATRIX matrix = XMMatrixIdentity();
   IUnknown* parent = 0;
-  CComPtr<ID3D11Buffer> vb, ib; UINT hc_vb, hc_ib;
-  void relres()
-  {
-    vb.Release(); ib.Release();
-    for (UINT i = 0; i < materials.n; i++) materials.p[i].srv.Release();
-  }
+  CComPtr<CVertices> vb;
+  CComPtr<CIndices> ib;
   void update();
   void update(XMFLOAT3* pp, UINT np, UINT* ii, UINT ni, float smooth = 0, void* tex = 0, UINT fl = 0);
   void serialize(struct Archive& ar);
@@ -153,25 +209,36 @@ struct CNode : public ICDXNode
   HRESULT __stdcall GetMaterial(UINT i, UINT* start, UINT* count, UINT* color, IStream** tex)
   {
     if (i >= materials.n) return E_INVALIDARG;
-    *start = materials.p[i].i;
-    *count = materials.p[i].n;
-    *color = materials.p[i].color;
-    if (*tex = materials.p[i].str.p) (*tex)->AddRef();
+    auto& m = materials.p[i]; *start = m.i; *count = m.n; *color = m.color;
+    if (*tex = (m.tex.p ? m.tex.p->str.p : 0)) (*tex)->AddRef();
     return 0;
   }
   HRESULT __stdcall SetMaterial(UINT i, UINT start, UINT count, UINT color, IStream* tex)
   {
     if (i >= materials.n) return E_INVALIDARG;
-    if (start != -1) materials.p[i].i = start;
-    if (count != -1) materials.p[i].n = count;
-    materials.p[i].color = color;
-    materials.p[i].str = tex;
-    materials.p[i].srv.Release();
+    auto& m = materials.p[i];
+    if (start != -1) m.i = start;
+    if (count != -1) m.n = count;
+    m.color = color;
+    if (!tex) { m.tex.Release(); return 0; }
+    { Critical crit; for (auto p = CTexture::first; p; p = p->next) if (p->str.p == tex) { m.tex = p; return 0; } }
+    m.tex.Release(); m.tex.p = new CTexture(); m.tex->str = tex;
     return 0;
   }
   HRESULT __stdcall GetTexturCoords(CSGVAR* m);
   HRESULT __stdcall SetTexturCoords(CSGVAR m);
   HRESULT __stdcall AddNode(BSTR name, ICDXNode** p);
+
+  sarray<XMFLOAT3>* gethull()
+  {
+    auto& a = vb.p->hull;
+    if (!a.n)
+    {
+      UINT nv; mesh.p->get_VertexCount(&nv); a.setsize(nv);
+      mesh.p->CopyBuffer(0, 0, CCSGVAR(a.p, nv));
+    }
+    return &a;
+  }
 };
 
 struct CScene : public ICDXScene
@@ -223,33 +290,33 @@ struct CScene : public ICDXScene
   HRESULT __stdcall LoadFromStream(IStream* str);
 };
 
-struct HullPoints : sarray<XMFLOAT3>, IUnknown
-{
-  static HullPoints* get(const CNode& node)
-  {
-    HullPoints* pts = 0; UINT ns = sizeof(pts);
-    node.vb.p->GetPrivateData(__uuidof(ICDXNode), &ns, &pts);
-    if (!pts)
-    {
-      pts = new HullPoints(); node.vb.p->SetPrivateDataInterface(__uuidof(ICDXNode), pts);
-      UINT nv; node.mesh.p->get_VertexCount(&nv); pts->setsize(nv);
-      node.mesh.p->CopyBuffer(0, 0, CCSGVAR(pts->p, nv));
-    }
-    pts->Release(); return pts;
-  }
-  UINT refcount = 1;
-  HRESULT __stdcall QueryInterface(REFIID riid, void** p)
-  {
-    return E_NOINTERFACE;
-  }
-  ULONG __stdcall AddRef(void)
-  {
-    return InterlockedIncrement(&refcount);
-  }
-  ULONG __stdcall Release(void)
-  {
-    auto count = InterlockedDecrement(&refcount);
-    if (!count) delete this;
-    return count;
-  }
-};
+//struct HullPoints : sarray<XMFLOAT3>, IUnknown
+//{
+//  static HullPoints* get(const CNode& node)
+//  {
+//    HullPoints* pts = 0; UINT ns = sizeof(pts);
+//    node.vb.p->GetPrivateData(__uuidof(ICDXNode), &ns, &pts);
+//    if (!pts)
+//    {
+//      pts = new HullPoints(); node.vb.p->SetPrivateDataInterface(__uuidof(ICDXNode), pts);
+//      UINT nv; node.mesh.p->get_VertexCount(&nv); pts->setsize(nv);
+//      node.mesh.p->CopyBuffer(0, 0, CCSGVAR(pts->p, nv));
+//    }
+//    pts->Release(); return pts;
+//  }
+//  UINT refcount = 1;
+//  HRESULT __stdcall QueryInterface(REFIID riid, void** p)
+//  {
+//    return E_NOINTERFACE;
+//  }
+//  ULONG __stdcall AddRef(void)
+//  {
+//    return InterlockedIncrement(&refcount);
+//  }
+//  ULONG __stdcall Release(void)
+//  {
+//    auto count = InterlockedDecrement(&refcount);
+//    if (!count) delete this;
+//    return count;
+//  }
+//};

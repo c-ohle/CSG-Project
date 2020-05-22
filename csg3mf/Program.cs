@@ -421,9 +421,9 @@ namespace csg3mf
       }
       protected override void OnMouseMove(MouseEventArgs e)
       {
-        if (tool != null) { tool(0, null); return; }
+        if (tool != null) { tool(0, null); return; } 
         //var i = view.MouseOverNode;
-        //this.Text = i != -1 ? $"over: {i} {view.Scene[i].Name} {view.MouseOverPoint}" : "";
+        //FindForm().Text = i != -1 ? $"over: {i} {view.Scene[i].Name} {view.MouseOverPoint}" : "";
       }
       protected override void OnMouseUp(MouseEventArgs e)
       {
@@ -441,7 +441,7 @@ namespace csg3mf
         if (view.MouseOverNode == -1) return;
         var camera = view.Camera.GetTransformF();
         var node = view.Scene[view.MouseOverNode];
-        var v = (view.MouseOverPoint * node.GetTransformF()) - camera.mz;
+        var v = (view.MouseOverPoint * node.GetTransformF()) - camera.mp;
         var l = v.Length; // (float)Math.Sqrt(v.Length);
         //var t = Environment.TickCount; var cm = camera;
         setcwma(camera * (v * (l * 0.01f * e.Delta /* * DpiScale*/ * (1f / 120))));

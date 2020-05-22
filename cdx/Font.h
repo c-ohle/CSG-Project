@@ -14,7 +14,7 @@ struct CFont : ICDXFont
   static CFont* first; CFont* next;
   CFont() { Critical crit; next = first; first = this; }
   ~CFont() { relres(0); auto p = &first; for (; *p != this; p = &(*p)->next); *p = next; }
-  static void relres(); void relres(int);
+  void relres(int);
   int getdict(WCHAR c)
   {
     auto t = c % GLYPH_DICT;

@@ -171,8 +171,6 @@ void CFont::relres(int fl)
   srvn = glyphn = 0; memset(dict, 0, sizeof(dict));
 }
 
-void CFont::relres() { Critical crit;  for (auto p = CFont::first; p; p = p->next) p->relres(0); }
-
 HRESULT __stdcall CFactory::GetFont(BSTR name, FLOAT size, UINT style, ICDXFont** p)
 {
   { Critical crit; for (auto t = CFont::first; t; t = t->next) if (!lstrcmp(name, t->name.p) && t->size == size && t->style == style) { (*p = t)->AddRef(); return 0; } }

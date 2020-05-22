@@ -22,17 +22,21 @@ struct CView : ICDXView
   float                             vscale = 0.0004f, znear = 0.1f, zfar = 100, minwz = -1;
 
   static CView* first; CView* next;
-  CView() { next = first; first = this; }
-  //~CView() { auto p = &first; for (; *p != this; p = &(*p)->next); *p = next; }
-  void dispose()
+  CView() { Critical crit; next = first; first = this; }
+  ~CView() { auto p = &first; for (; *p != this; p = &(*p)->next); *p = next; }
+  //void dispose()
+  //{
+  //  hwnd = 0; relres(1 | 2);
+  //  auto p = &first; for (; *p != this; p = &(*p)->next); *p = next;
+  //}
+  //void relres(int fl)
+  //{
+  //  if (fl & 1) { swapchain.Release(); rtv.Release(); dsv.Release(); }
+  //  if (fl & 2 && scene.p) { for (UINT i = 0; i < scene.p->count; i++) scene.p->nodes.p[i]->relres(); }
+  //}
+  void relres()
   {
-    hwnd = 0; relres(1 | 2);
-    auto p = &first; for (; *p != this; p = &(*p)->next); *p = next;
-  }
-  void relres(int fl)
-  {
-    if (fl & 1) { swapchain.Release(); rtv.Release(); dsv.Release(); }
-    if (fl & 2 && scene.p) { for (UINT i = 0; i < scene.p->count; i++) scene.p->nodes.p[i]->relres(); }
+    swapchain.Release(); rtv.Release(); dsv.Release();
   }
   void initres()
   {
@@ -75,14 +79,20 @@ struct CView : ICDXView
   ULONG __stdcall Release(void)
   {
     auto count = InterlockedDecrement(&refcount);
-    if (!count) delete this;
+    if (!count)
+    {
+      Critical crit;
+      if (refcount != 0)
+        return refcount;
+      delete this;
+    }
     return count;
   }
   HRESULT __stdcall get_Samples(BSTR* p);
   HRESULT __stdcall put_Samples(BSTR p)
   {
     UINT c = _wtoi(p); if (c == 0) return E_INVALIDARG;
-    relres(1); sampels = c; initres(); return 0;
+    relres(); sampels = c; initres(); return 0;
   }
   HRESULT __stdcall get_BkColor(UINT* p);
   HRESULT __stdcall put_BkColor(UINT p);
@@ -100,7 +110,6 @@ struct CView : ICDXView
   }
   HRESULT __stdcall put_Scene(ICDXScene* p)
   {
-    if (scene.p) relres(2);
     if (camera.p && camera.p->parent) camera.Release();
     scene = static_cast<CScene*>(p); return 0;
   }

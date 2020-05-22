@@ -33,7 +33,7 @@ LRESULT CALLBACK CView::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
     GetClientRect(hWnd, &view->rcclient); InvalidateRect(hWnd, 0, 0);
     break;
   case WM_DESTROY:
-    view->dispose();
+    view->hwnd = 0; view->relres();
     break;
   }
   return view->proc(hWnd, message, wParam, lParam);
@@ -118,7 +118,7 @@ void CView::inits(int fl)
     {
       auto& node = *nodes.p[i]; if (!node.mesh.p) continue;
       BOOL modified; node.mesh.p->GetModified(&modified);
-      if (!node.ib.p || modified) node.update();
+      if (modified || !node.ib.p || !node.ib.p->p.p) node.update();
     }
   }
 }
@@ -139,7 +139,7 @@ HRESULT __stdcall CView::Command(CDX_CMD cmd, UINT* data)
     for (UINT i = 0; i < scene.p->count; i++)
     {
       auto& node = *nodes.p[i]; if (!node.ib.p) continue;
-      auto& pts = *HullPoints::get(node);
+      auto& pts = *node.gethull();
       auto wm = node.gettrans(scene.p); auto tm = wm * icw;
       for (UINT i = 0; i < pts.n; i++)
       {
@@ -180,7 +180,7 @@ HRESULT __stdcall CView::Command(CDX_CMD cmd, UINT* data)
     for (UINT i = 0; i < scene.p->count; i++)
     {
       auto& node = *nodes.p[i]; if (!node.ib.p) continue;
-      auto& pts = *HullPoints::get(node);
+      auto& pts = *node.gethull();
       auto wm = node.gettrans(scene.p) * ma;
       for (UINT i = 0; i < pts.n; i++)
       {
