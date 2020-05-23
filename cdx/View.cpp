@@ -281,26 +281,6 @@ HRESULT __stdcall CView::Command(CDX_CMD cmd, UINT* data)
     XMStoreFloat2(p, f5 / XMVectorSplatZ(f5));
     return 0;
   }
-  case CDX_CMD_SELECT:
-  {
-    auto keys = (UINT)(size_t)data; auto ctrl = (keys & 0x20000) == 0x20000;
-    void* layer = scene.p;
-    auto& nodes = scene.p->nodes;
-    auto  main = iover != -1 ? nodes[iover] : 0;
-    for (; main && main->parent != layer; main = main->getparent());
-    auto sel = ctrl && main && (main->flags & NODE_FL_SELECT) == 0;
-    for (UINT i = 0; i < scene.p->count; i++)
-    {
-      auto p = nodes.p[i]; auto is = p->ispart(main); if (ctrl && !is) continue;
-      if (ctrl ? sel : is)
-      {
-        if (p->flags & NODE_FL_STATIC && (keys & 0x70000) != 0x70000) continue; //ctrl+shift+alt for unlock
-        p->flags |= p == main ? NODE_FL_SELECT | NODE_FL_INSEL : NODE_FL_INSEL;
-      }
-      else p->flags &= ~(NODE_FL_SELECT | NODE_FL_INSEL);
-    }
-    return 0;
-  }
   case CDX_CMD_SELECTRECT:
     selectrect(*this, data);
     return 0;

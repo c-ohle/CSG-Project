@@ -155,8 +155,7 @@ enum CDX_CMD
         CDX_CMD_GETBOXSEL	= 3,
         CDX_CMD_SETPLANE	= 4,
         CDX_CMD_PICKPLANE	= 5,
-        CDX_CMD_SELECT	= 6,
-        CDX_CMD_SELECTRECT	= 7
+        CDX_CMD_SELECTRECT	= 6
     } 	CDX_CMD;
 
 typedef 

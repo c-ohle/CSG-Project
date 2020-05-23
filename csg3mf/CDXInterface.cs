@@ -41,8 +41,7 @@ namespace csg3mf
       GetBoxSel = 3, //in float4x3, out float4[2] 
       SetPlane = 4, //in float4x3
       PickPlane = 5, //in float2, out float2
-      Select = 6, //keys
-      SelectRect = 7, //in float2[2] 
+      SelectRect = 6, //in float2[2] 
     }
 
     public enum Draw
@@ -140,6 +139,14 @@ namespace csg3mf
       for (int a = -1, b; (b = p.GetSelect(a)) != -1; a = b) yield return p[b];
     }
     public static IEnumerable<INode> Nodes(this INode p) => p.Scene.Nodes().Where(t => t.Parent == p);
+    public static void Select(this IScene scene) 
+    {
+      foreach (var p in scene.Selection()) p.IsSelect = false;
+    }
+    public static void Select(this INode node)
+    {
+      node.Scene.Select(); node.IsSelect = true;
+    }
     public static void Join(this INode a, INode b, CSG.JoinOp op)
     {
       if (a.Mesh == null || b.Mesh == null) return;
@@ -153,7 +160,7 @@ namespace csg3mf
     public static void Cut(this INode a, INode b)
     {
       if (a.Mesh == null) return;
-      var t = b.Transform;
+      var t = b.Transform * !a.Transform;
       CSG.Tesselator.Cut(a.Mesh, CSG.Rational.Plane.FromPointNormal(t.mp, t.mz));
     }
     public static INode AddNode(this IScene a, string name, uint color)

@@ -11,8 +11,15 @@ namespace csg3mf
 {
   public unsafe class Container : Neuron
   {
-    public readonly CDX.IScene Nodes = CDX.Factory.CreateScene();
+    public readonly IScene Nodes = CDX.Factory.CreateScene();
     public readonly List<string> Infos = new List<string>();
+    public override object Invoke(int id, object p)
+    {
+      if (id == 5) return this; //AutoStop
+      if (id == 6) { OnUpdate?.Invoke(); return null; } //step
+      if (id == 3) { System.Windows.Forms.Application.RaiseIdle(null); }
+      return base.Invoke(id, p);
+    }
     public Unit BaseUnit;
     public Action OnUpdate;
     public enum Unit { meter, micron, millimeter, centimeter, inch, foot }
@@ -311,14 +318,6 @@ namespace csg3mf
         }
       }
       File.WriteAllBytes(path, memstr.ToArray()); return null;
-    }
-
-    public override object Invoke(int id, object p)
-    {
-      if (id == 5) return this; //AutoStop
-      if (id == 6) { OnUpdate?.Invoke(); return null; } //step
-      if (id == 3) { System.Windows.Forms.Application.RaiseIdle(null); }
-      return base.Invoke(id, p);
     }
   }
 }

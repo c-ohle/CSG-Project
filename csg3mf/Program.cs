@@ -260,7 +260,7 @@ namespace csg3mf
         view.cont.Export3MF(s, str, edit.EditText);
       }
       if (path != s) { path = s; UpdateTitle(); mru(path, path); }
-      edit.IsModified = false; Cursor.Current = Cursors.Default;
+      edit.IsModified = view.IsModified = false; Cursor.Current = Cursors.Default;
       return 1;
     }
     int OnLastFiles(object test)
@@ -276,11 +276,12 @@ namespace csg3mf
     }
     bool AskSave()
     {
-      if (edit == null || !edit.IsModified) return true;
+      if (edit == null) return true;
+      if (!edit.IsModified && !view.IsModified) return true;
       switch (MessageBox.Show(this, String.Format(path == null ? "Save changings?" : "Save changings in {0}?", path), Application.ProductName, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Exclamation))
       {
         case DialogResult.No: return true;
-        case DialogResult.Yes: OnCommand(1020, null); return !edit.IsModified;
+        case DialogResult.Yes: OnCommand(1020, null); return !edit.IsModified && !view.IsModified;
       }
       return false;
     }
@@ -365,7 +366,7 @@ namespace csg3mf
       internal Action Timer;
       internal IView view;
       long drvsettings = 0x400000000;
-      protected unsafe override void OnHandleCreated(EventArgs e)
+      protected unsafe override void OnHandleCreated(EventArgs _)
       {
         var reg = Application.UserAppDataRegistry;
         var drv = reg.GetValue("drv"); if (drv is long v) drvsettings = v;
@@ -376,11 +377,9 @@ namespace csg3mf
         view.Scene = cont.Nodes;
         OnCenter(null);
 
+        AllowDrop = true;
         ContextMenuStrip = new ContextMenu();
-        ContextMenuStrip.Opening += (p, t) =>
-        {
-          var main = mainover(); if (main != null && !main.IsSelect) { view.Command(Cmd.Select, null); Invalidate(); }
-        };
+        ContextMenuStrip.Opening += (x, y) => { var p = mainover(); if (p != null && !p.IsSelect && !p.IsStatic) { p.Select(); Invalidate(); } };
         ContextMenuStrip.Items.AddRange(new ToolStripItem[] {
           new MenuItem(2010, "&Undo"),
           new MenuItem(2011, "&Redo"),
@@ -444,11 +443,11 @@ namespace csg3mf
         Application.UserAppDataRegistry.SetValue("drv", drvsettings, Microsoft.Win32.RegistryValueKind.QWord);
         Cursor = Cursors.Default; return 1;
       }
-      internal int OnCenter(object test)
+      internal int OnCenter(object test) //todo: undo
       {
         if (!view.Scene.Nodes().Any(p => p.Mesh != null && p.Mesh.VertexCount != 0)) return 0;
         if (test != null) return 1;
-        float abst = 100; view.Command(Cmd.Center, &abst);
+        float abst = 100; view.Command(Cmd.Center, &abst); 
         Invalidate(); return 1;
       }
 
@@ -467,20 +466,18 @@ namespace csg3mf
         var main = mainover();
         if (main == null) tool = camera_free();
         else
-        {
           switch (keys)
           {
-            case Keys.None: tool = main.IsStatic ? tool_select() : obj_movxy(main); break; // pc.SetTool(obj_sel(pc, main)); 
-            case Keys.Control: tool = main.IsStatic ? camera_movxy() : tool_select(); break;
+            case Keys.None: tool = main.IsStatic ? tool_select() : obj_movxy(main); break;
+            case Keys.Control: tool = main.IsStatic ? camera_movxy() : obj_drag(main); break;
             case Keys.Shift: tool = main.IsStatic ? camera_movz() : obj_movz(main); break;
             case Keys.Alt: tool = main.IsStatic ? camera_rotz(0) : obj_rotz(main); break;
             case Keys.Control | Keys.Shift: tool = main.IsStatic ? camera_rotx() : obj_rot(main, 0); break;
             case Keys.Control | Keys.Alt: tool = main.IsStatic ? camera_rotz(1) : obj_rot(main, 1); break;
-            case Keys.Control | Keys.Alt | Keys.Shift: tool = main.IsStatic ? tool_select() : obj_rot(main, 2); break;
+            case Keys.Control | Keys.Alt | Keys.Shift: if (main.IsStatic) main.Select(); else obj_rot(main, 2); break;
             default: tool = tool_select(); break;
           }
-        }
-        if (tool != null) { Capture = true; Invalidate(); }
+        if (tool != null) Capture = true; Invalidate();
       }
       protected override void OnMouseMove(MouseEventArgs e)
       {
@@ -512,6 +509,23 @@ namespace csg3mf
       }
       static int lastwheel;
 
+      Action<int> camera_free()
+      {
+        var mb = float4x3.Identity; view.Command(Cmd.GetBox, &mb);
+        var boxmin = *(float3*)&mb._11; var boxmax = *(float3*)&mb._22;
+        var pm = (boxmin + boxmax) * 0.5f; var tm = (float4x3)pm;
+        var cm = view.Camera.TransformF; var p1 = (float2)Cursor.Position; bool moves = false;
+        return id =>
+        {
+          if (id == 0)
+          {
+            var v = (Cursor.Position - p1) * -0.01f;
+            if (!moves && v.LengthSq < 0.03) return; moves = true;
+            view.Camera.TransformF = cm * !tm * float4x3.RotationAxis(cm.mx, -v.y) * float4x3.RotationZ(v.x) * tm;
+          }
+          if (id == 1) addundo(undo(view.Camera, cm));
+        };
+      }
       Action<int> camera_movxy()
       {
         var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
@@ -577,33 +591,16 @@ namespace csg3mf
           }
           if (id == 1)
           {
-            if (p1 == p2) { view.Command(Cmd.Select, (void*)(int)ModifierKeys); return; }
+            if (p1 == p2) { view.Scene.Select(); return; }
             float4 t; ((float2*)&t)[0] = p1; ((float2*)&t)[1] = p2;
             view.Command(Cmd.SelectRect, &t);
           }
         };
       }
-      Action<int> camera_free()
-      {
-        var m = float4x3.Identity; view.Command(Cmd.GetBox, &m);
-        var boxmin = *(float3*)&m._11; var boxmax = *(float3*)&m._22;
-        var pm = (boxmin + boxmax) * 0.5f; var tm = (float4x3)pm;
-        var cm = view.Camera.TransformF; var p1 = (float2)Cursor.Position; bool moves = false;
-        return id =>
-        {
-          if (id == 0)
-          {
-            var v = (Cursor.Position - p1) * -0.01f;
-            if (!moves && v.LengthSq < 0.03) return; moves = true;
-            view.Camera.TransformF = cm * !tm * float4x3.RotationAxis(cm.mx, -v.y) * float4x3.RotationZ(v.x) * tm;
-          }
-          //if (id == 1) { if (moves) AddUndo(setcwmb(cm)); else Select(null); }
-        };
-      }
 
       Action<int> obj_movxy(INode main)
       {
-        var ws = main.IsSelect; if (!ws) { view.Command(Cmd.Select, null); }
+        var ws = main.IsSelect; if (!ws) main.Select();
         var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
         view.SetPlane(wp = new float3(0, 0, wp.z)); var p1 = view.PickPlane(); var p2 = p1;
         Action<int, float4x3> mover = null;
@@ -617,13 +614,13 @@ namespace csg3mf
           if (id == 1)
           {
             if (mover != null) mover(2, 0);
-            else if (ws) view.Command(Cmd.Select, null);
+            else if (ws) main.Select();
           }
         };
       }
       Action<int> obj_movz(INode main)
       {
-        var ws = main.IsSelect; if (!ws) { view.Command(Cmd.Select, null); }
+        var ws = main.IsSelect; if (!ws) main.Select();
         var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
         var bo = float4x3.Identity; view.Command(Cmd.GetBoxSel, &bo);
         var miz = bo.mx.z; var lov = miz != float.MaxValue ? miz : 0; var boxz = lov; var ansch = Math.Abs(boxz) < 0.1f;
@@ -642,7 +639,7 @@ namespace csg3mf
       }
       Action<int> obj_rotz(INode main)
       {
-        if (!main.IsSelect) { view.Command(Cmd.Select, null); }
+        if (!main.IsSelect) main.Select();
         var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
         var scene = main.Parent; var ms = scene != null ? scene.GetTransformF() : 1;
         var mw = main.GetTransformF(); var mp = mw.mp;
@@ -663,7 +660,7 @@ namespace csg3mf
       }
       Action<int> obj_rot(INode main, int xyz)
       {
-        if (!main.IsSelect) { view.Command(Cmd.Select, null); }
+        if (!main.IsSelect) main.Select();
         var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
         var wm = main.GetTransformF(main.Parent);
         var op = wp * !main.GetTransformF();
@@ -688,6 +685,31 @@ namespace csg3mf
             mover(0, !wm * mr * wm);
           }
           if (id == 1) mover(2, 0);
+        };
+      }
+      Action<int> obj_drag(INode main)
+      {
+        var ws = main.IsSelect; if (!ws) main.IsSelect = true;
+        var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+        var p1 = (float2)Cursor.Position;
+        return id =>
+        {
+          if (id == 0)
+          {
+            var p2 = (float2)Cursor.Position; if ((p2 - p1).LengthSq < 10 /* * DpiScale*/) return;
+            if (!ws) main.Select(); ws = false; if (!AllowDrop) return;
+            var path = Path.Combine(Path.GetTempPath(), string.Join("_", main.Name.Trim().Split(Path.GetInvalidFileNameChars())) + ".3mf");
+            try
+            {
+              //var nodes = node.Parent.Children.Where(t => t.IsSelected).ToArray();
+              //WriteFile(path, ar => { var ver = ((ar.Version = 1) << 16) | 0x66C1; ar.Serialize(ref ver); ar.Compress = true; ar.Serialize(ref pt); ar.Serialize(ref nodes); });
+              //var data = new DataObject(); data.SetFileDropList(new System.Collections.Specialized.StringCollection { path });
+              //DoDragDrop(data, DragDropEffects.Copy); File.Delete(path);
+            }
+            catch (Exception e) { Debug.WriteLine(e.Message); }
+            finally { File.Delete(path); }
+          }
+          if (id == 1 && ws) main.IsSelect = false;
         };
       }
 #if (false)
@@ -733,6 +755,7 @@ namespace csg3mf
           return val;
         };
       }
+      public bool IsModified { get => undoi != 0; set { undos = null; undoi = 0; } }
       List<Action> undos; int undoi;
       void addundo(Action p)
       {

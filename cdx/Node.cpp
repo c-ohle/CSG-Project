@@ -9,34 +9,55 @@ CTexture* CTexture::first;
 extern CComPtr<ID3D11Device> device;
 extern CComPtr<ID3D11DeviceContext> context;
 
-CScene* getscene(CNode* p)
+CNode* CNode::getparent()
 {
-  if (*(void**)p != *(void**)p->parent) return static_cast<CScene*>(p->parent);
-  return getscene(static_cast<CNode*>(p->parent));
+  return parent && *(void**)this == *(void**)parent ? (CNode*)parent : 0;
 }
-
-HRESULT CNode::AddNode(BSTR name, ICDXNode** p)
+CScene* CNode::getscene()
 {
-  CHR(getscene(this)->AddNode(name, p));
-  static_cast<CNode*>(*p)->parent = this; return 0;
+  CNode* a = this; for (CNode* b; b = a->getparent(); a = b);
+  return static_cast<CScene*>(a->parent);
 }
-
 HRESULT CNode::get_Scene(ICDXScene** p)
 {
-  if (!parent) return 0;
-  if (*(void**)this == *(void**)parent) return static_cast<CNode*>(parent)->get_Scene(p);
-  (*p = static_cast<CScene*>(parent))->AddRef(); return 0;
+  if (*p = getscene()) (*p)->AddRef(); return 0;
 }
 HRESULT CNode::get_Parent(ICDXNode** p)
 {
-  if(*p = getparent()) (*p)->AddRef(); return 0;
+  if (*p = getparent()) (*p)->AddRef(); return 0;
 }
 HRESULT CNode::put_Parent(ICDXNode* p)
 {
   return E_NOTIMPL;
 }
+HRESULT CNode::get_IsSelect(BOOL* p)
+{
+  *p = (flags & NODE_FL_SELECT) != 0; return 0;
+}
+HRESULT CNode::put_IsSelect(BOOL p)
+{
+  if (p == (flags & NODE_FL_SELECT) != 0) return 0;
+  auto scene = getscene(); if (!scene) return E_FAIL;
+  for (UINT i = p ? 0 : -1; i < scene->count; i++)
+  {
+    auto t = scene->nodes.p[i]; 
+    if (t->flags & NODE_FL_SELECT && t->parent != parent) t->put_IsStatic(0);
+  }
+  if (p) flags |= NODE_FL_SELECT; else flags &= ~NODE_FL_SELECT;
+  for (UINT i = 0; i < scene->count; i++)
+  {
+    auto t = scene->nodes.p[i]; if (!t->ispart(this)) continue;
+    if (p) t->flags |= NODE_FL_INSEL; else t->flags &= ~NODE_FL_INSEL;
+  }
+  return 0;
+}
 
-//static bool operator ==(XMFLOAT2 a, XMFLOAT2 b) {  return a.x == b.x && a.y == b.y; }
+HRESULT CNode::AddNode(BSTR name, ICDXNode** p)
+{
+  CHR(getscene()->AddNode(name, p));
+  static_cast<CNode*>(*p)->parent = this; return 0;
+}
+
 
 bool equals(ID3D11Buffer* buffer, const void* p, UINT n)
 {
@@ -375,7 +396,7 @@ HRESULT CNode::SetTexturCoords(CSGVAR m)
   ib.Release(); vb.Release();
   if (!m.vt) { texcoords.Release(); return 0; }
   if (m.vt != CSG_TYPE_FLOAT || m.count != 2) return E_INVALIDARG;
-  auto scene = getscene(this);
+  auto scene = getscene();
   for (UINT i = 0; i < scene->count; i++)
   {
     auto p = scene->nodes.p[i]->texcoords.p; if (!p) continue;

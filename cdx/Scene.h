@@ -121,10 +121,8 @@ struct CNode : public ICDXNode
     if (parent == scene) return matrix;
     return matrix * static_cast<CNode*>(parent)->gettrans(scene);
   }
-  CNode* getparent()
-  {
-    return parent && *(void**)this == *(void**)parent ? (CNode*)parent : 0;
-  }
+  CNode* getparent();
+  CScene* getscene();
   bool ispart(CNode* main)
   {
     for (auto p = this; p; p = p->getparent()) if (p == main) return true;
@@ -158,14 +156,8 @@ struct CNode : public ICDXNode
   HRESULT __stdcall get_Parent(ICDXNode** p);
   HRESULT __stdcall put_Parent(ICDXNode* p);
   HRESULT __stdcall get_Scene(ICDXScene** p);
-  HRESULT __stdcall get_IsSelect(BOOL* p)
-  {
-    *p = (flags & NODE_FL_SELECT) != 0; return 0;
-  }
-  HRESULT __stdcall put_IsSelect(BOOL p)
-  {
-    return E_NOTIMPL;
-  }
+  HRESULT __stdcall get_IsSelect(BOOL* p);
+  HRESULT __stdcall put_IsSelect(BOOL p);
   HRESULT __stdcall get_IsStatic(BOOL* p)
   {
     *p = (flags & NODE_FL_STATIC) != 0; return 0;
