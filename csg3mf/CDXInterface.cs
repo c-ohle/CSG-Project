@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
+using System.Windows.Forms;
 
 namespace csg3mf
 {
@@ -35,8 +36,13 @@ namespace csg3mf
 
     public enum Cmd
     {
-      Center = 1, //float border
+      Center = 1, //in float border
       GetBox = 2, //in float4x3, out float4[2] 
+      GetBoxSel = 3, //in float4x3, out float4[2] 
+      SetPlane = 4, //in float4x3
+      PickPlane = 5, //in float2, out float2
+      Select = 6, //keys
+      SelectRect = 7, //in float2[2] 
     }
 
     public enum Draw
@@ -49,6 +55,7 @@ namespace csg3mf
       FillEllipse = 8,
       GetTextExtent = 9,
       DrawText = 10,
+      DrawRect = 11,
     }
 
     [ComImport, Guid("4C0EC273-CA2F-48F4-B871-E487E2774492"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
@@ -78,6 +85,7 @@ namespace csg3mf
     {
       int Count { get; }
       INode this[int i] { get; }
+      int GetSelect(int i = -1);
       INode AddNode(string name);
       void Remove(int i);
       void Clear();
@@ -91,6 +99,8 @@ namespace csg3mf
       string Name { get; set; }
       INode Parent { get; set; }
       IScene Scene { get; }
+      bool IsSelect { get; set; }
+      bool IsStatic { get; set; }
       float4x3 TransformF { get; set; }
       CSG.Rational.Matrix Transform { get; set; }
       CSG.IMesh Mesh { get; set; }
@@ -124,6 +134,10 @@ namespace csg3mf
     public static IEnumerable<INode> Nodes(this IScene p)
     {
       for (int i = 0; i < p.Count; i++) yield return p[i];
+    }
+    public static IEnumerable<INode> Selection(this IScene p)
+    {
+      for (int a = -1, b; (b = p.GetSelect(a)) != -1; a = b) yield return p[b];
     }
     public static IEnumerable<INode> Nodes(this INode p) => p.Scene.Nodes().Where(t => t.Parent == p);
     public static void Join(this INode a, INode b, CSG.JoinOp op)
@@ -163,6 +177,14 @@ namespace csg3mf
     {
       fixed (float2* p = a) node.SetTexturCoords(new CSG.Variant(&p->x, 2, a.Length));
     }
+    public static void SetPlane(this IView view, float4x3 p)
+    {
+      view.Command(Cmd.SetPlane, &p);
+    }
+    public static float2 PickPlane(this IView view)
+    {
+      float2 p; p.x = float.NaN; view.Command(Cmd.PickPlane, &p); return p;
+    }
 
     public struct DC
     {
@@ -191,6 +213,10 @@ namespace csg3mf
         }
         set { var t = Marshal.GetIUnknownForObject(value); p.Draw(Draw.SetFont, t.ToPointer()); Marshal.Release(t); }
       }
+      public void DrawRect(float x, float y, float dx, float dy)
+      {
+        var r = new float4(x, y, dx, dy); p.Draw(Draw.DrawRect, &r);
+      }
       public void FillRect(float x, float y, float dx, float dy)
       {
         var r = new float4(x, y, dx, dy); p.Draw(Draw.FillRect, &r);
@@ -202,7 +228,8 @@ namespace csg3mf
       public float2 GetTextExtent(string s)
       {
         t1 v; v.n = s.Length;
-        fixed (char* t = s) { v.s = t; p.Draw(Draw.GetTextExtent, &v); } return *(float2*)&v.x; 
+        fixed (char* t = s) { v.s = t; p.Draw(Draw.GetTextExtent, &v); }
+        return *(float2*)&v.x;
       }
       public void DrawText(float x, float y, string s)
       {
@@ -260,6 +287,7 @@ namespace csg3mf
         float2 v; v.x = p.X; v.y = p.Y; return v;
       }
       public float LengthSq => x * x + y * y;
+      public double Angel => Math.Atan2(y, x);
       public static bool operator ==(float2 a, float2 b) { return a.x == b.x && a.y == b.y; }
       public static bool operator !=(float2 a, float2 b) { return a.x != b.x || a.y != b.y; }
       public static float2 operator -(float2 v) { v.x = -v.x; v.y = -v.y; return v; }

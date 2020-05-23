@@ -31,6 +31,11 @@ typedef enum CDX_CMD
 {
   CDX_CMD_CENTER = 1, //FLOAT border
   CDX_CMD_GETBOX = 2, //XMFLOAT4X3
+  CDX_CMD_GETBOXSEL = 3, //XMFLOAT4X3
+  CDX_CMD_SETPLANE = 4, //XMFLOAT4X3
+  CDX_CMD_PICKPLANE = 5, //XMFLOAT2
+  CDX_CMD_SELECT = 6, //
+  CDX_CMD_SELECTRECT = 7, //XMFLOAT2[2]
 } CDX_CMD;
 
 typedef enum CDX_DRAW
@@ -46,6 +51,7 @@ typedef enum CDX_DRAW
   CDX_DRAW_FILL_ELLIPSE = 8, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
   CDX_DRAW_GET_TEXTEXTENT = 9, //FLOAT x, FLOAT y, LPCWSTR s, UINT n  
   CDX_DRAW_DRAW_TEXT = 10, //FLOAT x, FLOAT y, LPCWSTR s, UINT n  
+  CDX_DRAW_DRAW_RECT = 11, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
 } CDX_DRAW;
 
 [object, uuid(4C0EC273-CA2F-48F4-B871-E487E2774492), pointer_default(unique)]
@@ -80,6 +86,7 @@ interface ICDXScene : IUnknown
 {
   [propget] HRESULT Count([out, retval] UINT* p);
   HRESULT GetNode([in] UINT i, [out, retval] ICDXNode** p);
+  HRESULT GetSelect([in] UINT i, [out, retval] UINT* p);
   HRESULT AddNode([in] BSTR name, [out, retval] ICDXNode** p);
   HRESULT Remove([in] UINT i);
   HRESULT Clear();
@@ -108,6 +115,10 @@ interface ICDXNode : IUnknown
   [propget] HRESULT Parent([out, retval] ICDXNode** p);
   [propput] HRESULT Parent([in] ICDXNode* p);
   [propget] HRESULT Scene([out, retval] ICDXScene** p);
+  [propget] HRESULT IsSelect([out, retval] BOOL* p);
+  [propput] HRESULT IsSelect([in] BOOL p);
+  [propget] HRESULT IsStatic([out, retval] BOOL* p);
+  [propput] HRESULT IsStatic([in] BOOL p);
   [propget] HRESULT TransformF([out, retval] XMFLOAT4X3* p);
   [propput] HRESULT TransformF([in] XMFLOAT4X3 p);
   [propget] HRESULT Transform([out, retval] CSGVAR* p);

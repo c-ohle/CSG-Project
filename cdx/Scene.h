@@ -98,12 +98,13 @@ struct CTexCoords : sarray<XMFLOAT2>
   }
 };
 
-//#define NODE_FL_SELECT    1
-//#define NODE_FL_BUILDOK   2
+#define NODE_FL_SELECT    1
+#define NODE_FL_INSEL     2
+#define NODE_FL_STATIC    4
 
 struct CNode : public ICDXNode
 {
-  sarray<WCHAR> name; //UINT flags;
+  sarray<WCHAR> name; UINT flags = 0;
   CComPtr<ICSGVector> transform;
   CComPtr<ICSGMesh> mesh;
   carray<Material> materials;
@@ -119,6 +120,15 @@ struct CNode : public ICDXNode
   {
     if (parent == scene) return matrix;
     return matrix * static_cast<CNode*>(parent)->gettrans(scene);
+  }
+  CNode* getparent()
+  {
+    return parent && *(void**)this == *(void**)parent ? (CNode*)parent : 0;
+  }
+  bool ispart(CNode* main)
+  {
+    for (auto p = this; p; p = p->getparent()) if (p == main) return true;
+    return false;
   }
   UINT refcount = 1;
   HRESULT __stdcall QueryInterface(REFIID riid, void** p)
@@ -148,6 +158,22 @@ struct CNode : public ICDXNode
   HRESULT __stdcall get_Parent(ICDXNode** p);
   HRESULT __stdcall put_Parent(ICDXNode* p);
   HRESULT __stdcall get_Scene(ICDXScene** p);
+  HRESULT __stdcall get_IsSelect(BOOL* p)
+  {
+    *p = (flags & NODE_FL_SELECT) != 0; return 0;
+  }
+  HRESULT __stdcall put_IsSelect(BOOL p)
+  {
+    return E_NOTIMPL;
+  }
+  HRESULT __stdcall get_IsStatic(BOOL* p)
+  {
+    *p = (flags & NODE_FL_STATIC) != 0; return 0;
+  }
+  HRESULT __stdcall put_IsStatic(BOOL p)
+  {
+    if (p) flags |= NODE_FL_STATIC; else flags &= ~NODE_FL_STATIC; return 0;
+  }
   HRESULT __stdcall get_TransformF(XMFLOAT4X3* p)
   {
     XMStoreFloat4x3(p, matrix); return 0;
@@ -277,6 +303,11 @@ struct CScene : public ICDXScene
   {
     if (i >= count) return E_INVALIDARG;
     (*p = nodes.p[i])->AddRef(); return 0;
+  }
+  HRESULT __stdcall GetSelect(UINT a, UINT* p)
+  {
+    while(++a < count) if (nodes.p[a]->flags & NODE_FL_SELECT) { *p = a; return 0; }
+    *p = -1; return 1;
   }
   HRESULT __stdcall Remove(UINT i);
   HRESULT __stdcall Clear();

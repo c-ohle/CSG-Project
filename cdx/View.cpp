@@ -123,6 +123,65 @@ void CView::inits(int fl)
   }
 }
 
+static bool tri_intersect_xy(const XMVECTOR a[3], const XMVECTOR b[3])
+{
+  XMVECTOR mz = XMVectorZero(), ma = mz, mb = mz, mh = g_XMOneHalf;
+  for (UINT i1 = 2, i2 = 0; i2 < 3; i1 = i2++)
+  {
+    auto va = a[i2] - a[i1];
+    for (UINT k1 = 2, k2 = 0; k2 < 3; k1 = k2++)
+    {
+      auto vb = b[k2] - b[k1];
+      ma = _mm_or_ps(ma, _mm_cmple_ps(XMVector2Cross(va, b[k2] - a[i1]), mz));
+      mb = _mm_or_ps(mb, _mm_cmple_ps(XMVector2Cross(vb, a[i2] - b[k1]), mz));
+      auto de = XMVector2Cross(va, vb); if (_mm_movemask_ps(_mm_cmpeq_ps(de, mz))) continue;
+      de = XMVectorReciprocal(de); auto vc = a[i1] - b[k1];
+      if (!_mm_movemask_ps(XMVectorInBounds(XMVector2Cross(vb, vc) * de - mh, mh))) continue;
+      if (!_mm_movemask_ps(XMVectorInBounds(XMVector2Cross(va, vc) * de - mh, mh))) continue;
+      return true;
+    }
+  }
+  return !_mm_movemask_ps(ma) || !_mm_movemask_ps(mb);
+}
+static void selectrect(CView& view, UINT* data)
+{
+  void* layer = view.scene.p;
+  auto& nodes = view.scene.p->nodes;
+  for (UINT i = 0; i < view.scene.p->count; i++) nodes.p[i]->flags &= ~(NODE_FL_SELECT | NODE_FL_INSEL);
+  XMVECTOR r[5];
+  r[0] = XMLoadFloat2((XMFLOAT2*)data + 0); r[4] = r[0];
+  r[2] = XMLoadFloat2((XMFLOAT2*)data + 1);
+  r[1] = XMVectorPermute<4, 1, 3, 3>(r[0], r[2]);
+  r[3] = XMVectorPermute<0, 5, 3, 3>(r[0], r[2]);
+  auto vv = (XMVECTOR*)__align16(stackptr);
+  for (UINT i = 0; i < view.scene.p->count; i++)
+  {
+    auto node = nodes.p[i]; if (!node->vb.p) continue;
+    auto main = node; for (; main && main->parent != layer; main = (CNode*)main->parent);
+    if (!main || main->flags & (NODE_FL_SELECT | NODE_FL_STATIC)) continue;
+    auto& pts = *node->gethull();
+    auto wm = node->gettrans(view.scene.p);
+    XMVector3TransformStream((XMFLOAT4*)vv, sizeof(XMVECTOR), pts.p, sizeof(XMFLOAT3), pts.n, wm);
+    UINT ni; node->mesh.p->get_IndexCount(&ni);
+    auto ii = (UINT*)(vv + pts.n); node->mesh.p->CopyBuffer(1, 0, CCSGVAR(ii, ni));
+    for (UINT t = 0; t < ni; t += 3)
+    {
+      XMVECTOR tt[] = { vv[ii[t + 0]], vv[ii[t + 1]], vv[ii[t + 2]] };
+      if (!tri_intersect_xy(tt, r) && !tri_intersect_xy(tt, r + 2)) continue;
+      main->flags |= NODE_FL_SELECT; break;
+    }
+  }
+  for (UINT i = 0; i < view.scene.p->count; i++)
+  {
+    auto node = nodes.p[i];
+    for (auto p = node; p != layer; p = (CNode*)p->parent)
+    {
+      if (!(p->flags & NODE_FL_SELECT)) continue;
+      node->flags |= NODE_FL_INSEL; break;
+    }
+  }
+}
+
 HRESULT __stdcall CView::Command(CDX_CMD cmd, UINT* data)
 {
   switch (cmd)
@@ -166,22 +225,24 @@ HRESULT __stdcall CView::Command(CDX_CMD cmd, UINT* data)
 
     auto z1 = box[2].m128_f32[2] - fm;
     auto z2 = box[3].m128_f32[2] - fm;
-    
+
     z1 = powf(10, roundf(log10f(z1)) - 1);
     z2 = powf(10, roundf(log10f(z2)) + 2);
     znear = z1; zfar = z2; minwz = box[0].m128_f32[2];
+    return 0;
   }
-  break;
   case CDX_CMD_GETBOX:
+  case CDX_CMD_GETBOXSEL:
   {
     auto ma = XMLoadFloat4x3((XMFLOAT4X3*)data);
     auto& nodes = scene.p->nodes;
     XMVECTOR box[4]; box[1] = box[3] = -(box[0] = box[2] = g_XMFltMax);
     for (UINT i = 0; i < scene.p->count; i++)
     {
-      auto& node = *nodes.p[i]; if (!node.ib.p) continue;
-      auto& pts = *node.gethull();
-      auto wm = node.gettrans(scene.p) * ma;
+      auto node = nodes.p[i]; if (!node->ib.p) continue; 
+      if (cmd == CDX_CMD_GETBOXSEL && !(node->flags & NODE_FL_INSEL)) continue;
+      auto& pts = *node->gethull();
+      auto wm = node->gettrans(scene.p) * ma;
       for (UINT i = 0; i < pts.n; i++)
       {
         auto p = XMVector3Transform(XMLoadFloat3(&pts.p[i]), wm);
@@ -191,8 +252,59 @@ HRESULT __stdcall CView::Command(CDX_CMD cmd, UINT* data)
     }
     XMStoreFloat4(((XMFLOAT4*)data) + 0, box[0]);
     XMStoreFloat4(((XMFLOAT4*)data) + 1, box[1]);
+    return 0;
   }
-  break;
+  case CDX_CMD_SETPLANE:
+  {
+    mm[MM_PLANE] = XMLoadFloat4x3((XMFLOAT4X3*)data) * mm[MM_PLANE];
+    return 0;
   }
-  return 0;
+  case CDX_CMD_PICKPLANE:
+  {
+    auto p = (XMFLOAT2*)data;
+    if (isnan(p->x))
+    {
+      POINT cp; GetCursorPos(&cp); ScreenToClient(hwnd, &cp);
+      p->x = (float)cp.x;
+      p->y = (float)cp.y;
+    }
+    auto& r = mm[MM_PLANE].r;
+    auto t0 = (XMLoadFloat2(p) * 2 / XMLoadFloat4((XMFLOAT4*)&viewport.Width) + g_XMNegativeOne) * g_XMNegateY;
+    auto t1 = t0 * XMVectorSplatW(r[0]) - r[0];
+    auto t2 = t0 * XMVectorSplatW(r[1]) - r[1];
+    auto t3 = t0 * XMVectorSplatW(r[3]) - r[3]; t3 = -t3;
+    auto f1 = _mm_shuffle_ps(t1, t3, _MM_SHUFFLE(1, 0, 1, 0)); f1 = _mm_shuffle_ps(f1, f1, _MM_SHUFFLE(0, 0, 0, 2));
+    auto f2 = _mm_shuffle_ps(t2, t3, _MM_SHUFFLE(1, 0, 1, 0)); f2 = _mm_shuffle_ps(f2, f2, _MM_SHUFFLE(0, 1, 3, 1));
+    auto f3 = _mm_shuffle_ps(t2, t3, _MM_SHUFFLE(1, 0, 1, 0)); f3 = _mm_shuffle_ps(f3, f3, _MM_SHUFFLE(0, 0, 2, 0));
+    auto f4 = _mm_shuffle_ps(t1, t3, _MM_SHUFFLE(1, 0, 1, 0)); f4 = _mm_shuffle_ps(f4, f4, _MM_SHUFFLE(0, 1, 1, 3));
+    auto f5 = f1 * f2 - f3 * f4;
+    XMStoreFloat2(p, f5 / XMVectorSplatZ(f5));
+    return 0;
+  }
+  case CDX_CMD_SELECT:
+  {
+    auto keys = (UINT)(size_t)data; auto ctrl = (keys & 0x20000) == 0x20000;
+    void* layer = scene.p;
+    auto& nodes = scene.p->nodes;
+    auto  main = iover != -1 ? nodes[iover] : 0;
+    for (; main && main->parent != layer; main = main->getparent());
+    auto sel = ctrl && main && (main->flags & NODE_FL_SELECT) == 0;
+    for (UINT i = 0; i < scene.p->count; i++)
+    {
+      auto p = nodes.p[i]; auto is = p->ispart(main); if (ctrl && !is) continue;
+      if (ctrl ? sel : is)
+      {
+        if (p->flags & NODE_FL_STATIC && (keys & 0x70000) != 0x70000) continue; //ctrl+shift+alt for unlock
+        p->flags |= p == main ? NODE_FL_SELECT | NODE_FL_INSEL : NODE_FL_INSEL;
+      }
+      else p->flags &= ~(NODE_FL_SELECT | NODE_FL_INSEL);
+    }
+    return 0;
+  }
+  case CDX_CMD_SELECTRECT:
+    selectrect(*this, data);
+    return 0;
+  }
+  return E_FAIL;
 }
+

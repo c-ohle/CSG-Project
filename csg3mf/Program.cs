@@ -9,7 +9,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using static csg3mf.CDX;
- 
+
 namespace csg3mf
 {
   static class Program
@@ -22,7 +22,7 @@ namespace csg3mf
       Application.SetCompatibleTextRenderingDefault(false);
       Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
       Application.Run(new MainFrame());
-      CDX.Factory.SetDevice(0xffffffff);
+      Factory.SetDevice(0xffffffff);
     }
   }
 
@@ -168,8 +168,8 @@ namespace csg3mf
     }
     int OnCommand(int id, object test)
     {
-      var re = edit.OnCommand(id, test);
-      if (re != 0) return re;
+      { var x = view.OnCommand(id, test); if (x != 0) return x; }
+      { var x = edit.OnCommand(id, test); if (x != 0) return x; }
       switch (id)
       {
         case 1000: return OnNew(test);
@@ -363,29 +363,69 @@ namespace csg3mf
     {
       internal Container cont;
       internal Action Timer;
-      internal CDX.IView view;
+      internal IView view;
       long drvsettings = 0x400000000;
       protected unsafe override void OnHandleCreated(EventArgs e)
       {
         var reg = Application.UserAppDataRegistry;
         var drv = reg.GetValue("drv"); if (drv is long v) drvsettings = v;
-        CDX.Factory.SetDevice((uint)drvsettings);
-        view = CDX.Factory.CreateView(Handle, this, (uint)(drvsettings >> 32));
-        view.Render = (CDX.Render)reg.GetValue("fl", (int)(CDX.Render.BoundingBox | CDX.Render.Coordinates | CDX.Render.Wireframe | CDX.Render.Shadows));
+        Factory.SetDevice((uint)drvsettings);
+        view = Factory.CreateView(Handle, this, (uint)(drvsettings >> 32));
+        view.Render = (Render)reg.GetValue("fl", (int)(Render.BoundingBox | Render.Coordinates | Render.Wireframe | Render.Shadows));
         view.BkColor = 0xffcccccc;
         view.Scene = cont.Nodes;
         OnCenter(null);
+
+        ContextMenuStrip = new ContextMenu();
+        ContextMenuStrip.Opening += (p, t) =>
+        {
+          var main = mainover(); if (main != null && !main.IsSelect) { view.Command(Cmd.Select, null); Invalidate(); }
+        };
+        ContextMenuStrip.Items.AddRange(new ToolStripItem[] {
+          new MenuItem(2010, "&Undo"),
+          new MenuItem(2011, "&Redo"),
+          new ToolStripSeparator(),
+          new MenuItem(4020, "Static"),
+          new ToolStripSeparator(),
+          new MenuItem(4021, "Properties...")});
+      }
+      internal int OnCommand(int id, object test)
+      {
+        switch (id)
+        {
+          case 2010: //Undo
+            if (!Focused) return 0;
+            if (undos == null || undoi == 0) return 8;
+            if (test == null) { undos[undoi - 1](); undoi--; Invalidate(); }
+            return 1;
+          case 2011: //Redo
+            if (!Focused) return 0;
+            if (undos == null || undoi >= undos.Count) return 8;
+            if (test == null) { undos[undoi](); undoi++; Invalidate(); }
+            return 1;
+          case 4020: //Static
+            {
+              var a = view.Scene.Selection();
+              if (!a.Any()) return 0; var all = a.All(p => p.IsStatic);
+              if (test != null) return all ? 3 : 1;
+              var aa = a.Where(p => p.IsStatic == all).ToArray();
+              void exec() { foreach (var p in aa) p.IsStatic = !p.IsStatic; }
+              Invalidate(); exec(); addundo(exec);
+            }
+            return 1;
+        }
+        return 0;
       }
       internal int OnDriver(object test)
       {
         if (test is ToolStripMenuItem item)
         {
-          var ss = CDX.Factory.Devices.Split('\n');
+          var ss = Factory.Devices.Split('\n');
           for (int i = 1; i < ss.Length; i += 2)
             item.DropDownItems.Add(new ToolStripMenuItem(ss[i + 1]) { Tag = ss[i], Checked = ss[i] == ss[0] });
           return 0;
         }
-        Cursor = Cursors.WaitCursor; CDX.Factory.SetDevice(uint.Parse((string)test));
+        Cursor = Cursors.WaitCursor; Factory.SetDevice(uint.Parse((string)test));
         drvsettings = (drvsettings >> 32 << 32) | uint.Parse((string)test);
         Application.UserAppDataRegistry.SetValue("drv", drvsettings, Microsoft.Win32.RegistryValueKind.QWord);
         Cursor = Cursors.Default; return 1;
@@ -408,74 +448,319 @@ namespace csg3mf
       {
         if (!view.Scene.Nodes().Any(p => p.Mesh != null && p.Mesh.VertexCount != 0)) return 0;
         if (test != null) return 1;
-        float abst = 100; view.Command(CDX.Cmd.Center, &abst);
+        float abst = 100; view.Command(Cmd.Center, &abst);
         Invalidate(); return 1;
       }
 
-      Action<int, object> tool;
+      Action<int> tool;
+      INode mainover()
+      {
+        if (view.MouseOverNode == -1) return null;
+        var p = view.Scene[view.MouseOverNode]; for (; p.Parent != null; p = p.Parent) ; return p;
+      }
+
       protected override void OnMouseDown(MouseEventArgs e)
       {
-        if (e.Button != MouseButtons.Left) return;
+        Focus(); if (e.Button != MouseButtons.Left) return;
+        var keys = ModifierKeys;
         if (view.Camera == null) return;
-        tool = camera_free(); Capture = true;
+        var main = mainover();
+        if (main == null) tool = camera_free();
+        else
+        {
+          switch (keys)
+          {
+            case Keys.None: tool = main.IsStatic ? tool_select() : obj_movxy(main); break; // pc.SetTool(obj_sel(pc, main)); 
+            case Keys.Control: tool = main.IsStatic ? camera_movxy() : tool_select(); break;
+            case Keys.Shift: tool = main.IsStatic ? camera_movz() : obj_movz(main); break;
+            case Keys.Alt: tool = main.IsStatic ? camera_rotz(0) : obj_rotz(main); break;
+            case Keys.Control | Keys.Shift: tool = main.IsStatic ? camera_rotx() : obj_rot(main, 0); break;
+            case Keys.Control | Keys.Alt: tool = main.IsStatic ? camera_rotz(1) : obj_rot(main, 1); break;
+            case Keys.Control | Keys.Alt | Keys.Shift: tool = main.IsStatic ? tool_select() : obj_rot(main, 2); break;
+            default: tool = tool_select(); break;
+          }
+        }
+        if (tool != null) { Capture = true; Invalidate(); }
       }
       protected override void OnMouseMove(MouseEventArgs e)
       {
-        if (tool != null) { tool(0, null); return; } 
+        if (tool != null) { tool(0); Invalidate(); return; }
         //var i = view.MouseOverNode;
         //FindForm().Text = i != -1 ? $"over: {i} {view.Scene[i].Name} {view.MouseOverPoint}" : "";
       }
       protected override void OnMouseUp(MouseEventArgs e)
       {
         if (tool == null) return;
-        tool(1, null); tool = null; Capture = true;
+        tool(1); tool = null; Capture = true; Invalidate();
       }
       protected override void OnLostFocus(EventArgs e)
       {
         if (tool == null) return;
-        tool(1, null); tool = null;
+        tool(1); tool = null; Invalidate();
       }
       protected override void OnMouseWheel(MouseEventArgs e)
       {
         if (tool != null) return;
         if (view.MouseOverNode == -1) return;
-        var camera = view.Camera.GetTransformF();
+        var m = view.Camera.TransformF;//.GetTransformF();
         var node = view.Scene[view.MouseOverNode];
-        var v = (view.MouseOverPoint * node.GetTransformF()) - camera.mp;
+        var v = (view.MouseOverPoint * node.GetTransformF()) - m.mp;
         var l = v.Length; // (float)Math.Sqrt(v.Length);
-        //var t = Environment.TickCount; var cm = camera;
-        setcwma(camera * (v * (l * 0.01f * e.Delta /* * DpiScale*/ * (1f / 120))));
-        //if (t - lastwheel > 500) AddUndo(setcwmb(cm)); lastwheel = t;
+        var t = Environment.TickCount;
+        view.Camera.TransformF = m * (v * (l * 0.01f * e.Delta /* * DpiScale*/ * (1f / 120))); Invalidate();
+        if (t - lastwheel > 500) addundo(undo(view.Camera, m)); lastwheel = t;
       }
-      unsafe Action<int, object> camera_free()
+      static int lastwheel;
+
+      Action<int> camera_movxy()
       {
-        var m = float4x3.Identity; view.Command(CDX.Cmd.GetBox, &m);
+        var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+        view.SetPlane(wp = new float3(0, 0, wp.z)); var p1 = view.PickPlane(); var p2 = p1;
+        var camera = view.Camera; var m = camera.TransformF;
+        return id =>
+        {
+          if (id == 0) { p2 = view.PickPlane(); camera.TransformF = m * (p1 - p2); }
+          if (id == 1) addundo(undo(camera, m));
+        };
+      }
+      Action<int> camera_movz()
+      {
+        var camera = view.Camera; var m = camera.TransformF;
+        var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+        view.SetPlane(float4x3.RotationY(Math.PI / 2) * float4x3.RotationZ(((float2)m.mz).Angel) * wp);
+        var p1 = view.PickPlane(); var p2 = p1; //var mover = move(camera);
+        return id =>
+        {
+          if (id == 0) { p2 = view.PickPlane(); camera.TransformF = m * new float3(0, 0, view.PickPlane().x - p1.x); }
+          if (id == 1) addundo(undo(camera, m));
+        };
+      }
+      Action<int> camera_rotz(int mode)
+      {
+        var camera = view.Camera; var m = camera.TransformF; var rot = m.mp; //var scene = camera.Ancestor<Scene>(); 
+        if (mode != 0)
+        {
+          var p = view.Scene.Selection().FirstOrDefault();
+          if (p != null) rot = p.GetTransformF().mp;
+        }
+        var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+        view.SetPlane(new float3(rot.x, rot.y, wp.z)); var a1 = view.PickPlane().Angel; //var mover = move(camera);
+        return id =>
+        {
+          if (id == 0) { var p2 = view.PickPlane(); camera.TransformF = m * -rot * float4x3.RotationZ(a1 - view.PickPlane().Angel) * rot; }
+          if (id == 1) addundo(undo(camera, m));
+        };
+      }
+      Action<int> camera_rotx()
+      {
+        var camera = view.Camera; var m = camera.TransformF;
+        view.SetPlane(m * m.mz); var p1 = view.PickPlane(); var p2 = p1; //var mover = move(camera);
+        return id =>
+        {
+          if (id == 0) { p2 = view.PickPlane(); camera.TransformF = float4x3.RotationX(Math.Atan(p2.y) - Math.Atan(p1.y)) * m; Invalidate(); }
+          if (id == 1) addundo(undo(camera, m));
+        };
+      }
+      Action<int> tool_select()
+      {
+        var over = view.Scene[view.MouseOverNode];
+        var wp = view.MouseOverPoint * over.GetTransformF();
+        view.SetPlane(wp = new float3(0, 0, wp.z)); var p1 = view.PickPlane(); var p2 = p1;
+        return id =>
+        {
+          if (id == 0) { p2 = view.PickPlane(); }
+          if (id == 4)
+          {
+            var dc = new DC(view); dc.Transform = wp; var dp = p2 - p1;
+            dc.Color = 0x808080ff; dc.FillRect(p1.x, p1.y, dp.x, dp.y);
+            dc.Color = 0xff8080ff; dc.DrawRect(p1.x, p1.y, dp.x, dp.y);
+          }
+          if (id == 1)
+          {
+            if (p1 == p2) { view.Command(Cmd.Select, (void*)(int)ModifierKeys); return; }
+            float4 t; ((float2*)&t)[0] = p1; ((float2*)&t)[1] = p2;
+            view.Command(Cmd.SelectRect, &t);
+          }
+        };
+      }
+      Action<int> camera_free()
+      {
+        var m = float4x3.Identity; view.Command(Cmd.GetBox, &m);
         var boxmin = *(float3*)&m._11; var boxmax = *(float3*)&m._22;
-        //float3box box; var pbox = (float3*)&box; //var recs = cont.Nodes;
-        //boxempty(pbox); //box.min = box.max = 0;//for (int i = 0; i < recs.Count; i++) recs[i].getbox(recs[i].gettrans(), pbox);
-        //foreach (var node in view.Scene.Nodes())
-        //{
-        //  var m = node.Mesh; if (m == null) continue;
-        //  var t = node.GetTransformF();
-        //  foreach (var v in m.VerticesF3()) boxadd(&v, &t, pbox);
-        //}
         var pm = (boxmin + boxmax) * 0.5f; var tm = (float4x3)pm;
         var cm = view.Camera.TransformF; var p1 = (float2)Cursor.Position; bool moves = false;
-        return (id, p) =>
+        return id =>
         {
           if (id == 0)
           {
             var v = (Cursor.Position - p1) * -0.01f;
             if (!moves && v.LengthSq < 0.03) return; moves = true;
-            setcwma(cm * !tm * float4x3.RotationAxis(cm.mx, -v.y) * float4x3.RotationZ(v.x) * tm);
+            view.Camera.TransformF = cm * !tm * float4x3.RotationAxis(cm.mx, -v.y) * float4x3.RotationZ(v.x) * tm;
           }
           //if (id == 1) { if (moves) AddUndo(setcwmb(cm)); else Select(null); }
         };
       }
-      bool setcwma(in float4x3 m)
+
+      Action<int> obj_movxy(INode main)
       {
-        if (m == view.Camera.TransformF) return false;
-        view.Camera.TransformF = m; Invalidate(); return true;
+        var ws = main.IsSelect; if (!ws) { view.Command(Cmd.Select, null); }
+        var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+        view.SetPlane(wp = new float3(0, 0, wp.z)); var p1 = view.PickPlane(); var p2 = p1;
+        Action<int, float4x3> mover = null;
+        return id =>
+        {
+          if (id == 0)
+          {
+            p2 = view.PickPlane(); if (p2 == p1) return; var dm = (float4x3)(p2 - p1);
+            (mover ?? (mover = getmover()))(0, dm);
+          }
+          if (id == 1)
+          {
+            if (mover != null) mover(2, 0);
+            else if (ws) view.Command(Cmd.Select, null);
+          }
+        };
+      }
+      Action<int> obj_movz(INode main)
+      {
+        var ws = main.IsSelect; if (!ws) { view.Command(Cmd.Select, null); }
+        var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+        var bo = float4x3.Identity; view.Command(Cmd.GetBoxSel, &bo);
+        var miz = bo.mx.z; var lov = miz != float.MaxValue ? miz : 0; var boxz = lov; var ansch = Math.Abs(boxz) < 0.1f;
+        view.SetPlane(float4x3.RotationY(Math.PI / 2) * float4x3.RotationZ(((float2)view.Camera.TransformF.my).Angel) * wp);
+        var p1 = view.PickPlane(); var p2 = p1; var mover = getmover();
+        return id =>
+        {
+          if (id == 0)
+          {
+            p2 = view.PickPlane(); if (p2 == p1) return; var dz = p1.x - p2.x;
+            if (miz != float.MaxValue) { var ov = boxz + dz; if (ov < 0 && ov > -0.5f && lov >= 0) { if (!ansch) { ansch = true; } dz = -boxz; ov = 0; } else ansch = false; lov = ov; }
+            mover(0, float4x3.Translation(0, 0, dz));
+          }
+          if (id == 1) mover(2, 0);
+        };
+      }
+      Action<int> obj_rotz(INode main)
+      {
+        if (!main.IsSelect) { view.Command(Cmd.Select, null); }
+        var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+        var scene = main.Parent; var ms = scene != null ? scene.GetTransformF() : 1;
+        var mw = main.GetTransformF(); var mp = mw.mp;
+        view.SetPlane(new float3(mp.x, mp.y, wp.z));
+        var v = Math.Abs(mw._13) > 0.8f ? new float2(mw._21, mw._22) : new float2(mw._11, mw._12);
+        var w0 = v.Angel;
+        var raster = angelstep(); ms = ms * -mp;
+        var a1 = view.PickPlane().Angel; var mover = getmover();
+        return id =>
+        {
+          if (id == 0)
+          {
+            var a2 = view.PickPlane().Angel; var rw = raster(w0 + a2 - a1);
+            mover(0, ms * float4x3.RotationZ(rw - w0) * !ms);
+          }
+          if (id == 1) mover(2, 0);
+        };
+      }
+      Action<int> obj_rot(INode main, int xyz)
+      {
+        if (!main.IsSelect) { view.Command(Cmd.Select, null); }
+        var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+        var wm = main.GetTransformF(main.Parent);
+        var op = wp * !main.GetTransformF();
+        var mr = (xyz == 0 ?
+          float4x3.RotationY(+(Math.PI / 2)) * new float3(op.x, 0, 0) : xyz == 1 ?
+          float4x3.RotationX(-(Math.PI / 2)) * new float3(0, op.y, 0) :
+          new float3(0, 0, op.z)) * wm;
+        var w0 = Math.Abs(mr._33) > 0.9f ? Math.Atan2(mr._12, mr._22) : Math.Atan2(mr._13, mr._23);
+        view.SetPlane(float4x3.RotationZ(-w0) * mr * (main.Parent != null ? main.Parent.GetTransformF() : 1));
+        var a1 = view.PickPlane().Angel; var angelgrid = angelstep(); var mover = getmover();
+        return (id) =>
+        {
+          if (id == 0)
+          {
+            var a2 = view.PickPlane().Angel; var rw = angelgrid(w0 + a2 - a1);
+            switch (xyz)
+            {
+              case 0: mr = float4x3.RotationX(rw - w0); break;
+              case 1: mr = float4x3.RotationY(rw - w0); break;
+              case 2: mr = float4x3.RotationZ(rw - w0); break;
+            }
+            mover(0, !wm * mr * wm);
+          }
+          if (id == 1) mover(2, 0);
+        };
+      }
+#if (false)
+      static Action<int, object> obj_drop(ISelector pc, Node scene)
+      {
+        var drop = getdrop(pc, ".xo", out float3 pt); var nodes = drop as Node[];
+        if (drop is string path)
+        {
+          if (path.EndsWith(".png", true, null) || path.EndsWith(".jpg", true, null) || path.EndsWith(".dds", true, null))
+          {
+            var texture = GetTexture(path); var size = texture.Size * 0.001f;
+            nodes = import("PicBox.xo", out float3 xxx);
+            var mesh = (Mesh)nodes[0]; mesh["Size"] = (float3)size; mesh.texture = texture; mesh.Textrans = new float3x4 { _11 = 1 / size.x, _22 = 1 / size.y, _33 = 1 };
+          }
+          else nodes = import(path, ref pt);
+        }
+        if (nodes == null) return null; var view = (View)pc.View;
+        pc.SetPlane(pt); foreach (var p in nodes) scene.Add(p);
+        var mover = move(nodes.OfType<Group>()); mover(0, pc.Pick());
+        return id =>
+        {
+          if (id == 0) { mover(0, pc.Pick()); }
+          if (id == 2) { foreach (var t in nodes) t.Remove(); }
+          if (id == 1)
+          {
+            var doc = scene.Ancestor<Document>(); view.Focus();
+            doc.addundo(doc.select(nodes, null), remove(nodes, true), doc.select(null, doc.Selection)); doc.Select(nodes);
+          }
+        };
+      }
+#endif
+      static Func<double, double> angelstep()
+      {
+        var seg1 = 0.0; var hang = 0; var count = 0; var len = Math.PI / 4; var modula = 2 * Math.PI;
+        return val =>
+        {
+          var seg2 = Math.Floor(val / len); var len2 = len * 0.33f;
+          if (0 == count++) seg1 = seg2;
+          if (seg2 == seg1) { hang = 0; return val; }
+          if (Math.Abs(seg2 * len - val) < len2) { if (hang != 1) { hang = 1; /*Program.play(30);*/ } return seg2 * len; }
+          var d = seg1 * len - val; if (modula != 0) d = Math.IEEERemainder(d, modula);
+          if (Math.Abs(d) < len2) { val = seg1 * len; if (hang != 2) { hang = 2; /*Program.play(30);*/ } } else { seg1 = seg2; hang = 0; }
+          return val;
+        };
+      }
+      List<Action> undos; int undoi;
+      void addundo(Action p)
+      {
+        if (p == null) return;
+        if (undos == null) undos = new List<Action>();
+        undos.RemoveRange(undoi, undos.Count - undoi);
+        undos.Add(p); undoi = undos.Count;
+      }
+      Action undo(INode p, float4x3 m)
+      {
+        if (m == p.TransformF) return null;
+        return () => { var t = p.TransformF; p.TransformF = m; m = t; };
+      }
+      Action undo(IEnumerable<Action> a)
+      {
+        var b = a.OfType<Action>().ToArray(); if (b.Length == 0) return null;
+        if (b.Length == 1) return b[0];
+        return () => { for (int i = 0; i < b.Length; i++) b[i](); Array.Reverse(b); };
+      }
+      Action<int, float4x3> getmover()
+      {
+        var pp = view.Scene.Selection().ToArray();
+        var mm = pp.Select(p => p.TransformF).ToArray();
+        return (id, m) =>
+        {
+          if (id == 0) { for (int i = 0; i < pp.Length; i++) pp[i].TransformF = mm[i] * m; }
+          if (id == 2) addundo(undo(pp.Select((p, i) => undo(p, mm[i]))));
+        };
       }
 
       internal void onstep()
@@ -483,12 +768,13 @@ namespace csg3mf
         Invalidate();
       }
 
-      CDX.IFont font = CDX.Factory.GetFont("Arial", 13, System.Drawing.FontStyle.Bold);
+      IFont font = Factory.GetFont("Arial", 13, System.Drawing.FontStyle.Bold);
       //Stopwatch sw;
 
-      void CDX.ISink.Render()
+      void ISink.Render()
       {
-        var dc = new CDX.DC(view);
+        tool?.Invoke(4);
+        var dc = new DC(view);
         dc.SetOrtographic();
 
         var ss = cont.Infos;
@@ -532,321 +818,6 @@ namespace csg3mf
 #endif
       }
     }
-
-#if(false)
-    unsafe class View : D3DView
-    {
-      internal int flags; internal float4x3 camera;
-      float z1 = 0.1f, z2 = 1000, vscale, minwz;
-      internal Container cont;
-      protected override void OnHandleCreated(EventArgs e)
-      {
-        OnCenter(null); base.OnHandleCreated(e);
-      }
-      internal void setcamera()
-      {
-        vscale = 0.0004f / DpiScale;
-        camera = !LookAt(new float3(-6, -6, 4), new float3(0, 0, 0), new float3(0, 0, 1));
-      }
-      bool setcwma(in float4x3 m)
-      {
-        if (m == camera) return false;
-        camera = m; Invalidate(); return true;
-      }
-      protected override void OnRender(IDisplay dc)
-      {
-        dc.State = 0x1001015c; //dc.DepthStencil = DepthStencil.ZWrite; dc.Rasterizer = Rasterizer.CullFront; dc.BlendState = BlendState.Opaque; dc.VertexShader = VertexShader.Lighting; dc.PixelShader = PixelShader.Color3D; dc.Topology = Topology.TriangleListAdj;
-        var size = dc.Viewport; var shadows = (flags & (1 << 10)) != 0;
-        var vp = size * (vscale * z1);
-        dc.SetProjection(!camera * float4x4.PerspectiveOffCenter(vp.x, -vp.x, -vp.y, vp.y, z1, z2));
-        dc.Ambient = 0x00404040;
-        var lightdir = normalize(new float3(0.4f, 0.3f, -1)) & camera; lightdir.z = Math.Abs(lightdir.z);
-        dc.Light = shadows ? lightdir * 0.3f : lightdir; int transp = 0;
-        var recs = cont.Nodes;
-        for (int i = 0; i < recs.Count; i++)
-        {
-          var p = recs[i]; if (p.vertexbuffer == null) continue;
-          for (int k = 0, t = 0; k < p.Materials.Length; k++)
-          {
-            ref var m = ref p.Materials[k]; if ((m.Color >> 24) != 0xff) { transp++; continue; }
-            if (t++ == 0) { dc.Select(p, 1); dc.SetTransform(p.gettrans()); }
-            if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
-            else dc.PixelShader = PixelShader.Color3D;
-            dc.Color = m.Color; dc.DrawMesh(p.vertexbuffer, p.indexbuffer, m.StartIndex, m.IndexCount);
-          }
-        }
-        dc.Select();
-        if (shadows)
-        {
-          var t1 = dc.State; dc.Light = lightdir; dc.LightZero = this.minwz;
-          dc.State = 0x2100050c; // dc.VertexShader = VertexShader.World; dc.GeometryShader = GeometryShader.Shadows; dc.PixelShader = PixelShader.Null; dc.Rasterizer = Rasterizer.CullNone; dc.DepthStencil = DepthStencil.TwoSide;
-          for (int i = 0; i < recs.Count; i++)
-          {
-            var p = recs[i]; if (p.vertexbuffer == null) continue; if ((p.Materials[0].Color >> 24) != 0xff) continue;
-            dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
-          }
-          dc.State = t1; dc.Ambient = 0; dc.Light = lightdir * 0.7f; dc.BlendState = BlendState.AlphaAdd;
-          for (int i = 0; i < recs.Count; i++)
-          {
-            var p = recs[i]; if (p.vertexbuffer == null) continue;
-            for (int k = 0, t = 0; k < p.Materials.Length; k++)
-            {
-              ref var m = ref p.Materials[k]; if ((m.Color >> 24) != 0xff) continue;
-              if (t++ == 0) dc.SetTransform(p.gettrans()); dc.Color = m.Color;
-              if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
-              else dc.PixelShader = PixelShader.Color3D;
-              dc.DrawMesh(p.vertexbuffer, p.indexbuffer, m.StartIndex, m.IndexCount);
-            }
-          }
-          dc.State = t1; dc.Light = lightdir; dc.Ambient = 0x00404040;
-          dc.Clear(CLEAR.STENCIL);
-        }
-        if (true)
-        {
-          if ((flags & 0x03) != 0)
-          {
-            dc.SetTransform(1); dc.State = 0x0000011c; //dc.VertexShader = VertexShader.Default; dc.PixelShader = PixelShader.Color; dc.Rasterizer = Rasterizer.CullNone;
-            float3box box; var pb = (float3*)&box; boxempty(pb);
-            for (int i = 0; i < recs.Count; i++) { var p = recs[i]; if (p.vertexbuffer != null) p.getbox(p.gettrans(), pb); }
-            if ((flags & 0x01) != 0) //Box
-            {
-              dc.Color = 0xffffffff; long f1 = 0x4c8948990, f2 = 0xdecddabd9;
-              for (int t = 0; t < 12; t++, f1 >>= 3, f2 >>= 3)
-                dc.DrawLine(boxcor(pb, (int)(f1 & 7)), boxcor(pb, (int)(f2 & 7)));
-            }
-            if ((flags & 0x02) != 0) //Pivot
-            {
-              float f = length(box.max - box.min) * 0.5f, t1 = 0.25f * f, t2 = 0.1f * f, t3 = 0.02f * f;
-              dc.SetTransform(1); float3 p1 = new float3(), p2;
-              dc.Color = 0xffff0000; dc.DrawLine(p1, p2 = new float3(box.max.x + t1, 0, 0)); dc.DrawArrow(p2, new float3(t2, 0, 0), t3);
-              dc.Color = 0xff00ff00; dc.DrawLine(p1, p2 = new float3(0, box.max.y + t1, 0)); dc.DrawArrow(p2, new float3(0, t2, 0), t3);
-              dc.Color = 0xff0000ff; dc.DrawLine(p1, p2 = new float3(0, 0, box.max.z + t1)); dc.DrawArrow(p2, new float3(0, 0, t2), t3);
-            }
-          }
-          if ((flags & 0x08) != 0) //Wireframe
-          {
-            dc.Color = 0x40000000; dc.State = 0x0003111c; //dc.Rasterizer = Rasterizer.Wireframe; dc.BlendState = BlendState.Alpha; dc.VertexShader = VertexShader.Default; dc.PixelShader = PixelShader.Color;
-            for (int i = 0; i < recs.Count; i++)
-            {
-              var p = recs[i]; if (p.vertexbuffer == null) continue;
-              dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
-            }
-          }
-          if ((flags & 0x10) != 0) //Outline
-          {
-            dc.Color = 0xff000000; dc.State = 0x2200015c; //dc.GeometryShader = GeometryShader.Outline3D; dc.VertexShader = VertexShader.World; dc.PixelShader = PixelShader.Color3D;
-            dc.Light = camera[3];
-            for (int i = 0; i < recs.Count; i++)
-            {
-              var p = recs[i]; if (p.vertexbuffer == null) continue;
-              dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
-            }
-            dc.Light = lightdir;
-          }
-        }
-        if (transp != 0)
-        {
-          dc.State = 0x1001115c; //dc.BlendState = BlendState.Alpha; dc.VertexShader = VertexShader.Lighting; dc.PixelShader = PixelShader.Color3D; dc.Rasterizer = Rasterizer.CullFront;
-          for (int i = 0; i < recs.Count; i++)
-          {
-            var p = recs[i]; if (p.vertexbuffer == null) continue;
-            for (int k = 0, t = 0; k < p.Materials.Length; k++)
-            {
-              ref var m = ref p.Materials[k]; if ((m.Color >> 24) == 0xff) continue;
-              if (t++ == 0) { dc.Select(p, 1); dc.SetTransform(p.gettrans()); }
-              if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
-              else dc.PixelShader = PixelShader.Color3D;
-              dc.Color = m.Color; dc.DrawMesh(p.vertexbuffer, p.indexbuffer, m.StartIndex, m.IndexCount);
-            }
-          }
-          dc.Select();
-        }
-        dc.SetProjection(float4x4.OrthoCenter(0, size.x, size.y, 0, 0, 1));
-        dc.SetTransform(1);
-        dc.State = 0x0000001c; //dc.PixelShader = PixelShader.Color; dc.DepthStencil = DepthStencil.Default; dc.Rasterizer = Rasterizer.CullNone; 
-        dc.Color = 0xff000000;
-        float x = dc.Viewport.x - 8, y = 8 + dc.Font.Ascent, y1 = y, dy = dc.Font.Height; string s;
-        for (int i = 0; i < cont.Infos.Count; i++, y1 += dy) if ((s = cont.Infos[i]) != null) dc.DrawText(8, y1, s);
-        s = Adapter; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
-        s = $"{GetFPS()} fps"; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
-        s = $"{DpiScale * 96} dpi"; dc.DrawText(x - dc.Measure(s), y, s); y += dy;
-        if ((CSG.Factory.Version & 0x100) != 0) { s = "Debug"; dc.DrawText(x - dc.Measure(s), y, s); y += dy; }
-      }
-      protected override int OnDispatch(int id, ISelector pc)
-      {
-        switch (id & 0xffff)
-        {
-          case 0x0201: //WM_LBUTTONDOWN           
-            //if (pc.Hover is Node)
-            //{
-            //  var keys = Control.ModifierKeys;
-            //  switch (keys)
-            //  {
-            //    case Keys.None: pc.SetTool(obj_sel(pc)); break;
-            //    case Keys.Control: pc.SetTool(camera_movxy(pc)); break;
-            //    case Keys.Shift: pc.SetTool(camera_movz(pc)); break;
-            //    case Keys.Alt: pc.SetTool(camera_rotz(pc)); break;
-            //    case Keys.Control | Keys.Shift: pc.SetTool(camera_rotx(pc)); break;
-            //  }
-            //  return 1;
-            //}
-            if (cont.Nodes.Count != 0) pc.SetTool(camera_free(pc));
-            return 1;
-          case 0x020A: //WM_MOUSEWHEEL
-            {
-              if (!(pc.Hover is Container.Node)) return 1;
-              var v = (pc.Point * pc.Transform) - camera[3];
-              var l = (float)Math.Sqrt(length(v));
-              var t = Environment.TickCount; var cm = camera;
-              setcwma(camera * (float4x3)(v * (l * 0.01f * (id >> 16) * DpiScale * (1f / 120))));
-              //if (t - lastwheel > 500) AddUndo(setcwmb(cm)); lastwheel = t;
-              return 1;
-            }
-        }
-        return 0;
-      }
-      Action<int, object> camera_free(ISelector pc)
-      {
-        float3box box; var pbox = (float3*)&box; var recs = cont.Nodes;
-        boxempty(pbox); for (int i = 0; i < recs.Count; i++) recs[i].getbox(recs[i].gettrans(), pbox);
-        var pm = (box.min + box.max) * 0.5f; var tm = (float4x3)pm;
-        var cm = camera; var p1 = (float2)Cursor.Position; bool moves = false;
-        return (id, p) =>
-        {
-          if (id == 0)
-          {
-            var v = (Cursor.Position - p1) * -0.01f;
-            if (!moves && dot(v) < 0.03) return; moves = true;
-            setcwma(cm * !tm * rotaxis(cm[0], -v.y) * rotz(v.x) * tm);
-          }
-          //if (id == 1) { if (moves) AddUndo(setcwmb(cm)); else Select(null); }
-        };
-      }
-      internal int OnCenter(object test)
-      {
-        if (!cont.Nodes.Any(p => p.indexbuffer != null && p.indexbuffer.count != 0)) return 0;
-        if (test != null) return 1;
-        var r = center(cont.Nodes, (float2)ClientSize / DpiScale - new float2(100, 100), vscale, camera);
-        z1 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z1)) - 1);
-        z2 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z2)) + 2); minwz = r.wb.min.z;
-        setcwma(r.cm); return 1;
-      }
-      static (float4x3 cm, float z1, float z2, float3box wb) center(IEnumerable<Container.Node> nodes, float2 size, float scale, in float4x3 cwm)
-      {
-        float4x3 box; float3box wb; boxempty((float3*)&wb);
-        box._31 = size.x * scale;
-        box._32 = size.y * scale;
-        var min = (float3*)&box + 0; boxempty(min);
-        var max = (float3*)&box + 1; var icw = !cwm;
-        foreach (var p in nodes)
-        {
-          if (p.vertexbuffer == null) continue;
-          var wm = p.gettrans();
-          p.getbox(wm, &wb.min);
-          p.getbox(wm * icw, min, (float2*)(min + 2));
-        }
-        if (min->x == float.MaxValue) return default;
-        float nx = (max->x - min->x) * 0.5f;
-        float ny = (max->y - min->y) * 0.5f;
-        float fm = -Math.Max(nx / box._31, ny / box._32);
-        return (new float3(min->x + nx, min->y + ny, fm) + cwm, min->z - fm, max->z - fm, wb);
-      }
-      static (float4x3 cm, float z1, float z2, float3box wb) center(in float4x3 cm, in float4x4 proj, IEnumerable<float3> points)
-      {
-        float aspekt = proj._22 / proj._11, a = proj._22; float3box wb; boxempty((float3*)&wb);
-        float ax = a / aspekt, _ax = 1 / ax, ay = a, _ay = 1 / ay; var vmat = !cm;
-        var mi = new float3(float.MaxValue, float.MaxValue, float.MaxValue); var ma = -mi;
-        var m1 = (float4x4)(float4x3)1; var m2 = m1;
-        m1._31 = +_ax; m1._32 = +_ay; m1 = vmat * m1;
-        m2._31 = -_ax; m2._32 = -_ay; m2 = vmat * m2;
-        foreach (var p in points) { mi = min(mi, p * m1); ma = max(ma, p * m2); boxadd(&p, &wb.min); }
-        if (mi.x == float.MaxValue) return default;
-        float mx = 0.5f * (ax * ma.x - ax * mi.x) / ax, nx = ma.x - mi.x - mx;
-        float my = 0.5f * (ay * ma.y - ay * mi.y) / ay, ny = ma.y - mi.y - my;
-        float fm = Math.Min(ny * -ay, nx * -ax); // near = bmi.Min.Z - fm; far = bma.Max.Z - fm;
-        return (new float3(mi.x + nx, mi.y + ny, fm) + cm, mi.z - fm, ma.z - fm, wb);
-      }
-      internal static System.Drawing.Bitmap CreatePreview(int dx, int dy, float4x3 camera, bool shadows, IEnumerable<Container.Node> nodes)
-      {
-        return Print(dx, dy, 4, 0x00000000, dc =>
-        {
-          var size = dc.Viewport;// * DpiScale;
-          var proj = float4x4.PerspectiveFov(20 * (float)(Math.PI / 180), size.x / size.y, 0.1f, 1000);
-          var r = center(camera, proj, nodes.SelectMany(n => { var m = n.gettrans(); return n.vertexbuffer.GetPoints().Select(p => p * m); }));
-          proj = float4x4.PerspectiveFov(20 * (float)(Math.PI / 180), size.x / size.y, r.z2 * 0.5f, r.z2 * 2);
-          dc.SetProjection(!r.cm * proj);
-          var lightdir = normalize(new float3(0.4f, 0.3f, -1)) & r.cm; lightdir.z = Math.Abs(lightdir.z);
-          dc.Light = shadows ? lightdir * 0.3f : lightdir; dc.Select();
-          dc.Ambient = 0x00404040; //var rh = true;
-          dc.State = /*rh ? 0x1001015c : */0x1002015c;
-          foreach (var p in nodes)
-          {
-            dc.SetTransform(p.gettrans());
-            for (int k = 0; k < p.Materials.Length; k++)
-            {
-              ref var m = ref p.Materials[k]; if ((m.Color >> 24) != 0xff) continue; dc.Color = m.Color;
-              if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
-              else dc.PixelShader = PixelShader.Color3D;
-              dc.DrawMesh(p.vertexbuffer, p.indexbuffer, m.StartIndex, m.IndexCount);
-            }
-          }
-          if (shadows)
-          {
-            var t1 = dc.State; dc.Light = lightdir; dc.LightZero = r.wb.min.z;
-            dc.State = 0x2100050c; // dc.VertexShader = VertexShader.World; dc.GeometryShader = GeometryShader.Shadows; dc.PixelShader = PixelShader.Null; dc.Rasterizer = Rasterizer.CullNone; dc.DepthStencil = DepthStencil.TwoSide;
-            foreach (var p in nodes)
-            {
-              if ((p.Materials[0].Color >> 24) != 0xff) continue;
-              dc.SetTransform(p.gettrans()); dc.DrawMesh(p.vertexbuffer, p.indexbuffer);
-            }
-            dc.State = t1; dc.Ambient = 0; dc.Light = lightdir * 0.7f; dc.BlendState = BlendState.AlphaAdd;
-            foreach (var p in nodes)
-            {
-              dc.SetTransform(p.gettrans());
-              for (int k = 0; k < p.Materials.Length; k++)
-              {
-                ref var m = ref p.Materials[k]; if ((m.Color >> 24) != 0xff) continue; dc.Color = m.Color;
-                if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
-                else dc.PixelShader = PixelShader.Color3D;
-                dc.DrawMesh(p.vertexbuffer, p.indexbuffer, m.StartIndex, m.IndexCount);
-              }
-            }
-            dc.Clear(CLEAR.STENCIL);
-          }
-          dc.Light = lightdir; dc.Ambient = 0x00404040; dc.State = 0x1001115c; //dc.BlendState = BlendState.Alpha; dc.VertexShader = VertexShader.Lighting; dc.PixelShader = PixelShader.Color3D; dc.Rasterizer = Rasterizer.CullFront;
-          foreach (var p in nodes)
-          {
-            dc.SetTransform(p.gettrans());
-            for (int k = 0; k < p.Materials.Length; k++)
-            {
-              ref var m = ref p.Materials[k]; if ((m.Color >> 24) == 0xff) continue; dc.Color = m.Color;
-              if (m.texture != null) { dc.Texture = m.texture; dc.PixelShader = PixelShader.Texture; }
-              else dc.PixelShader = PixelShader.Color3D;
-              dc.DrawMesh(p.vertexbuffer, p.indexbuffer, m.StartIndex, m.IndexCount);
-            }
-          }
-        });
-      }
-      internal void onstep()
-      {
-        Invalidate();
-        var r = center(cont.Nodes, (float2)ClientSize / DpiScale - new float2(100, 100), vscale, camera);
-        if (r.z1 == r.z2 || camera == r.cm) return;
-        z1 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z1)) - 1);
-        z2 = (float)Math.Pow(10, Math.Round(Math.Log10(r.z2)) + 2); minwz = r.wb.min.z;
-        var ab = camera; //camera = r.cm;
-        var tf = 1000.0f / Stopwatch.Frequency;
-        var t1 = Stopwatch.GetTimestamp(); this.Timer = ani;
-        void ani()
-        {
-          var dt = ((Stopwatch.GetTimestamp() - t1) * tf) - 1000; if (dt < 0) return;
-          var f = Math.Min(1, dt / 1000); var t = f == 1 ? f : (float)(f <= 0.5f ? Math.Pow(f * 2, 3) : 2 - Math.Pow((1 - f) * 2, 3)) * 0.5f;
-          camera[3] = ab[3] * (1 - t) + r.cm[3] * t; Invalidate(); if (f == 1) Timer = null;
-        }
-      }
-    }
-#endif
-
   }
 
   class MenuItem : ToolStripMenuItem
@@ -907,9 +878,9 @@ namespace csg3mf
     internal ContextMenu(IContainer container) : base(container) { }
     protected override void OnOpening(CancelEventArgs e)
     {
+      base.OnOpening(e);
       var v = Tag as CodeEditor; if (v != null) { Items.Clear(); v.OnContextMenu(Items); }
       MenuItem.Update(Items); e.Cancel = Items.Count == 0;
-      base.OnOpening(e);
     }
   }
 

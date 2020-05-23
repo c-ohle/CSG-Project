@@ -513,12 +513,12 @@ void CView::RenderScene()
     SetMode(MO_TOPO_TRIANGLELISTADJ | MO_RASTERIZER_WIRE | MO_BLENDSTATE_ALPHA);
     for (UINT i = 0; i < scene.p->count; i++)
     {
-      auto& node = *nodes.p[i]; if (!node.ib.p) continue;
-      SetMatrix(MM_WORLD, node.gettrans(scene.p));
-      for (UINT k = 0; k < node.materials.n; k++)
+      auto node = nodes.p[i]; if (!(node->flags & NODE_FL_INSEL) || !node->ib.p) continue;
+      SetMatrix(MM_WORLD, node->gettrans(scene.p));
+      for (UINT k = 0; k < node->materials.n; k++)
       {
-        auto& ma = node.materials.p[k];
-        SetVertexBuffer(node.vb.p->p.p); SetIndexBuffer(node.ib.p->p.p); SetBuffers();
+        auto& ma = node->materials.p[k];
+        SetVertexBuffer(node->vb.p->p.p); SetIndexBuffer(node->ib.p->p.p); SetBuffers();
         context->DrawIndexed(ma.n << 1, ma.i << 1, 0);
       }
     }
@@ -529,22 +529,56 @@ void CView::RenderScene()
     SetMode(MO_TOPO_TRIANGLELISTADJ | MO_GSSHADER_OUTL3D | MO_VSSHADER_WORLD);
     for (UINT i = 0; i < scene.p->count; i++)
     {
-      auto& node = *nodes.p[i]; if (!node.ib.p) continue;
-      SetMatrix(MM_WORLD, node.gettrans(scene.p));
-      for (UINT k = 0; k < node.materials.n; k++)
+      auto node = nodes.p[i]; if (!(node->flags & NODE_FL_INSEL) || !node->ib.p) continue;
+      SetMatrix(MM_WORLD, node->gettrans(scene.p));
+      for (UINT k = 0; k < node->materials.n; k++)
       {
-        auto& ma = node.materials.p[k];
-        SetVertexBuffer(node.vb.p->p.p); SetIndexBuffer(node.ib.p->p.p); SetBuffers();
+        auto& ma = node->materials.p[k];
+        SetVertexBuffer(node->vb.p->p.p); SetIndexBuffer(node->ib.p->p.p); SetBuffers();
         context->DrawIndexed(ma.n << 1, ma.i << 1, 0);
       }
     }
   }
   if (flags & (CDX_RENDER_COORDINATES | CDX_RENDER_BOUNDINGBOX))
   {
+#if(true)
+    for (UINT j = 0; j < scene.p->count; j++)
+    {
+      auto main = nodes.p[j]; if (!(main->flags & NODE_FL_SELECT)) continue;
+      XMVECTOR box[2]; box[1] = XMVectorNegate(box[0] = g_XMFltMax);
+      for (UINT i = 0; i < scene.p->count; i++)
+      {
+        auto node = nodes.p[i]; if (!(node->flags & NODE_FL_INSEL) || !node->vb.p || !node->ispart(main)) continue;
+        auto& pts = *node->gethull(); XMMATRIX wm; if (node != main) wm = node->gettrans(main);
+        for (UINT i = 0; i < pts.n; i++)
+        {
+          auto p = XMLoadFloat3(&pts.p[i]); if (node != main) p = XMVector3Transform(p, wm);
+          box[0] = XMVectorMin(box[0], p);
+          box[1] = XMVectorMax(box[1], p);
+        }
+      }
+      if (XMVector3Greater(box[0], box[1])) 
+        box[0] = box[1] = XMVectorZero();
+      SetMatrix(MM_WORLD, main->gettrans(scene.p));
+      if (flags & CDX_RENDER_COORDINATES)
+      {
+        XMVECTOR ma = box[1] + XMVectorReplicate(0.3f), va = XMVectorReplicate(0.2f), vt;
+        SetVector(VV_LIGHTDIR, light);
+        SetColor(VV_DIFFUSE, 0xffff0000); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskX)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskX), 0.05f);
+        SetColor(VV_DIFFUSE, 0xff00ff00); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskY)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskY), 0.05f);
+        SetColor(VV_DIFFUSE, 0xff0000ff); DrawLine(g_XMZero, vt = XMVectorAndInt(ma, g_XMMaskZ)); DrawArrow(vt, XMVectorAndInt(va, g_XMMaskZ), 0.05f);
+      }
+      if (flags & CDX_RENDER_BOUNDINGBOX)
+      {
+        SetColor(VV_DIFFUSE, 0xffffffff); DrawBox(box[0], box[1]);
+      }
+    }
+#else
     XMVECTOR box[2]; box[1] = XMVectorNegate(box[0] = g_XMFltMax);
     for (UINT i = 0; i < scene.p->count; i++)
     {
       auto& node = *nodes.p[i]; if (!node.ib.p) continue;
+      //if(!(node.flags & NODE_FL_SELECT)) continue;
       auto& pts = *node.gethull(); auto wm = node.gettrans(scene.p);
       for (UINT i = 0; i < pts.n; i++)
       {
@@ -569,6 +603,7 @@ void CView::RenderScene()
         SetColor(VV_DIFFUSE, 0xffffffff); DrawBox(box[0], box[1]);
       }
     }
+#endif
   }
   if (transp != 0)
   {
@@ -850,6 +885,24 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
   case CDX_DRAW_DRAW_TEXT:
     d_font.p->draw(this, *(XMFLOAT2*)data, *(LPCWSTR*)(data + 2), *(UINT*)((LPCWSTR*)(data + 2) + 1));
     return 0;
+  case CDX_DRAW_DRAW_RECT:
+  {
+    auto vv = BeginVertices(5);
+    vv[0].p.x = vv[3].p.x = ((float*)data)[0];
+    vv[0].p.y = vv[1].p.y = ((float*)data)[1];
+    vv[1].p.x = vv[2].p.x = ((float*)data)[0] + ((float*)data)[2];
+    vv[2].p.y = vv[3].p.y = ((float*)data)[1] + ((float*)data)[3]; *(INT64*)&vv[4].p = *(INT64*)&vv[0].p;
+    EndVertices(5, MO_TOPO_LINESTRIP | MO_PSSHADER_COLOR | MO_RASTERIZER_NOCULL | d_blend);
+    return 0;
+  }
+  //case CDX_DRAW_DRAW_POLYGON:
+  //{
+  //  auto np = *(UINT*)data; auto pp = *(XMFLOAT2**)((UINT*)data + 1);
+  //  auto vv = BeginVertices(++np);
+  //  for (int i = 0, k = np - 2; i < np; k = i++) *(XMFLOAT2*)&vv[i].p = pp[k];
+  //  EndVertices(np, MO_TOPO_LINESTRIP | MO_PSSHADER_COLOR | MO_RASTERIZER_NOCULL | d_blend);
+  //  return 0;
+  //}
   }
   return E_FAIL;
 }

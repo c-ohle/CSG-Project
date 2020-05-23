@@ -151,7 +151,12 @@ typedef
 enum CDX_CMD
     {
         CDX_CMD_CENTER	= 1,
-        CDX_CMD_GETBOX	= 2
+        CDX_CMD_GETBOX	= 2,
+        CDX_CMD_GETBOXSEL	= 3,
+        CDX_CMD_SETPLANE	= 4,
+        CDX_CMD_PICKPLANE	= 5,
+        CDX_CMD_SELECT	= 6,
+        CDX_CMD_SELECTRECT	= 7
     } 	CDX_CMD;
 
 typedef 
@@ -167,7 +172,8 @@ enum CDX_DRAW
         CDX_DRAW_FILL_RECT	= 7,
         CDX_DRAW_FILL_ELLIPSE	= 8,
         CDX_DRAW_GET_TEXTEXTENT	= 9,
-        CDX_DRAW_DRAW_TEXT	= 10
+        CDX_DRAW_DRAW_TEXT	= 10,
+        CDX_DRAW_DRAW_RECT	= 11
     } 	CDX_DRAW;
 
 
@@ -517,6 +523,10 @@ EXTERN_C const IID IID_ICDXScene;
             /* [in] */ UINT i,
             /* [retval][out] */ ICDXNode **p) = 0;
         
+        virtual HRESULT STDMETHODCALLTYPE GetSelect( 
+            /* [in] */ UINT i,
+            /* [retval][out] */ UINT *p) = 0;
+        
         virtual HRESULT STDMETHODCALLTYPE AddNode( 
             /* [in] */ BSTR name,
             /* [retval][out] */ ICDXNode **p) = 0;
@@ -561,6 +571,11 @@ EXTERN_C const IID IID_ICDXScene;
             ICDXScene * This,
             /* [in] */ UINT i,
             /* [retval][out] */ ICDXNode **p);
+        
+        HRESULT ( STDMETHODCALLTYPE *GetSelect )( 
+            ICDXScene * This,
+            /* [in] */ UINT i,
+            /* [retval][out] */ UINT *p);
         
         HRESULT ( STDMETHODCALLTYPE *AddNode )( 
             ICDXScene * This,
@@ -610,6 +625,9 @@ EXTERN_C const IID IID_ICDXScene;
 
 #define ICDXScene_GetNode(This,i,p)	\
     ( (This)->lpVtbl -> GetNode(This,i,p) ) 
+
+#define ICDXScene_GetSelect(This,i,p)	\
+    ( (This)->lpVtbl -> GetSelect(This,i,p) ) 
 
 #define ICDXScene_AddNode(This,name,p)	\
     ( (This)->lpVtbl -> AddNode(This,name,p) ) 
@@ -817,6 +835,18 @@ EXTERN_C const IID IID_ICDXNode;
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Scene( 
             /* [retval][out] */ ICDXScene **p) = 0;
         
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_IsSelect( 
+            /* [retval][out] */ BOOL *p) = 0;
+        
+        virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_IsSelect( 
+            /* [in] */ BOOL p) = 0;
+        
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_IsStatic( 
+            /* [retval][out] */ BOOL *p) = 0;
+        
+        virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_IsStatic( 
+            /* [in] */ BOOL p) = 0;
+        
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_TransformF( 
             /* [retval][out] */ XMFLOAT4X3 *p) = 0;
         
@@ -914,6 +944,22 @@ EXTERN_C const IID IID_ICDXNode;
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Scene )( 
             ICDXNode * This,
             /* [retval][out] */ ICDXScene **p);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_IsSelect )( 
+            ICDXNode * This,
+            /* [retval][out] */ BOOL *p);
+        
+        /* [propput] */ HRESULT ( STDMETHODCALLTYPE *put_IsSelect )( 
+            ICDXNode * This,
+            /* [in] */ BOOL p);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_IsStatic )( 
+            ICDXNode * This,
+            /* [retval][out] */ BOOL *p);
+        
+        /* [propput] */ HRESULT ( STDMETHODCALLTYPE *put_IsStatic )( 
+            ICDXNode * This,
+            /* [in] */ BOOL p);
         
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_TransformF )( 
             ICDXNode * This,
@@ -1025,6 +1071,18 @@ EXTERN_C const IID IID_ICDXNode;
 
 #define ICDXNode_get_Scene(This,p)	\
     ( (This)->lpVtbl -> get_Scene(This,p) ) 
+
+#define ICDXNode_get_IsSelect(This,p)	\
+    ( (This)->lpVtbl -> get_IsSelect(This,p) ) 
+
+#define ICDXNode_put_IsSelect(This,p)	\
+    ( (This)->lpVtbl -> put_IsSelect(This,p) ) 
+
+#define ICDXNode_get_IsStatic(This,p)	\
+    ( (This)->lpVtbl -> get_IsStatic(This,p) ) 
+
+#define ICDXNode_put_IsStatic(This,p)	\
+    ( (This)->lpVtbl -> put_IsStatic(This,p) ) 
 
 #define ICDXNode_get_TransformF(This,p)	\
     ( (This)->lpVtbl -> get_TransformF(This,p) ) 

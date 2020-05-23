@@ -29,18 +29,14 @@ HRESULT CNode::get_Scene(ICDXScene** p)
 }
 HRESULT CNode::get_Parent(ICDXNode** p)
 {
-  if (!parent || *(void**)this != *(void**)parent) return 0;
-  (*p = static_cast<CNode*>(parent))->AddRef(); return 0;
+  if(*p = getparent()) (*p)->AddRef(); return 0;
 }
 HRESULT CNode::put_Parent(ICDXNode* p)
 {
   return E_NOTIMPL;
 }
 
-static bool operator ==(XMFLOAT2 a, XMFLOAT2 b)
-{
-  return a.x == b.x && a.y == b.y;
-}
+//static bool operator ==(XMFLOAT2 a, XMFLOAT2 b) {  return a.x == b.x && a.y == b.y; }
 
 bool equals(ID3D11Buffer* buffer, const void* p, UINT n)
 {
@@ -127,12 +123,12 @@ void CNode::update(XMFLOAT3* pp, UINT np, UINT* ii, UINT ni, float smooth, void*
     for (UINT i = 0, j; i < ni; i++)
     {
       auto p = ((XMFLOAT2*)tex)[i];
-      if (vv[j = kk[i] & 0xffff].t == p) continue;
+      if (*(UINT64*)&vv[j = kk[i] & 0xffff].t == *(UINT64*)&p) continue;
       if (*(UINT64*)&vv[j].t != 0)
       {
         vv[np] = vv[j];
         for (UINT t = i; t < ni; t++)
-          if ((kk[t] & 0xffff) == j && ((XMFLOAT2*)tex)[t] == p)
+          if ((kk[t] & 0xffff) == j && *(UINT64*)&((XMFLOAT2*)tex)[t] == *(UINT64*)&p)
             *(USHORT*)&kk[t] = (USHORT)(np & 0xffff);
         j = np++;
       }
