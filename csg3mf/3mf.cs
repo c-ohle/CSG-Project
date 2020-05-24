@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Xml;
 using System.Xml.Linq;
 using static csg3mf.CDX;
 using static csg3mf.CSG;
@@ -23,14 +25,23 @@ namespace csg3mf
     public Unit BaseUnit;
     public Action OnUpdate;
     public enum Unit { meter, micron, millimeter, centimeter, inch, foot }
-    public static Container Import3MF(string path, out string script)
+    public static Container Import3MF(string path, out string script, out float3 dragpt)
     {
       using (var package = System.IO.Packaging.Package.Open(path))
       {
         var xml = package.GetPart(new Uri("/3D/3dmodel.model", UriKind.Relative));
         XDocument doc; long len; using (var str = xml.GetStream()) { doc = XDocument.Load(str); len = str.Length; } //560280 doc.Save("C:\\Users\\cohle\\Desktop\\test1.xml");
         var model = doc.Root; var ns = model.Name.Namespace;
-        var cont = new Container();
+        var cont = new Container(); 
+        
+        var pt = model.Attribute("dragpt"); 
+        if (pt != null) 
+        { 
+          var a = pt.Value.Split(' '); 
+          dragpt = new float3(XmlConvert.ToSingle(a[0]), XmlConvert.ToSingle(a[1]), XmlConvert.ToSingle(a[2]));
+        } 
+        else dragpt = default;
+        
         switch ((string)model.Attribute("unit"))
         {
           case "default:": cont.BaseUnit = Unit.meter; break;
@@ -41,7 +52,7 @@ namespace csg3mf
           case "foot": cont.BaseUnit = Unit.foot; break;
         }
         var res = model.Element(ns + "resources");
-        var build = model.Element(ns + "build"); var buffer = Marshal.AllocHGlobal((IntPtr)len);
+        var build = model.Element(ns + "build"); var buffer = Marshal.AllocHGlobal((IntPtr)(len * sizeof(char)));
         try { foreach (var p in build.Elements(ns + "item")) convert(cont.Nodes.AddNode(null), p); }
         finally { Marshal.FreeHGlobal(buffer); }
         /////////////
@@ -53,12 +64,12 @@ namespace csg3mf
         using (var str = package.GetPart(uri).GetStream())
         using (var sr = new StreamReader(str)) script = sr.ReadToEnd();
         return cont;
-        void convert(CDX.INode node, XElement e)
+        void convert(INode node, XElement e)
         {
           var oid = (string)e.Attribute("objectid");
           var obj = res.Elements(ns + "object").First(p => (string)p.Attribute("id") == oid);
           var mesh = obj.Element(ns + "mesh");
-          node.Name = (string)obj.Attribute("name");
+          node.Name = (string)obj.Attribute("name"); var st = obj.Attribute("static"); if (st != null) { node.IsStatic = (bool)st; }
           var tra = (string)e.Attribute("transform");
           if (tra != null) fixed (char* p = tra) node.SetTransform(new Variant(p, 12)); //{ var m = node.Transform; m.SetValues(new Variant(p, 12)); node.Transform = m; }
           var cmp = obj.Element(ns + "components");
@@ -102,7 +113,7 @@ namespace csg3mf
             }
           var me = CSG.Factory.CreateMesh(); me.Update(new Variant(ss, 3, cs / 3), new Variant(ii, 1, ni));
 #else
-          var me = Factory.CreateMesh(); me.Update(vertices.Count(), new Variant(ii, 1, ni));
+          var me = CSG.Factory.CreateMesh(); me.Update(vertices.Count(), new Variant(ii, 1, ni));
 #if (true) // vertex by vertex 
           int strcpy(char* p, string s) { int n = s.Length; for (int i = 0; i < n; i++) p[i] = s[i]; return n; }
           int l = 0; var ss = (char*)buffer.ToPointer();
@@ -168,7 +179,7 @@ namespace csg3mf
         };
       }
     }
-    public XElement Export3MF(string path, COM.IStream prev, string script)
+    public XElement Export3MF(string path, COM.IStream prev, string script, float3? dragpt)
     {
       var ns = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/core/2015/02";
       var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
@@ -176,6 +187,11 @@ namespace csg3mf
       doc.Add(new XAttribute(XNamespace.Xml + "lang", "en-US"));
       doc.SetAttributeValue("unit", BaseUnit.ToString());
       doc.Add(new XAttribute(XNamespace.Xmlns + "m", ms.NamespaceName));
+      if (dragpt.HasValue)
+      {
+        var p = dragpt.Value;
+        doc.SetAttributeValue("dragpt", $"{XmlConvert.ToString(p.x)} {XmlConvert.ToString(p.y)} {XmlConvert.ToString(p.z)}" );
+      }
       var resources = new XElement(ns + "resources"); doc.Add(resources);
       var build = new XElement(ns + "build"); doc.Add(build);
       var uid = 1; var textures = new List<(COM.IStream str, int id, XElement e)>();
@@ -185,10 +201,11 @@ namespace csg3mf
       var buffer = Marshal.AllocHGlobal(65536);
       try { foreach (var group in nodes.Nodes.Nodes().Where(p => p.Parent == null)) add(group, build); }
       finally { Marshal.FreeHGlobal(buffer); }
-      void add(CDX.INode group, XElement dest)
+      void add(INode group, XElement dest)
       {
         var obj = new XElement(ns + "object"); obj.SetAttributeValue("id", 0);
         if (group.Name != null) obj.SetAttributeValue("name", group.Name);
+        if(group.IsStatic) obj.SetAttributeValue("static", true);
         var desc = nodes.Nodes.Nodes().Where(p => p.Parent == group);
         var components = desc.Any() ? new XElement(ns + "components") : null;
         if (group.Mesh != null)

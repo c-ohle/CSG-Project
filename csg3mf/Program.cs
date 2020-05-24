@@ -205,7 +205,7 @@ namespace csg3mf
       string script = null;
       if (path == null) { view.cont = new Container(); script = "using static csg3mf.CSG;\n"; }
       else if (path != null && path.EndsWith(".3cs", true, null)) { view.cont = new Container(); script = File.ReadAllText(path); }
-      else view.cont = csg3mf.Container.Import3MF(path, out script);
+      else view.cont = csg3mf.Container.Import3MF(path, out script, out _);
       //var str = COM.SHCreateMemStream();
       //view.cont.Nodes.SaveToStream(str); long x; str.Seek(0, 2, &x);
       //str.Seek(0); view.cont.Nodes.Clear();
@@ -258,7 +258,7 @@ namespace csg3mf
       {
         var str = COM.SHCreateMemStream();
         view.view.Print(256, 256, 4, 0x00ffffff, str);
-        view.cont.Export3MF(s, str, edit.EditText);
+        view.cont.Export3MF(s, str, edit.EditText, null);
       }
       if (path != s) { path = s; UpdateTitle(); mru(path, path); }
       edit.IsModified = view.IsModified = false; Cursor.Current = Cursors.Default;
@@ -289,7 +289,7 @@ namespace csg3mf
     int ShowXml(object test)
     {
       if (test != null) return 1;
-      var e = view.cont.Export3MF(null, null, null);
+      var e = view.cont.Export3MF(null, null, null, null);
       var form = new Form
       {
         Text = string.Format($"{this.Text} - {"3MF XML"}"),
@@ -455,6 +455,7 @@ namespace csg3mf
           }
         }
         var mp = (mi + ma) / 2;
+
         var ii = a.ToArray(); var gr = scene.AddNode("Group"); scene.Remove(gr.Index);
         gr.Transform = CSG.Rational.Matrix.Translation(mp.x, mp.y, mi.z);
         execute(() =>
@@ -507,24 +508,7 @@ namespace csg3mf
         var a = view.Scene.Select(2);
         if (!a.Any()) return 0;
         if (test != null) return 1;
-        var ii = a.ToArray(); INode[] pp = null; int[] tt = null;
-        execute(() =>
-        {
-          var scene = view.Scene; scene.Select();
-          if (pp == null)
-          {
-            pp = ii.Select(i => scene[i]).ToArray();
-            tt = pp.Select(p => p.Parent != null ? p.Parent.Index : -1).ToArray();
-            for (int i = ii.Length - 1; i >= 0; i--) scene.Remove(ii[i]);
-          }
-          else
-          {
-            for (int i = 0; i < ii.Length; i++) scene.Insert(ii[i], pp[i]);
-            for (int i = 0; i < tt.Length; i++) if (tt[i] != -1) pp[i].Parent = scene[tt[i]];
-            foreach (var t in pp.Where(p => !pp.Contains(p.Parent))) t.IsSelect = true;
-            pp = null; tt = null;
-          }
-        });
+        execute(undodel(a.ToArray()));
         return 1;
       }
 
@@ -821,7 +805,7 @@ namespace csg3mf
               var tt = pp.Select(p => Array.IndexOf(pp, p.Parent)).ToArray();
               for (int i = 0; i < pp.Length; i++) cont.Nodes.Insert(i, pp[i]);
               for (int i = 0; i < pp.Length; i++) if (tt[i] != -1) cont.Nodes[i].Parent = cont.Nodes[tt[i]];
-              cont.Export3MF(path, null, null);
+              cont.Export3MF(path, null, null, wp);
               var data = new DataObject(); data.SetFileDropList(new System.Collections.Specialized.StringCollection { path });
               DoDragDrop(data, DragDropEffects.Copy);
             }
@@ -831,6 +815,7 @@ namespace csg3mf
           if (id == 1 && ws) main.IsSelect = false;
         };
       }
+
 #if (false)
       static Action<int, object> obj_drop(ISelector pc, Node scene)
       {
@@ -860,6 +845,55 @@ namespace csg3mf
         };
       }
 #endif
+      protected override void OnDragEnter(DragEventArgs e)
+      {
+        var files = e.Data.GetData(DataFormats.FileDrop) as string[];
+        if (files == null || files.Length != 1) return;
+        var s = files[0]; if (!s.EndsWith(".3mf", true, null)) return;
+        csg3mf.Container cont; float3 wp;
+        try { cont = csg3mf.Container.Import3MF(s, out _, out wp); } catch { return; }
+
+        var scene = view.Scene;
+        var pp = cont.Nodes.Nodes().ToArray();
+        var tt = pp.Select(p => p.Parent != null ? p.Parent.Index : -1).ToArray();
+        var ab = scene.Count; cont.Nodes.Clear();
+        for (int i = 0; i < pp.Length; i++) scene.Insert(scene.Count, pp[i]);
+        for (int i = 0; i < tt.Length; i++) if (tt[i] != -1) scene[ab + i].Parent = scene[ab + tt[i]];
+        var rp = pp.Where(p => !pp.Contains(p.Parent)).ToArray();
+        var mm = rp.Select(p => p.TransformF).ToArray();
+
+        view.Command(Cmd.SetPlane, null); view.SetPlane(wp); //var p1 = view.PickPlane();
+        tool = id =>
+        {
+          if (id == 0)
+          {
+            var p2 = view.PickPlane(); var dm = (float4x3)p2;
+            for (int i = 0; i < rp.Length; i++) rp[i].TransformF = mm[i] * dm; Invalidate();
+          }
+          if (id == 1)
+          {
+            scene.Select(); for (int i = 0; i < rp.Length; i++) rp[i].IsSelect = true;
+            addundo(undodel(Enumerable.Range(ab, pp.Length).ToArray())); Invalidate();
+          }
+          if (id == 2) { for (int i = scene.Count - 1; i >= ab; i--) scene.Remove(i); Invalidate(); }
+        };
+      }
+      protected override void OnDragOver(DragEventArgs e)
+      {
+        if (tool == null) { e.Effect = DragDropEffects.None; return; }
+        tool(0); e.Effect = DragDropEffects.Copy;
+      }
+      protected override void OnDragDrop(DragEventArgs e)
+      {
+        if (tool == null) { e.Effect = DragDropEffects.None; return; }
+        tool(1); tool = null; e.Effect = DragDropEffects.Copy;
+      }
+      protected override void OnDragLeave(EventArgs e)
+      {
+        if (tool == null) return;
+        tool(2); tool = null;
+      }
+
       static Func<double, double> angelstep()
       {
         var seg1 = 0.0; var hang = 0; var count = 0; var len = Math.PI / 4; var modula = 2 * Math.PI;
@@ -897,6 +931,27 @@ namespace csg3mf
         var b = a.OfType<Action>().ToArray(); if (b.Length == 0) return null;
         if (b.Length == 1) return b[0];
         return () => { for (int i = 0; i < b.Length; i++) b[i](); Array.Reverse(b); };
+      }
+      Action undodel(int[] ii)
+      {
+        INode[] pp = null; int[] tt = null;
+        return () =>
+        {
+          var scene = view.Scene; scene.Select();
+          if (pp == null)
+          {
+            pp = ii.Select(i => scene[i]).ToArray();
+            tt = pp.Select(p => p.Parent != null ? p.Parent.Index : -1).ToArray();
+            for (int i = ii.Length - 1; i >= 0; i--) scene.Remove(ii[i]);
+          }
+          else
+          {
+            for (int i = 0; i < ii.Length; i++) scene.Insert(ii[i], pp[i]);
+            for (int i = 0; i < tt.Length; i++) if (tt[i] != -1) pp[i].Parent = scene[tt[i]];
+            foreach (var t in pp.Where(p => !pp.Contains(p.Parent))) t.IsSelect = true;
+            pp = null; tt = null;
+          }
+        };
       }
       Action<int, float4x3> getmover()
       {

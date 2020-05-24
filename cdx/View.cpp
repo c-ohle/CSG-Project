@@ -239,7 +239,7 @@ HRESULT __stdcall CView::Command(CDX_CMD cmd, UINT* data)
     XMVECTOR box[4]; box[1] = box[3] = -(box[0] = box[2] = g_XMFltMax);
     for (UINT i = 0; i < scene.p->count; i++)
     {
-      auto node = nodes.p[i]; if (!node->ib.p) continue; 
+      auto node = nodes.p[i]; if (!node->ib.p) continue;
       if (cmd == CDX_CMD_GETBOXSEL && !(node->flags & NODE_FL_INSEL)) continue;
       auto& pts = *node->gethull();
       auto wm = node->gettrans(scene.p) * ma;
@@ -256,6 +256,7 @@ HRESULT __stdcall CView::Command(CDX_CMD cmd, UINT* data)
   }
   case CDX_CMD_SETPLANE:
   {
+    if (!data) { setproject(); mm[MM_PLANE] = mm[MM_VIEWPROJ]; return 0; }
     mm[MM_PLANE] = XMLoadFloat4x3((XMFLOAT4X3*)data) * mm[MM_PLANE];
     return 0;
   }
