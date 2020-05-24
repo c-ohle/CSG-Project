@@ -257,6 +257,7 @@ namespace csg3mf
       {
         case 2010: return OnUndo(test);
         case 2011: return OnRedo(test);
+        case 2015: return OnClear(test);
         case 2020: return OnCut(test);
         case 2030: return OnCopy(test);
         case 2040: return OnPaste(test);
@@ -343,7 +344,7 @@ namespace csg3mf
       {
         if (selb == text.Length) return 0;
         if (test != null) return 1;
-        selb = text[selb] == '\n' ? selb + 1 : selb + 0;
+        selb++;// = text[selb] == '\n' ? selb + 2 : selb + 1;
       }
       if (test != null) return 1;
       Replace(string.Empty);

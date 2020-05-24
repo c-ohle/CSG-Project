@@ -522,8 +522,9 @@ EXTERN_C const IID IID_ICDXScene;
             /* [in] */ UINT i,
             /* [retval][out] */ ICDXNode **p) = 0;
         
-        virtual HRESULT STDMETHODCALLTYPE GetSelect( 
+        virtual HRESULT STDMETHODCALLTYPE Select( 
             /* [in] */ UINT i,
+            /* [in] */ UINT f,
             /* [retval][out] */ UINT *p) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE AddNode( 
@@ -532,6 +533,10 @@ EXTERN_C const IID IID_ICDXScene;
         
         virtual HRESULT STDMETHODCALLTYPE Remove( 
             /* [in] */ UINT i) = 0;
+        
+        virtual HRESULT STDMETHODCALLTYPE Insert( 
+            /* [in] */ UINT i,
+            /* [in] */ ICDXNode *p) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE Clear( void) = 0;
         
@@ -571,9 +576,10 @@ EXTERN_C const IID IID_ICDXScene;
             /* [in] */ UINT i,
             /* [retval][out] */ ICDXNode **p);
         
-        HRESULT ( STDMETHODCALLTYPE *GetSelect )( 
+        HRESULT ( STDMETHODCALLTYPE *Select )( 
             ICDXScene * This,
             /* [in] */ UINT i,
+            /* [in] */ UINT f,
             /* [retval][out] */ UINT *p);
         
         HRESULT ( STDMETHODCALLTYPE *AddNode )( 
@@ -584,6 +590,11 @@ EXTERN_C const IID IID_ICDXScene;
         HRESULT ( STDMETHODCALLTYPE *Remove )( 
             ICDXScene * This,
             /* [in] */ UINT i);
+        
+        HRESULT ( STDMETHODCALLTYPE *Insert )( 
+            ICDXScene * This,
+            /* [in] */ UINT i,
+            /* [in] */ ICDXNode *p);
         
         HRESULT ( STDMETHODCALLTYPE *Clear )( 
             ICDXScene * This);
@@ -625,14 +636,17 @@ EXTERN_C const IID IID_ICDXScene;
 #define ICDXScene_GetNode(This,i,p)	\
     ( (This)->lpVtbl -> GetNode(This,i,p) ) 
 
-#define ICDXScene_GetSelect(This,i,p)	\
-    ( (This)->lpVtbl -> GetSelect(This,i,p) ) 
+#define ICDXScene_Select(This,i,f,p)	\
+    ( (This)->lpVtbl -> Select(This,i,f,p) ) 
 
 #define ICDXScene_AddNode(This,name,p)	\
     ( (This)->lpVtbl -> AddNode(This,name,p) ) 
 
 #define ICDXScene_Remove(This,i)	\
     ( (This)->lpVtbl -> Remove(This,i) ) 
+
+#define ICDXScene_Insert(This,i,p)	\
+    ( (This)->lpVtbl -> Insert(This,i,p) ) 
 
 #define ICDXScene_Clear(This)	\
     ( (This)->lpVtbl -> Clear(This) ) 
@@ -834,6 +848,12 @@ EXTERN_C const IID IID_ICDXNode;
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Scene( 
             /* [retval][out] */ ICDXScene **p) = 0;
         
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Index( 
+            /* [retval][out] */ UINT *p) = 0;
+        
+        virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_Index( 
+            /* [in] */ UINT p) = 0;
+        
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_IsSelect( 
             /* [retval][out] */ BOOL *p) = 0;
         
@@ -943,6 +963,14 @@ EXTERN_C const IID IID_ICDXNode;
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Scene )( 
             ICDXNode * This,
             /* [retval][out] */ ICDXScene **p);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Index )( 
+            ICDXNode * This,
+            /* [retval][out] */ UINT *p);
+        
+        /* [propput] */ HRESULT ( STDMETHODCALLTYPE *put_Index )( 
+            ICDXNode * This,
+            /* [in] */ UINT p);
         
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_IsSelect )( 
             ICDXNode * This,
@@ -1070,6 +1098,12 @@ EXTERN_C const IID IID_ICDXNode;
 
 #define ICDXNode_get_Scene(This,p)	\
     ( (This)->lpVtbl -> get_Scene(This,p) ) 
+
+#define ICDXNode_get_Index(This,p)	\
+    ( (This)->lpVtbl -> get_Index(This,p) ) 
+
+#define ICDXNode_put_Index(This,p)	\
+    ( (This)->lpVtbl -> put_Index(This,p) ) 
 
 #define ICDXNode_get_IsSelect(This,p)	\
     ( (This)->lpVtbl -> get_IsSelect(This,p) ) 

@@ -28,6 +28,21 @@ HRESULT CNode::get_Parent(ICDXNode** p)
 }
 HRESULT CNode::put_Parent(ICDXNode* p)
 {
+  auto scene = getscene(); if (!scene) return E_FAIL;
+  if (!p) { parent = scene; return 0; }
+  auto node = static_cast<CNode*>(p);
+  if (ispart(node)) return E_FAIL;
+  if (node->getscene() != scene) return E_FAIL;
+  parent = node; return 0;
+}
+HRESULT CNode::get_Index(UINT* p)
+{
+  auto s = getscene();
+  if (s) for (UINT i = 0; i < s->count; i++) if (s->nodes.p[i] == this) { *p = i; return 0; }
+  *p = -1; return 0;
+}
+HRESULT CNode::put_Index(UINT p)
+{
   return E_NOTIMPL;
 }
 HRESULT CNode::get_IsSelect(BOOL* p)
@@ -40,7 +55,7 @@ HRESULT CNode::put_IsSelect(BOOL p)
   auto scene = getscene(); if (!scene) return E_FAIL;
   for (UINT i = p ? 0 : -1; i < scene->count; i++)
   {
-    auto t = scene->nodes.p[i]; 
+    auto t = scene->nodes.p[i];
     if (t->flags & NODE_FL_SELECT && t->parent != parent) t->put_IsStatic(0);
   }
   if (p) flags |= NODE_FL_SELECT; else flags &= ~NODE_FL_SELECT;
@@ -51,13 +66,11 @@ HRESULT CNode::put_IsSelect(BOOL p)
   }
   return 0;
 }
-
 HRESULT CNode::AddNode(BSTR name, ICDXNode** p)
 {
   CHR(getscene()->AddNode(name, p));
   static_cast<CNode*>(*p)->parent = this; return 0;
 }
-
 
 bool equals(ID3D11Buffer* buffer, const void* p, UINT n)
 {
@@ -336,25 +349,40 @@ void CNode::serialize(Archive& ar)
   for (UINT i = 0; i < materials.n; i++) materials.p[i].serialize(ar);
 }
 
+HRESULT CScene::AddNode(BSTR name, ICDXNode** p)
+{
+  auto t = new CNode(); t->parent = this; t->put_Name(name);
+  auto a = nodes.getptr(count + 1, 2); a[count++] = t; (*p = t)->AddRef();
+  return 0;
+}
 HRESULT CScene::Remove(UINT i)
 {
   if (i >= count) return E_INVALIDARG;
   auto p = nodes.p[i];
   for (UINT k = 0; k < count; k++)
-    if (nodes.p[k]->parent == p)
-      nodes.p[k]->parent = p->parent;
-  p->Release();
+  {
+    if (nodes.p[k]->parent != p) continue;
+    nodes.p[k]->parent = p->parent;
+  }
+  p->parent = 0; p->vb.Release(); p->ib.Release(); p->Release();
   memcpy(nodes.p + i, nodes.p + i + 1, (--count - i) * sizeof(void*));
   return 0;
 }
+HRESULT CScene::Insert(UINT i, ICDXNode* p)
+{
+  if (!p || i > count) return E_INVALIDARG;
+  auto node = static_cast<CNode*>(p);
+  auto a = nodes.getptr(count + 1, 2);
+  memcpy(a + i + 1, a + i, (count++ - i) * sizeof(void*));
+  if (node->parent) a[i] = node = node->clone(); else (a[i] = node)->AddRef();
+  node->parent = this; node->flags &= ~(NODE_FL_SELECT | NODE_FL_INSEL);
+  return 0;
+}
+
 HRESULT CScene::Clear()
 {
   if (!count) return  0;
-  for (UINT i = 0; i < count; i++)
-  {
-    auto p = nodes.p[i]; p->parent = 0;
-    p->Release();
-  }
+  for (UINT i = 0; i < count; i++) { auto p = nodes.p[i]; p->parent = 0; p->Release(); }
   count = 0; return 0;
 }
 HRESULT CScene::SaveToStream(IStream* str)
@@ -371,6 +399,30 @@ HRESULT CScene::SaveToStream(IStream* str)
   for (UINT i = 0; i < count; i++) nodes.p[i]->serialize(ar);
   return ar.hr;
 }
+
+//HRESULT CScene::SaveSelection(IStream* str)
+//{
+//  BOOL selonly = true;
+//  void* scene = this; UINT ni = 0, * ii = (UINT*)stackptr;
+//  for (UINT i = 0; i < count; i++)
+//  {
+//    if (!selonly) { ii[ni++] = i; continue; }
+//    auto p = nodes.p[i]; if (!(p->flags & NODE_FL_INSEL)) continue;
+//    ii[ni++] = i; if (p->flags & NODE_FL_SELECT) scene = p->parent;
+//  }
+//  Archive ar(str, true);
+//  ar.WriteCount(ar.version = 1);
+//  ar.WriteCount(ni);
+//  for (UINT i = 0; i < ni; i++)
+//  {
+//    UINT x = 0; auto p = nodes.p[ii[i]];
+//    if (p->parent != scene) for (x = 1; nodes.p[ii[x - 1]] != p->parent; x++);
+//    ar.WriteCount(x);
+//  }
+//  for (UINT i = 0; i < ni; i++) nodes.p[ii[i]]->serialize(ar);
+//  return ar.hr;
+//}
+
 HRESULT CScene::LoadFromStream(IStream* str)
 {
   Archive ar(str, false);

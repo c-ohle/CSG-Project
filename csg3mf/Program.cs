@@ -55,6 +55,7 @@ namespace csg3mf
           new MenuItem(2020, "&Cut", Keys.X|Keys.Control ),
           new MenuItem(2030, "Cop&y", Keys.C|Keys.Control ),
           new MenuItem(2040, "&Paste", Keys.V|Keys.Control ),
+          new MenuItem(2015, "Delete", Keys.Delete) { Visible = false },
           new ToolStripSeparator(),
           new MenuItem(2045, "Make Uppercase", Keys.U|Keys.Control|Keys.Shift ),
           new MenuItem(2046, "Make Lowercase", Keys.U|Keys.Control ),
@@ -326,7 +327,7 @@ namespace csg3mf
     }
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-      if (e.Cancel = !AskSave()) return; view.Timer = null; edit.OnFormClosing(this);
+      if (e.Cancel = !AskSave()) return; view.timer = null; edit.OnFormClosing(this);
       var reg = Application.UserAppDataRegistry;
       reg.SetValue("lwp", getrestore(), Microsoft.Win32.RegistryValueKind.QWord);
       if (path != null) reg.SetValue("lod", path); else reg.DeleteValue("lod", false);
@@ -360,11 +361,11 @@ namespace csg3mf
       WindowState = z ? FormWindowState.Maximized : FormWindowState.Normal;
     }
 
-    unsafe class View : UserControl, CDX.ISink
+    unsafe class View : UserControl, ISink
     {
       internal Container cont;
-      internal Action Timer;
       internal IView view;
+      internal Action timer;
       long drvsettings = 0x400000000;
       protected unsafe override void OnHandleCreated(EventArgs _)
       {
@@ -384,9 +385,18 @@ namespace csg3mf
           new MenuItem(2010, "&Undo"),
           new MenuItem(2011, "&Redo"),
           new ToolStripSeparator(),
+          new MenuItem(2035, "&Group", Keys.Control | Keys.G),
+          new MenuItem(2036, "U&ngroup", Keys.Control | Keys.U),
+          new ToolStripSeparator(),
+          new MenuItem(2150, "Intersection A && B", Keys.Alt | Keys.I),
+          new MenuItem(2151, "Union A | B", Keys.Alt | Keys.U),
+          new MenuItem(2152, "Substract A - B", Keys.Alt | Keys.D),
+          new MenuItem(2153, "Difference A ^ B"),
+          new MenuItem(2154, "Cut Plane", Keys.Alt | Keys.C),
+          new ToolStripSeparator(),
           new MenuItem(4020, "Static"),
           new ToolStripSeparator(),
-          new MenuItem(4021, "Properties...")});
+          new MenuItem(2100, "Properties...")});
       }
       internal int OnCommand(int id, object test)
       {
@@ -402,19 +412,122 @@ namespace csg3mf
             if (undos == null || undoi >= undos.Count) return 8;
             if (test == null) { undos[undoi](); undoi++; Invalidate(); }
             return 1;
-          case 4020: //Static
-            {
-              var a = view.Scene.Selection();
-              if (!a.Any()) return 0; var all = a.All(p => p.IsStatic);
-              if (test != null) return all ? 3 : 1;
-              var aa = a.Where(p => p.IsStatic == all).ToArray();
-              void exec() { foreach (var p in aa) p.IsStatic = !p.IsStatic; }
-              Invalidate(); exec(); addundo(exec);
-            }
+          case 2060: //SelectAll
+            if (!Focused) return 0;
+            if (test != null) return 1;
+            foreach (var p in view.Scene.Nodes()) p.IsSelect = !p.IsStatic; Invalidate();
             return 1;
+          case 4020: return OnStatic(test);
+          case 2015: return OnDelete(test);
+          case 2035: return OnGroup(test);
+          case 2036: return OnUngroup(test);
         }
         return 0;
       }
+
+      int OnStatic(object test)
+      {
+        var a = view.Scene.Selection();
+        if (!a.Any()) return 0; var all = a.All(p => p.IsStatic);
+        if (test != null) return all ? 3 : 1;
+        var aa = a.Where(p => p.IsStatic == all).ToArray();
+        execute(() => { foreach (var p in aa) p.IsStatic = !p.IsStatic; });
+        return 1;
+      }
+      int OnGroup(object test)
+      {
+        var scene = view.Scene;
+        var a = scene.Select(1); if (a.Take(2).Count() != 2) return 0;
+        if (test != null) return 1;
+
+        var mi = new CSG.Rational.Vector3(+int.MaxValue, +int.MaxValue, +int.MaxValue);
+        var ma = new CSG.Rational.Vector3(-int.MaxValue, -int.MaxValue, -int.MaxValue);
+        foreach (var p in scene.Select(2).Select(i => scene[i]))
+        {
+          if (p.Mesh == null) continue;
+          var m = p.Transform; for (var t = p; !t.IsSelect; m *= (t = t.Parent).Transform) ;
+          foreach (var v in p.Mesh.Vertices())
+          {
+            var t = v.Transform(m);
+            if (t.x < mi.x) mi.x = t.x; if (t.x > ma.x) ma.x = t.x;
+            if (t.y < mi.y) mi.y = t.y; if (t.y > ma.y) ma.y = t.y;
+            if (t.z < mi.z) mi.z = t.z; if (t.z > ma.z) ma.z = t.z;
+          }
+        }
+        var mp = (mi + ma) / 2;
+        var ii = a.ToArray(); var gr = scene.AddNode("Group"); scene.Remove(gr.Index);
+        gr.Transform = CSG.Rational.Matrix.Translation(mp.x, mp.y, mi.z);
+        execute(() =>
+        {
+          scene.Select();
+          if (gr != null)
+          {
+            scene.Insert(ii[0], gr); var m = !gr.Transform;
+            for (int i = 0; i < ii.Length; i++) { var p = scene[ii[i] + 1]; p.Transform *= m; p.Parent = gr; }
+            gr.IsSelect = true; gr = null;
+          }
+          else
+          {
+            gr = scene[ii[0]]; scene.Remove(ii[0]); var m = gr.Transform;
+            for (int i = 0; i < ii.Length; i++) { var p = scene[ii[i]]; p.Transform *= m; p.IsSelect = true; }
+          }
+        });
+        return 1;
+      }
+      int OnUngroup(object test)
+      {
+        var scene = view.Scene;
+        var a = scene.Select(1).Where(i => scene.Select(i << 8).Any());
+        if (!a.Any()) return 0; if (test != null) return 1;
+        var ii = a.ToArray(); INode[] pp = null;
+        var tt = scene.Select(1).SelectMany(i => scene.Select(i << 8)).ToArray();
+        var hh = tt.Select(i => scene[i].Parent.Index).ToArray();
+        execute(() =>
+        {
+          scene.Select();
+          if (pp == null)
+          {
+            pp = ii.Select(i => scene[i]).ToArray(); var cc = tt.Select(i => scene[i]).ToArray();
+            for (int i = 0; i < cc.Length; i++) cc[i].Transform *= scene[hh[i]].Transform;
+            for (int i = ii.Length - 1; i >= 0; i--) scene.Remove(ii[i]);
+            for (int i = 0; i < cc.Length; i++) cc[i].IsSelect = true;
+          }
+          else
+          {
+            for (int i = 0; i < ii.Length; i++) scene.Insert(ii[i], pp[i]);
+            for (int i = 0; i < tt.Length; i++) { var t1 = scene[tt[i]]; var t2 = scene[hh[i]]; t1.Parent = t2; t1.Transform *= !t2.Transform; }
+            for (int i = 0; i < pp.Length; i++) pp[i].IsSelect = true; pp = null;
+          }
+        });
+        return 1;
+      }
+      int OnDelete(object test)
+      {
+        if (!Focused) return 0;
+        var a = view.Scene.Select(2);
+        if (!a.Any()) return 0;
+        if (test != null) return 1;
+        var ii = a.ToArray(); INode[] pp = null; int[] tt = null;
+        execute(() =>
+        {
+          var scene = view.Scene; scene.Select();
+          if (pp == null)
+          {
+            pp = ii.Select(i => scene[i]).ToArray();
+            tt = pp.Select(p => p.Parent != null ? p.Parent.Index : -1).ToArray();
+            for (int i = ii.Length - 1; i >= 0; i--) scene.Remove(ii[i]);
+          }
+          else
+          {
+            for (int i = 0; i < ii.Length; i++) scene.Insert(ii[i], pp[i]);
+            for (int i = 0; i < tt.Length; i++) if (tt[i] != -1) pp[i].Parent = scene[tt[i]];
+            foreach (var t in pp.Where(p => !pp.Contains(p.Parent))) t.IsSelect = true;
+            pp = null; tt = null;
+          }
+        });
+        return 1;
+      }
+
       internal int OnDriver(object test)
       {
         if (test is ToolStripMenuItem item)
@@ -447,7 +560,7 @@ namespace csg3mf
       {
         if (!view.Scene.Nodes().Any(p => p.Mesh != null && p.Mesh.VertexCount != 0)) return 0;
         if (test != null) return 1;
-        float abst = 100; view.Command(Cmd.Center, &abst); 
+        float abst = 100; view.Command(Cmd.Center, &abst);
         Invalidate(); return 1;
       }
 
@@ -701,10 +814,16 @@ namespace csg3mf
             var path = Path.Combine(Path.GetTempPath(), string.Join("_", main.Name.Trim().Split(Path.GetInvalidFileNameChars())) + ".3mf");
             try
             {
-              //var nodes = node.Parent.Children.Where(t => t.IsSelected).ToArray();
-              //WriteFile(path, ar => { var ver = ((ar.Version = 1) << 16) | 0x66C1; ar.Serialize(ref ver); ar.Compress = true; ar.Serialize(ref pt); ar.Serialize(ref nodes); });
-              //var data = new DataObject(); data.SetFileDropList(new System.Collections.Specialized.StringCollection { path });
-              //DoDragDrop(data, DragDropEffects.Copy); File.Delete(path);
+              var cont = new Container(); //var dest = Factory.CreateScene();
+              var scene = view.Scene;
+              var ii = scene.Select(2).ToArray();
+              var pp = ii.Select(i => scene[i]).ToArray();
+              var tt = pp.Select(p => Array.IndexOf(pp, p.Parent)).ToArray();
+              for (int i = 0; i < pp.Length; i++) cont.Nodes.Insert(i, pp[i]);
+              for (int i = 0; i < pp.Length; i++) if (tt[i] != -1) cont.Nodes[i].Parent = cont.Nodes[tt[i]];
+              cont.Export3MF(path, null, null);
+              var data = new DataObject(); data.SetFileDropList(new System.Collections.Specialized.StringCollection { path });
+              DoDragDrop(data, DragDropEffects.Copy);
             }
             catch (Exception e) { Debug.WriteLine(e.Message); }
             finally { File.Delete(path); }
@@ -763,6 +882,10 @@ namespace csg3mf
         if (undos == null) undos = new List<Action>();
         undos.RemoveRange(undoi, undos.Count - undoi);
         undos.Add(p); undoi = undos.Count;
+      }
+      void execute(Action p)
+      {
+        p(); addundo(p); Invalidate();
       }
       Action undo(INode p, float4x3 m)
       {

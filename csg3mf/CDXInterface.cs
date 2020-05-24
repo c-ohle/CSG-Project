@@ -84,9 +84,10 @@ namespace csg3mf
     {
       int Count { get; }
       INode this[int i] { get; }
-      int GetSelect(int i = -1);
+      int Select(int i, int f);
       INode AddNode(string name);
       void Remove(int i);
+      void Insert(int i, INode p);
       void Clear();
       void SaveToStream(COM.IStream str);
       void LoadFromStream(COM.IStream str);
@@ -98,6 +99,7 @@ namespace csg3mf
       string Name { get; set; }
       INode Parent { get; set; }
       IScene Scene { get; }
+      int Index { get; set; }
       bool IsSelect { get; set; }
       bool IsStatic { get; set; }
       float4x3 TransformF { get; set; }
@@ -136,10 +138,14 @@ namespace csg3mf
     }
     public static IEnumerable<INode> Selection(this IScene p)
     {
-      for (int a = -1, b; (b = p.GetSelect(a)) != -1; a = b) yield return p[b];
+      for (int a = -1, b; (b = p.Select(a, 1)) != -1; a = b) yield return p[b];
+    }
+    public static IEnumerable<int> Select(this IScene p, int f)
+    {
+      for (int a = -1, b; (b = p.Select(a, f)) != -1; a = b) yield return b;
     }
     public static IEnumerable<INode> Nodes(this INode p) => p.Scene.Nodes().Where(t => t.Parent == p);
-    public static void Select(this IScene scene) 
+    public static void Select(this IScene scene)
     {
       foreach (var p in scene.Selection()) p.IsSelect = false;
     }
@@ -167,14 +173,7 @@ namespace csg3mf
     {
       var p = a.AddNode(name); p.Color = color; p.Mesh = CSG.Factory.CreateMesh(); return p;
     }
-    public static void Remove(this IScene a, INode b)
-    {
-      for (int i = 0; i < a.Count; i++) if (a[i] == b)
-        {
-          a.Remove(i);
-          break;
-        }
-    }
+    public static void Remove(this IScene a, INode b) => a.Remove(b.Index);
     public static void SetMaterial(this INode node, int i, uint color, byte[] tex = null)
     {
       COM.IStream s; if (tex != null) fixed (byte* p = tex) s = COM.SHCreateMemStream(p, tex.Length); else s = null;

@@ -128,6 +128,31 @@ struct CNode : public ICDXNode
     for (auto p = this; p; p = p->getparent()) if (p == main) return true;
     return false;
   }
+  sarray<XMFLOAT3>* gethull()
+  {
+    auto& a = vb.p->hull;
+    if (!a.n)
+    {
+      UINT nv; mesh.p->get_VertexCount(&nv); a.setsize(nv);
+      mesh.p->CopyBuffer(0, 0, CCSGVAR(a.p, nv));
+    }
+    return &a;
+  }
+  CNode* clone()
+  {
+    auto p = new CNode();
+    p->name.copy(name.p, name.n); 
+    p->flags = flags;
+    p->transform = transform.p;
+    p->mesh = mesh.p;
+    p->texcoords = texcoords.p;
+    p->matrix = matrix;
+    p->vb = vb.p;
+    p->ib = ib.p;
+    p->materials.setsize(materials.n);
+    for (UINT i = 0; i < materials.n; i++) p->materials.p[i] = materials.p[i];
+    return p;
+  } 
   UINT refcount = 1;
   HRESULT __stdcall QueryInterface(REFIID riid, void** p)
   {
@@ -156,6 +181,8 @@ struct CNode : public ICDXNode
   HRESULT __stdcall get_Parent(ICDXNode** p);
   HRESULT __stdcall put_Parent(ICDXNode* p);
   HRESULT __stdcall get_Scene(ICDXScene** p);
+  HRESULT __stdcall get_Index(UINT* p);
+  HRESULT __stdcall put_Index(UINT p);
   HRESULT __stdcall get_IsSelect(BOOL* p);
   HRESULT __stdcall put_IsSelect(BOOL p);
   HRESULT __stdcall get_IsStatic(BOOL* p)
@@ -246,17 +273,6 @@ struct CNode : public ICDXNode
   HRESULT __stdcall GetTexturCoords(CSGVAR* m);
   HRESULT __stdcall SetTexturCoords(CSGVAR m);
   HRESULT __stdcall AddNode(BSTR name, ICDXNode** p);
-
-  sarray<XMFLOAT3>* gethull()
-  {
-    auto& a = vb.p->hull;
-    if (!a.n)
-    {
-      UINT nv; mesh.p->get_VertexCount(&nv); a.setsize(nv);
-      mesh.p->CopyBuffer(0, 0, CCSGVAR(a.p, nv));
-    }
-    return &a;
-  }
 };
 
 struct CScene : public ICDXScene
@@ -296,50 +312,17 @@ struct CScene : public ICDXScene
     if (i >= count) return E_INVALIDARG;
     (*p = nodes.p[i])->AddRef(); return 0;
   }
-  HRESULT __stdcall GetSelect(UINT a, UINT* p)
+  HRESULT __stdcall Select(UINT a, UINT f, UINT* p)
   {
-    while(++a < count) if (nodes.p[a]->flags & NODE_FL_SELECT) { *p = a; return 0; }
+    while (++a < count) if (f & 0xff ? nodes.p[a]->flags & f : nodes.p[a]->parent == nodes.p[f >> 8]) { *p = a; return 0; }
     *p = -1; return 1;
   }
   HRESULT __stdcall Remove(UINT i);
+  HRESULT __stdcall Insert(UINT i, ICDXNode* p);
   HRESULT __stdcall Clear();
-  HRESULT __stdcall AddNode(BSTR name, ICDXNode** p)
-  {
-    auto t = new CNode(); t->parent = this; t->put_Name(name);
-    auto a = nodes.getptr(count + 1, 2); a[count++] = t; (*p = t)->AddRef();
-    return 0;
-  }
+  HRESULT __stdcall AddNode(BSTR name, ICDXNode** p);
   HRESULT __stdcall SaveToStream(IStream* str);
   HRESULT __stdcall LoadFromStream(IStream* str);
+  //HRESULT __stdcall SaveSelection(IStream* str);
 };
 
-//struct HullPoints : sarray<XMFLOAT3>, IUnknown
-//{
-//  static HullPoints* get(const CNode& node)
-//  {
-//    HullPoints* pts = 0; UINT ns = sizeof(pts);
-//    node.vb.p->GetPrivateData(__uuidof(ICDXNode), &ns, &pts);
-//    if (!pts)
-//    {
-//      pts = new HullPoints(); node.vb.p->SetPrivateDataInterface(__uuidof(ICDXNode), pts);
-//      UINT nv; node.mesh.p->get_VertexCount(&nv); pts->setsize(nv);
-//      node.mesh.p->CopyBuffer(0, 0, CCSGVAR(pts->p, nv));
-//    }
-//    pts->Release(); return pts;
-//  }
-//  UINT refcount = 1;
-//  HRESULT __stdcall QueryInterface(REFIID riid, void** p)
-//  {
-//    return E_NOINTERFACE;
-//  }
-//  ULONG __stdcall AddRef(void)
-//  {
-//    return InterlockedIncrement(&refcount);
-//  }
-//  ULONG __stdcall Release(void)
-//  {
-//    auto count = InterlockedDecrement(&refcount);
-//    if (!count) delete this;
-//    return count;
-//  }
-//};

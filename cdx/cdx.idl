@@ -80,14 +80,27 @@ interface ICDXSink : IUnknown
   void Render();
 };
 
+//typedef enum CDX_UNIT
+//{
+//  CDX_UNIT_METER = 0, 
+//  CDX_UNIT_MICRON = 1, 
+//  CDX_UNIT_MILLIMETER = 2, 
+//  CDX_UNIT_CENTIMETER = 3, 
+//  CDX_UNIT_INCH = 4, 
+//  CDX_UNIT_FOOT = 5,
+//} CDX_UNIT;
+
 [object, uuid(98068F4F-7768-484B-A2F8-21D4F7B5D811), pointer_default(unique)]
 interface ICDXScene : IUnknown
 {
+  //[propget] HRESULT Unit([out, retval] CDX_UNIT* p);
+  //[propput] HRESULT Unit([in] CDX_UNIT p);
   [propget] HRESULT Count([out, retval] UINT* p);
   HRESULT GetNode([in] UINT i, [out, retval] ICDXNode** p);
-  HRESULT GetSelect([in] UINT i, [out, retval] UINT* p);
+  HRESULT Select([in] UINT i, [in] UINT f, [out, retval] UINT* p);
   HRESULT AddNode([in] BSTR name, [out, retval] ICDXNode** p);
   HRESULT Remove([in] UINT i);
+  HRESULT Insert([in] UINT i, [in] ICDXNode* p);
   HRESULT Clear();
   HRESULT SaveToStream([in] IStream* s);
   HRESULT LoadFromStream([in] IStream* s);
@@ -114,6 +127,8 @@ interface ICDXNode : IUnknown
   [propget] HRESULT Parent([out, retval] ICDXNode** p);
   [propput] HRESULT Parent([in] ICDXNode* p);
   [propget] HRESULT Scene([out, retval] ICDXScene** p);
+  [propget] HRESULT Index([out, retval] UINT* p);
+  [propput] HRESULT Index([in] UINT p);
   [propget] HRESULT IsSelect([out, retval] BOOL* p);
   [propput] HRESULT IsSelect([in] BOOL p);
   [propget] HRESULT IsStatic([out, retval] BOOL* p);
