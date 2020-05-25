@@ -32,18 +32,10 @@ namespace csg3mf
         var xml = package.GetPart(new Uri("/3D/3dmodel.model", UriKind.Relative));
         XDocument doc; long len; using (var str = xml.GetStream()) { doc = XDocument.Load(str); len = str.Length; } //560280 doc.Save("C:\\Users\\cohle\\Desktop\\test1.xml");
         var model = doc.Root; var ns = model.Name.Namespace;
-        var cont = new Container(); 
-        
-        var pt = model.Attribute("dragpt"); 
-        if (pt != null) 
-        { 
-          var a = pt.Value.Split(' '); 
-          dragpt = new float3(XmlConvert.ToSingle(a[0]), XmlConvert.ToSingle(a[1]), XmlConvert.ToSingle(a[2]));
-        } 
-        else dragpt = default;
-        
+        var cont = new Container();
+        var pt = model.Attribute("dragpt"); dragpt = pt != null ? (float3)pt.Value : float.NaN;
         switch ((string)model.Attribute("unit"))
-        {
+        { 
           case "default:": cont.BaseUnit = Unit.meter; break;
           case "micron": cont.BaseUnit = Unit.micron; break;
           case "millimeter": cont.BaseUnit = Unit.millimeter; break;
@@ -187,11 +179,7 @@ namespace csg3mf
       doc.Add(new XAttribute(XNamespace.Xml + "lang", "en-US"));
       doc.SetAttributeValue("unit", BaseUnit.ToString());
       doc.Add(new XAttribute(XNamespace.Xmlns + "m", ms.NamespaceName));
-      if (dragpt.HasValue)
-      {
-        var p = dragpt.Value;
-        doc.SetAttributeValue("dragpt", $"{XmlConvert.ToString(p.x)} {XmlConvert.ToString(p.y)} {XmlConvert.ToString(p.z)}" );
-      }
+      if (dragpt.HasValue) doc.SetAttributeValue("dragpt", (string)dragpt.Value);
       var resources = new XElement(ns + "resources"); doc.Add(resources);
       var build = new XElement(ns + "build"); doc.Add(build);
       var uid = 1; var textures = new List<(COM.IStream str, int id, XElement e)>();
@@ -205,7 +193,7 @@ namespace csg3mf
       {
         var obj = new XElement(ns + "object"); obj.SetAttributeValue("id", 0);
         if (group.Name != null) obj.SetAttributeValue("name", group.Name);
-        if(group.IsStatic) obj.SetAttributeValue("static", true);
+        if (group.IsStatic) obj.SetAttributeValue("static", true);
         var desc = nodes.Nodes.Nodes().Where(p => p.Parent == group);
         var components = desc.Any() ? new XElement(ns + "components") : null;
         if (group.Mesh != null)

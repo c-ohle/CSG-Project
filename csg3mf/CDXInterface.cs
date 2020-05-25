@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Windows.Forms;
+using System.Xml;
 
 namespace csg3mf
 {
@@ -70,7 +71,7 @@ namespace csg3mf
       float4x4 MouseOverPlane { get; }
       void Draw(Draw draw, void* data);
       void Command(Cmd cmd, void* data);
-      void Print(int dx, int dy, int samples, uint bkcolor, COM.IStream str);
+      void Thumbnail(int dx, int dy, int samples, uint bkcolor, COM.IStream str);
     }
 
     [ComImport, Guid("982A1DBA-0C12-4342-8F58-A34D83956F0D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
@@ -144,7 +145,15 @@ namespace csg3mf
     {
       for (int a = -1, b; (b = p.Select(a, f)) != -1; a = b) yield return b;
     }
-    public static IEnumerable<INode> Nodes(this INode p) => p.Scene.Nodes().Where(t => t.Parent == p);
+    public static IEnumerable<INode> SelectNodes(this IScene p, int f)
+    {
+      return p.Select(f).Select(i => p[i]);
+    }
+
+    public static IEnumerable<INode> Nodes(this INode p)
+    { //=> p.Scene.Nodes().Where(t => t.Parent == p);
+      var s = p.Scene; return s.Select(p.Index << 8).Select(i => s[i]);
+    }
     public static void Select(this IScene scene)
     {
       foreach (var p in scene.Selection()) p.IsSelect = false;
@@ -351,6 +360,15 @@ namespace csg3mf
       public float LengthSq => x * x + y * y + z * z;
       public float Length => (float)Math.Sqrt(x * x + y * y + z * z);
       public float3 Normalize() { var l = Length; return l != 0 ? this / l : default; }
+      public static explicit operator string(float3 p)
+      {
+        return $"{XmlConvert.ToString(p.x)} {XmlConvert.ToString(p.y)} {XmlConvert.ToString(p.z)}";
+      }
+      public static explicit operator float3(string s)
+      {
+        var a = s.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        return new float3(XmlConvert.ToSingle(a[0]), XmlConvert.ToSingle(a[1]), XmlConvert.ToSingle(a[2]));
+      }
       public static implicit operator float3(float p)
       {
         float3 b; b.x = p; b.y = b.z = 0; return b;

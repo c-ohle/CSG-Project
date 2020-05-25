@@ -80,7 +80,7 @@ void Material::update(CScene* scene)
 
 struct __declspec(uuid("557cf406-1a04-11d3-9a73-0000f81ef32e")) _PNG {};
 
-HRESULT CView::Print(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* str)//, Action<IDisplay> print)
+HRESULT CView::Thumbnail(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* str)
 {
   D3D11_TEXTURE2D_DESC td = { 0 };
   td.Width = dx; td.Height = dy;
@@ -106,10 +106,22 @@ HRESULT CView::Print(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* str)
   context->OMSetRenderTargets(1, &rtv.p, dsv.p); auto bk = XMLoadColor((const XMCOLOR*)&bkcolor);
   context->ClearRenderTargetView(rtv.p, bk.m128_f32);
   context->ClearDepthStencilView(dsv.p, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
-  
-  auto t1 = flags; flags = (CDX_RENDER)(flags & ~(CDX_RENDER_BOUNDINGBOX | CDX_RENDER_COORDINATES | CDX_RENDER_NORMALS | CDX_RENDER_WIREFRAME | CDX_RENDER_OUTLINES));
-  setproject();
-  RenderScene(); flags = t1;
+
+  auto t1 = flags; flags = (CDX_RENDER)(flags & CDX_RENDER_SHADOWS); 
+  auto t2 = camera.p->matrix; auto t3 = znear; auto t4 = zfar; auto t5 = minwz; auto t6 = this->viewport; auto t7 = rcclient;
+  if (bkcolor == 0x00fffffe) 
+  { 
+    this->viewport = viewport; rcclient.right = dx; rcclient.bottom = dy;
+    float rand = 0; Command(CDX_CMD_CENTER, (UINT*)&rand);
+  }
+  else
+  {
+    auto f = (this->viewport.Width + this->viewport.Height) * 0.5f;
+    this->viewport.Width = f;
+    this->viewport.Height= f;
+  }
+  setproject(); RenderScene();
+  flags = t1; camera.p->matrix = t2; znear = t3; zfar = t4; minwz = t5; this->viewport = t6; rcclient = t7;
 
   dsv.Release(); ds.Release(); rtv.Release();
   context->OMSetRenderTargets(1, &rtv.p, dsv.p);
@@ -125,8 +137,8 @@ HRESULT CView::Print(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* str)
   }
   td.Usage = D3D11_USAGE_STAGING;
   td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-  CComPtr<ID3D11Texture2D> t2; CHR(device->CreateTexture2D(&td, 0, &t2.p));
-  context->CopyResource(t2, tex); tex = t2;
+  CComPtr<ID3D11Texture2D> tex2; CHR(device->CreateTexture2D(&td, 0, &tex2.p));
+  context->CopyResource(tex2, tex); tex = tex2;
   D3D11_MAPPED_SUBRESOURCE map; CHR(context->Map(tex, 0, D3D11_MAP_READ, 0, &map));
   GpBitmap* bmp = 0;
   auto st = GdipCreateBitmapFromScan0(dx, dy, map.RowPitch, PixelFormat32bppARGB, (BYTE*)map.pData, &bmp);

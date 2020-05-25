@@ -56,7 +56,7 @@ HRESULT CNode::put_IsSelect(BOOL p)
   for (UINT i = p ? 0 : -1; i < scene->count; i++)
   {
     auto t = scene->nodes.p[i];
-    if (t->flags & NODE_FL_SELECT && t->parent != parent) t->put_IsStatic(0);
+    if (t->flags & NODE_FL_SELECT && t->parent != parent) t->put_IsSelect(0);
   }
   if (p) flags |= NODE_FL_SELECT; else flags &= ~NODE_FL_SELECT;
   for (UINT i = 0; i < scene->count; i++)

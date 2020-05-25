@@ -4,7 +4,13 @@
 #include "view.h"
 
 CView* CView::first;
-void releasedx();
+
+static void wheelpick(CView* view, LPARAM lParam)
+{
+  POINT pt = { ((short*)&lParam)[0], ((short*)&lParam)[1] };
+  ScreenToClient(view->hwnd, &pt); short pp[2] = { (short)pt.x, (short)pt.y };
+  view->Pick(pp);
+}
 
 LRESULT CALLBACK CView::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -29,6 +35,9 @@ LRESULT CALLBACK CView::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
   case WM_RBUTTONDOWN:
     view->Pick((short*)&lParam);
     break;
+  case WM_MOUSEWHEEL:
+    wheelpick(view, lParam);
+    break;
   case WM_SIZE:
     GetClientRect(hWnd, &view->rcclient); InvalidateRect(hWnd, 0, 0);
     break;
@@ -39,6 +48,15 @@ LRESULT CALLBACK CView::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
   return view->proc(hWnd, message, wParam, lParam);
 }
 
+HRESULT CView::get_Scene(ICDXScene** p)
+{
+  if (*p = scene) scene.p->AddRef(); return 0;
+}
+HRESULT CView::put_Scene(ICDXScene* p)
+{
+  if (camera.p && camera.p->parent) camera.Release();
+  scene = static_cast<CScene*>(p); return 0;
+}
 HRESULT CView::get_Camera(ICDXNode** p)
 {
   if (*p = camera) camera.p->AddRef();
@@ -225,7 +243,6 @@ HRESULT __stdcall CView::Command(CDX_CMD cmd, UINT* data)
 
     auto z1 = box[2].m128_f32[2] - fm;
     auto z2 = box[3].m128_f32[2] - fm;
-
     z1 = powf(10, roundf(log10f(z1)) - 1);
     z2 = powf(10, roundf(log10f(z2)) + 2);
     znear = z1; zfar = z2; minwz = box[0].m128_f32[2];

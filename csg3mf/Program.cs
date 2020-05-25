@@ -192,6 +192,15 @@ namespace csg3mf
           view.Invalidate(); return 1;
         case 2300: return view.OnCenter(test);
         case 1120: return ShowXml(test);
+          //case 2100: //Prope
+          //  {
+          //    if (test != null) return 1;
+          //    var grid = new PropertyGrid() { Dock = DockStyle.Bottom, Height = splitter.Panel1.Height / 2 };
+          //    splitter.Panel1.Controls.Add(grid);
+          //    //new Splitter
+          //    return 1;
+          //  }
+
       }
       return 0;
     }
@@ -215,7 +224,7 @@ namespace csg3mf
       splitter.Panel1.Controls.Add(e); e.BringToFront(); splitter.Panel1.Update();
       if (this.edit != null) this.edit.Dispose(); this.edit = e;
       Neuron.Debugger = (p, v) => this.edit.Show(v);
-      view.cont.OnUpdate = view.onstep;
+      view.cont.OnUpdate = view.Invalidate;
       if (view.IsHandleCreated)
       {
         view.view.Camera = null;
@@ -257,7 +266,7 @@ namespace csg3mf
       else
       {
         var str = COM.SHCreateMemStream();
-        view.view.Print(256, 256, 4, 0x00ffffff, str);
+        view.view.Thumbnail(256, 256, 4, 0x00ffffff, str);
         view.cont.Export3MF(s, str, edit.EditText, null);
       }
       if (path != s) { path = s; UpdateTitle(); mru(path, path); }
@@ -388,15 +397,15 @@ namespace csg3mf
           new MenuItem(2035, "&Group", Keys.Control | Keys.G),
           new MenuItem(2036, "U&ngroup", Keys.Control | Keys.U),
           new ToolStripSeparator(),
-          new MenuItem(2150, "Intersection A && B", Keys.Alt | Keys.I),
-          new MenuItem(2151, "Union A | B", Keys.Alt | Keys.U),
-          new MenuItem(2152, "Substract A - B", Keys.Alt | Keys.D),
+          new MenuItem(2150, "Intersection A && B"),//, Keys.Alt | Keys.I),
+          new MenuItem(2151, "Union A | B"),//, Keys.Alt | Keys.U),
+          new MenuItem(2152, "Substract A - B"),//, Keys.Alt | Keys.D),
           new MenuItem(2153, "Difference A ^ B"),
-          new MenuItem(2154, "Cut Plane", Keys.Alt | Keys.C),
+          new MenuItem(2154, "Cut Plane"),//, Keys.Alt | Keys.C),
           new ToolStripSeparator(),
           new MenuItem(4020, "Static"),
           new ToolStripSeparator(),
-          new MenuItem(2100, "Properties...")});
+          new MenuItem(2100, "Properties...", Keys.Alt | Keys.Enter)});
       }
       internal int OnCommand(int id, object test)
       {
@@ -415,7 +424,7 @@ namespace csg3mf
           case 2060: //SelectAll
             if (!Focused) return 0;
             if (test != null) return 1;
-            foreach (var p in view.Scene.Nodes()) p.IsSelect = !p.IsStatic; Invalidate();
+            foreach (var p in view.Scene.SelectNodes(-1 << 8)) p.IsSelect = !p.IsStatic; Invalidate();
             return 1;
           case 4020: return OnStatic(test);
           case 2015: return OnDelete(test);
@@ -601,7 +610,7 @@ namespace csg3mf
         var v = (view.MouseOverPoint * node.GetTransformF()) - m.mp;
         var l = v.Length; // (float)Math.Sqrt(v.Length);
         var t = Environment.TickCount;
-        view.Camera.TransformF = m * (v * (l * 0.01f * e.Delta /* * DpiScale*/ * (1f / 120))); Invalidate();
+        view.Camera.TransformF = m * (v.Normalize() * (l * 0.1f * e.Delta * (1f / 120))); Invalidate();
         if (t - lastwheel > 500) addundo(undo(view.Camera, m)); lastwheel = t;
       }
       static int lastwheel;
@@ -805,7 +814,13 @@ namespace csg3mf
               var tt = pp.Select(p => Array.IndexOf(pp, p.Parent)).ToArray();
               for (int i = 0; i < pp.Length; i++) cont.Nodes.Insert(i, pp[i]);
               for (int i = 0; i < pp.Length; i++) if (tt[i] != -1) cont.Nodes[i].Parent = cont.Nodes[tt[i]];
-              cont.Export3MF(path, null, null, wp);
+
+              var str = COM.SHCreateMemStream();
+              var t1 = view.Scene; view.Scene = cont.Nodes;
+              try { view.Thumbnail(256, 256, 4, 0x00fffffe, str); }
+              finally { view.Scene = t1; }
+
+              cont.Export3MF(path, str, null, wp);
               var data = new DataObject(); data.SetFileDropList(new System.Collections.Specialized.StringCollection { path });
               DoDragDrop(data, DragDropEffects.Copy);
             }
@@ -816,35 +831,6 @@ namespace csg3mf
         };
       }
 
-#if (false)
-      static Action<int, object> obj_drop(ISelector pc, Node scene)
-      {
-        var drop = getdrop(pc, ".xo", out float3 pt); var nodes = drop as Node[];
-        if (drop is string path)
-        {
-          if (path.EndsWith(".png", true, null) || path.EndsWith(".jpg", true, null) || path.EndsWith(".dds", true, null))
-          {
-            var texture = GetTexture(path); var size = texture.Size * 0.001f;
-            nodes = import("PicBox.xo", out float3 xxx);
-            var mesh = (Mesh)nodes[0]; mesh["Size"] = (float3)size; mesh.texture = texture; mesh.Textrans = new float3x4 { _11 = 1 / size.x, _22 = 1 / size.y, _33 = 1 };
-          }
-          else nodes = import(path, ref pt);
-        }
-        if (nodes == null) return null; var view = (View)pc.View;
-        pc.SetPlane(pt); foreach (var p in nodes) scene.Add(p);
-        var mover = move(nodes.OfType<Group>()); mover(0, pc.Pick());
-        return id =>
-        {
-          if (id == 0) { mover(0, pc.Pick()); }
-          if (id == 2) { foreach (var t in nodes) t.Remove(); }
-          if (id == 1)
-          {
-            var doc = scene.Ancestor<Document>(); view.Focus();
-            doc.addundo(doc.select(nodes, null), remove(nodes, true), doc.select(null, doc.Selection)); doc.Select(nodes);
-          }
-        };
-      }
-#endif
       protected override void OnDragEnter(DragEventArgs e)
       {
         var files = e.Data.GetData(DataFormats.FileDrop) as string[];
@@ -962,11 +948,6 @@ namespace csg3mf
           if (id == 0) { for (int i = 0; i < pp.Length; i++) pp[i].TransformF = mm[i] * m; }
           if (id == 2) addundo(undo(pp.Select((p, i) => undo(p, mm[i]))));
         };
-      }
-
-      internal void onstep()
-      {
-        Invalidate();
       }
 
       IFont font = Factory.GetFont("Arial", 13, System.Drawing.FontStyle.Bold);

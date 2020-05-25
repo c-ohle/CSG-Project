@@ -24,16 +24,6 @@ struct CView : ICDXView
   static CView* first; CView* next;
   CView() { Critical crit; next = first; first = this; }
   ~CView() { auto p = &first; for (; *p != this; p = &(*p)->next); *p = next; }
-  //void dispose()
-  //{
-  //  hwnd = 0; relres(1 | 2);
-  //  auto p = &first; for (; *p != this; p = &(*p)->next); *p = next;
-  //}
-  //void relres(int fl)
-  //{
-  //  if (fl & 1) { swapchain.Release(); rtv.Release(); dsv.Release(); }
-  //  if (fl & 2 && scene.p) { for (UINT i = 0; i < scene.p->count; i++) scene.p->nodes.p[i]->relres(); }
-  //}
   void relres()
   {
     swapchain.Release(); rtv.Release(); dsv.Release();
@@ -104,15 +94,8 @@ struct CView : ICDXView
   {
     flags = p; return 0;
   }
-  HRESULT __stdcall get_Scene(ICDXScene** p)
-  {
-    if (*p = scene) scene.p->AddRef(); return 0;
-  }
-  HRESULT __stdcall put_Scene(ICDXScene* p)
-  {
-    if (camera.p && camera.p->parent) camera.Release();
-    scene = static_cast<CScene*>(p); return 0;
-  }
+  HRESULT __stdcall get_Scene(ICDXScene** p);
+  HRESULT __stdcall put_Scene(ICDXScene* p);
   HRESULT __stdcall get_Camera(ICDXNode** p);
   HRESULT __stdcall put_Camera(ICDXNode* p);
   HRESULT __stdcall get_OverNode(UINT* p)
@@ -129,5 +112,5 @@ struct CView : ICDXView
   }
   HRESULT __stdcall Draw(CDX_DRAW id, UINT* data);
   HRESULT __stdcall Command(CDX_CMD  cmd, UINT* data);
-  HRESULT __stdcall Print(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* str);
+  HRESULT __stdcall Thumbnail(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* str);
 };

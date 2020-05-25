@@ -242,7 +242,7 @@ EXTERN_C const IID IID_ICDXView;
             /* [in] */ CDX_CMD cmd,
             /* [in] */ UINT *data) = 0;
         
-        virtual HRESULT STDMETHODCALLTYPE Print( 
+        virtual HRESULT STDMETHODCALLTYPE Thumbnail( 
             /* [in] */ UINT dx,
             /* [in] */ UINT dy,
             /* [in] */ UINT samples,
@@ -332,7 +332,7 @@ EXTERN_C const IID IID_ICDXView;
             /* [in] */ CDX_CMD cmd,
             /* [in] */ UINT *data);
         
-        HRESULT ( STDMETHODCALLTYPE *Print )( 
+        HRESULT ( STDMETHODCALLTYPE *Thumbnail )( 
             ICDXView * This,
             /* [in] */ UINT dx,
             /* [in] */ UINT dy,
@@ -408,8 +408,8 @@ EXTERN_C const IID IID_ICDXView;
 #define ICDXView_Command(This,cmd,data)	\
     ( (This)->lpVtbl -> Command(This,cmd,data) ) 
 
-#define ICDXView_Print(This,dx,dy,samples,bkcolor,str)	\
-    ( (This)->lpVtbl -> Print(This,dx,dy,samples,bkcolor,str) ) 
+#define ICDXView_Thumbnail(This,dx,dy,samples,bkcolor,str)	\
+    ( (This)->lpVtbl -> Thumbnail(This,dx,dy,samples,bkcolor,str) ) 
 
 #endif /* COBJMACROS */
 

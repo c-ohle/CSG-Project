@@ -71,7 +71,7 @@ interface ICDXView : IUnknown
   [propget] HRESULT OverPlane([out, retval] XMFLOAT4X4* p);
   HRESULT Draw([in] CDX_DRAW idc, [in] UINT* data);
   HRESULT Command([in] CDX_CMD cmd, [in] UINT* data);
-  HRESULT Print([in] UINT dx, [in] UINT dy, [in] UINT samples, [in] UINT bkcolor, [in] IStream* str);
+  HRESULT Thumbnail([in] UINT dx, [in] UINT dy, [in] UINT samples, [in] UINT bkcolor, [in] IStream* str);
 };
 
 [object, uuid(982A1DBA-0C12-4342-8F58-A34D83956F0D), pointer_default(unique), local]

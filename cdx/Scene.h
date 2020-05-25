@@ -141,7 +141,7 @@ struct CNode : public ICDXNode
   CNode* clone()
   {
     auto p = new CNode();
-    p->name.copy(name.p, name.n); 
+    p->name.copy(name.p, name.n);
     p->flags = flags;
     p->transform = transform.p;
     p->mesh = mesh.p;
@@ -152,7 +152,7 @@ struct CNode : public ICDXNode
     p->materials.setsize(materials.n);
     for (UINT i = 0; i < materials.n; i++) p->materials.p[i] = materials.p[i];
     return p;
-  } 
+  }
   UINT refcount = 1;
   HRESULT __stdcall QueryInterface(REFIID riid, void** p)
   {
@@ -314,7 +314,15 @@ struct CScene : public ICDXScene
   }
   HRESULT __stdcall Select(UINT a, UINT f, UINT* p)
   {
-    while (++a < count) if (f & 0xff ? nodes.p[a]->flags & f : nodes.p[a]->parent == nodes.p[f >> 8]) { *p = a; return 0; }
+    if (f & 0xf)
+    {
+      while (++a < count) if (nodes.p[a]->flags & f) { *p = a; return 0; }
+    }
+    else
+    {
+      auto t = (f >> 8) < count ? (void*)nodes.p[f >> 8] : this;
+      while (++a < count) if(nodes.p[a]->parent == t) { *p = a; return 0; }
+    }
     *p = -1; return 1;
   }
   HRESULT __stdcall Remove(UINT i);
