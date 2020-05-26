@@ -57,6 +57,9 @@
   <ItemGroup>
     <Compile Include="3mf.cs" />
     <Compile Include="CDXInterface.cs" />
+    <Compile Include="CDXView.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="Compiler.cs" />
     <Compile Include="CSGInterface.cs" />
     <Compile Include="Editor.cs">

@@ -445,7 +445,6 @@ void CView::Pick(const short* pt)
   }
 }
 
-
 void CView::setproject()
 {
   auto vpx = viewport.Width * znear * vscale; //var vp = size * (vscale * z1);
@@ -807,7 +806,7 @@ HRESULT __stdcall CFactory::get_Devices(BSTR* p)
 
 HRESULT __stdcall CFactory::SetDevice(UINT id)
 {
-  if (id == -1) { d_font.Release(); releasedx(); return 0; }
+  if (id == -1) { if (device.p) { d_font.Release(); releasedx(); } return 0; }
   if (adapterid == id) return 0;
   adapterid = id; if (device.p == 0) return 0;
   releasedx(); CHR(CreateDevice());

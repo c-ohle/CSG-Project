@@ -12,6 +12,7 @@ using static csg3mf.CDX;
 
 namespace csg3mf
 {
+ 
   static class Program
   {
     [STAThread]
@@ -208,7 +209,7 @@ namespace csg3mf
     {
       Text = string.Format("{0} - {1} {2} Bit {3}", path ?? string.Format("({0})", "Untitled"), Application.ProductName, Environment.Is64BitProcess ? "64" : "32", COM.DEBUG ? "Debug" : "Release");
     }
-    unsafe void Open(string path)
+    void Open(string path)
     {
       Cursor.Current = Cursors.WaitCursor;
       string script = null;
@@ -608,7 +609,7 @@ namespace csg3mf
         var m = view.Camera.TransformF;//.GetTransformF();
         var node = view.Scene[view.MouseOverNode];
         var v = (view.MouseOverPoint * node.GetTransformF()) - m.mp;
-        var l = v.Length; // (float)Math.Sqrt(v.Length);
+        var l = v.Length;
         var t = Environment.TickCount;
         view.Camera.TransformF = m * (v.Normalize() * (l * 0.1f * e.Delta * (1f / 120))); Invalidate();
         if (t - lastwheel > 500) addundo(undo(view.Camera, m)); lastwheel = t;
@@ -1050,7 +1051,6 @@ namespace csg3mf
         AutoSize = false; Size = new Size(40, 40);
       }
       protected override void OnClick(EventArgs e) => CommandRoot(id, Tag);
-
     }
   }
 
