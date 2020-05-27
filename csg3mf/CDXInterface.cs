@@ -200,6 +200,7 @@ namespace csg3mf
     {
       float2 p; p.x = float.NaN; view.Command(Cmd.PickPlane, &p); return p;
     }
+    //public static IFont GetFont(System.Drawing.Font p) => Factory.GetFont(p.FontFamily.Name, p.Size, p.Style);
 
     public struct DC
     {

@@ -19,7 +19,7 @@ using System.Windows.Forms;
 
 namespace csg3mf
 {
-  class CodeEditor : UserControl
+  class CodeEditor : UserControl, IComparable<(int id, object test)>
   {
     static CodeEditor()
     {
@@ -524,12 +524,12 @@ namespace csg3mf
     protected internal virtual void OnSelChanged() { if ((tipflags & 2) != 0) EndToolTip(); }
     protected internal virtual void OnContextMenu(ToolStripItemCollection items)
     {
-      items.Add(new MenuItem(2010, "&Undo"));
-      items.Add(new MenuItem(2011, "&Redo"));
+      items.Add(new UIForm.MenuItem(2010, "&Undo"));
+      items.Add(new UIForm.MenuItem(2011, "&Redo"));
       items.Add(new ToolStripSeparator());
-      items.Add(new MenuItem(2020, "&Cut"));
-      items.Add(new MenuItem(2030, "Cop&y"));
-      items.Add(new MenuItem(2040, "&Paste"));
+      items.Add(new UIForm.MenuItem(2020, "&Cut"));
+      items.Add(new UIForm.MenuItem(2030, "Cop&y"));
+      items.Add(new UIForm.MenuItem(2040, "&Paste"));
       //items.Add(new ToolStripSeparator());
       //items.Add(new MenuItem { Text = "&Find...", Id = 2065, ShortcutKeys = Keys.F|Keys.Control }); 
       //items.Add(new MenuItem { Text = "Find forward", Id = 2066, ShortcutKeys = Keys.F3|Keys.Control }); 
@@ -539,7 +539,7 @@ namespace csg3mf
     protected override void OnHandleCreated(EventArgs e)
     {
       _format(); _updateranges(); _updatelineflags();
-      ContextMenuStrip = new ContextMenu { Tag = this };
+      ContextMenuStrip = new UIForm.ContextMenu { Tag = this };
     }
     protected override void OnHandleDestroyed(EventArgs e)
     {
@@ -1048,6 +1048,7 @@ namespace csg3mf
       }
       if (na > 0) Native.TextOutW(hdc, X + xa, Y, s + ia, na);
     }
+    int IComparable<(int id, object test)>.CompareTo((int id, object test) p) => OnCommand(p.id, p.test);
   }
 
   class XmlEditor : CodeEditor
@@ -2025,21 +2026,21 @@ namespace csg3mf
       if (isrunning())
       {
         items.Add(new ToolStripSeparator());
-        items.Add(new MenuItem(5020, "Toggle &Breakpoint"));
+        items.Add(new UIForm.MenuItem(5020, "Toggle &Breakpoint"));
         items.Add(new ToolStripSeparator());
-        items.Add(new MenuItem(5013, "&Stop"));
+        items.Add(new UIForm.MenuItem(5013, "&Stop"));
       }
       else
       {
         items.Add(new ToolStripSeparator());
-        items.Add(new MenuItem(5010, "Start &Debug"));
-        items.Add(new MenuItem(5016, "Step &Over"));
-        items.Add(new MenuItem(5015, "Step &Into"));
-        items.Add(new MenuItem(5017, "Step Ou&t"));
+        items.Add(new UIForm.MenuItem(5010, "Start &Debug"));
+        items.Add(new UIForm.MenuItem(5016, "Step &Over"));
+        items.Add(new UIForm.MenuItem(5015, "Step &Into"));
+        items.Add(new UIForm.MenuItem(5017, "Step Ou&t"));
         items.Add(new ToolStripSeparator());
-        items.Add(new MenuItem(5020, "Toggle &Breakpoint"));
+        items.Add(new UIForm.MenuItem(5020, "Toggle &Breakpoint"));
         items.Add(new ToolStripSeparator());
-        items.Add(new MenuItem(5011, "&Start"));
+        items.Add(new UIForm.MenuItem(5011, "&Start"));
       }
     }
     Compiler.map _converr(Compiler.map p)
