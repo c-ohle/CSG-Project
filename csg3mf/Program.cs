@@ -12,6 +12,20 @@ using static csg3mf.CDX;
 
 namespace csg3mf
 {
+  static class Program
+  {
+    [STAThread]
+    static void Main()
+    {
+      Native.SetProcessDPIAware();
+      Application.EnableVisualStyles();
+      Application.SetCompatibleTextRenderingDefault(false);
+      Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+      Application.Run(new MainFrame());
+      Factory.SetDevice(0xffffffff);
+    }
+  }
+
   class MainFrame : UIForm
   {
     public MainFrame()
@@ -137,20 +151,19 @@ namespace csg3mf
     void Open(string path)
     {
       string script = null;
-      if (path == null) { cont = new Container(); script = "using static csg3mf.CSG;\n"; }
-      else if (path != null && path.EndsWith(".3cs", true, null)) { cont = new Container(); script = File.ReadAllText(path); }
-      else cont = csg3mf.Container.Import3MF(path, out script, out _);
+      if (path == null) { cont = new Container(null); script = "using static csg3mf.CSG;\n"; }
+      else cont = new Container(Import3MF(path, out script, out _));
       DoubleBuffered = true;
       while (Controls[0] is Frame) Controls[0].Dispose(); edit = null;
       this.path = path; UpdateTitle();
-      view = (CDXView)ShowView(typeof(CDXView), cont.Nodes, DockStyle.Fill);
-      view.Text = "Camera"; cont.OnUpdate = view.Invalidate; view.infos = cont.Infos;
       if (script != null)
       {
         NeuronEditor.InitNeuron(cont, script);
         var sv = (ScriptView)ShowView(typeof(ScriptView), cont, DockStyle.Left, ClientSize.Width / 2);
         edit = sv.edit; sv.Text = "Script"; Neuron.Debugger = (p, v) => edit.Show(v);
       }
+      view = (CDXView)ShowView(typeof(CDXView), cont.Nodes, DockStyle.Fill);
+      view.Text = "Camera"; cont.OnUpdate = view.Invalidate; view.infos = cont.Infos;
       Update(); DoubleBuffered = false;
       if (path != null) mru(path, path);
     }
@@ -200,7 +213,7 @@ namespace csg3mf
       Cursor.Current = Cursors.WaitCursor;
       var str = COM.SHCreateMemStream();
       view.view.Thumbnail(256, 256, 4, 0x00ffffff, str);
-      cont.Export3MF(s, str, edit != null ? edit.EditText : null, null);
+      cont.Nodes.Export3MF(s, str, edit != null ? edit.EditText : null, null);
       if (path != s) { path = s; UpdateTitle(); mru(path, path); }
       IsModified = false; Cursor.Current = Cursors.Default;
       return 1;
@@ -237,7 +250,7 @@ namespace csg3mf
     {
       if (test != null) return 1;
       Cursor.Current = Cursors.WaitCursor;
-      var el = cont.Export3MF(null, null, null, null);
+      var el = cont.Nodes.Export3MF(null, null, null, null);
       var view = (XmlEditor)ShowView(typeof(XmlEditor), cont, DockStyle.Fill);
       view.Text = "3MF Content"; view.EditText = el.ToString();
       return 1;
@@ -308,17 +321,6 @@ namespace csg3mf
       }
     } 
   }
-  static class Program
-  {
-    [STAThread]
-    static void Main()
-    {
-      Native.SetProcessDPIAware();
-      Application.EnableVisualStyles();
-      Application.SetCompatibleTextRenderingDefault(false);
-      Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
-      Application.Run(new MainFrame());
-      Factory.SetDevice(0xffffffff);
-    }
-  }
+  
+  
 }

@@ -283,7 +283,7 @@ struct CNode : public ICDXNode
 
 struct CScene : public ICDXScene
 {
-  sarray<CNode*> nodes; UINT count = 0;
+  sarray<CNode*> nodes; UINT count = 0; CDX_UNIT unit = CDX_UNIT_UNDEF;
   ~CScene()
   {
     Clear();
@@ -312,6 +312,9 @@ struct CScene : public ICDXScene
     if (!count) delete this;
     return count;
   }
+  
+  HRESULT __stdcall get_Unit(CDX_UNIT* p) { *p = unit; return 0; }
+  HRESULT __stdcall put_Unit(CDX_UNIT p) { unit = p; return 0; }
   HRESULT __stdcall get_Count(UINT* p) { *p = count; return 0; }
   HRESULT __stdcall GetNode(UINT i, ICDXNode** p)
   {

@@ -458,20 +458,20 @@ namespace csg3mf
           var path = Path.Combine(Path.GetTempPath(), string.Join("_", main.Name.Trim().Split(Path.GetInvalidFileNameChars())) + ".3mf");
           try
           {
-            var cont = new Container(); //var dest = Factory.CreateScene();
+            var blob = Factory.CreateScene();
             var scene = view.Scene;
             var ii = scene.Select(2).ToArray();
             var pp = ii.Select(i => scene[i]).ToArray();
             var tt = pp.Select(p => Array.IndexOf(pp, p.Parent)).ToArray();
-            for (int i = 0; i < pp.Length; i++) cont.Nodes.Insert(i, pp[i]);
-            for (int i = 0; i < pp.Length; i++) if (tt[i] != -1) cont.Nodes[i].Parent = cont.Nodes[tt[i]];
+            for (int i = 0; i < pp.Length; i++) blob.Insert(i, pp[i]);
+            for (int i = 0; i < pp.Length; i++) if (tt[i] != -1) blob[i].Parent = blob[tt[i]];
 
             var str = COM.SHCreateMemStream();
-            var t1 = view.Scene; view.Scene = cont.Nodes;
+            var t1 = view.Scene; view.Scene = blob;
             try { view.Thumbnail(256, 256, 4, 0x00fffffe, str); }
             finally { view.Scene = t1; }
 
-            cont.Export3MF(path, str, null, wp);
+            blob.Export3MF(path, str, null, wp);
             var data = new DataObject(); data.SetFileDropList(new System.Collections.Specialized.StringCollection { path });
             DoDragDrop(data, DragDropEffects.Copy);
           }
@@ -487,13 +487,13 @@ namespace csg3mf
       var files = e.Data.GetData(DataFormats.FileDrop) as string[];
       if (files == null || files.Length != 1) return;
       var s = files[0]; if (!s.EndsWith(".3mf", true, null)) return;
-      csg3mf.Container cont; float3 wp;
-      try { cont = csg3mf.Container.Import3MF(s, out _, out wp); } catch { return; }
 
+      IScene drop; float3 wp;
+      try { drop = Import3MF(s, out _, out wp); } catch { return; }
       var scene = view.Scene;
-      var pp = cont.Nodes.Descendants().ToArray();
+      var pp = drop.Descendants().ToArray();
       var tt = pp.Select(p => p.Parent != null ? p.Parent.Index : -1).ToArray();
-      var ab = scene.Count; cont.Nodes.Clear();
+      var ab = scene.Count; drop.Clear();
       for (int i = 0; i < pp.Length; i++) scene.Insert(scene.Count, pp[i]);
       for (int i = 0; i < tt.Length; i++) if (tt[i] != -1) scene[ab + i].Parent = scene[ab + tt[i]];
       var rp = pp.Where(p => !pp.Contains(p.Parent)).ToArray();

@@ -1002,7 +1002,7 @@ namespace csg3mf
       if (b.Take("new"))
       {
         var s = b[0]; var t = ParseType(ref b, 2);
-        if (t == null) { Error(1031, "Type expected", b[0].Start()); return null; }
+        if (t == null) { Error(1031, "Type expected", s); return null; }
         s = s.SubToken(0, b[-1].End().Position - s.Position);
         if (t.IsArray && !b.StartsWith('{')) { Error(1586, "Array creation must have array size or array initializer", org); return null; }
         if (b.StartsWith('['))

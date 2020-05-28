@@ -27,11 +27,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "bin", "bin", "{59E52018-312
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "demos", "demos", "{BE1336B9-3BC7-4D40-ABE4-17105DB1EF47}"
 	ProjectSection(SolutionItems) = preProject
-		bin\demos\demo1.3cs = bin\demos\demo1.3cs
 		bin\demos\demo1.3mf = bin\demos\demo1.3mf
 		bin\demos\demo2.3mf = bin\demos\demo2.3mf
 		bin\demos\demo3.3mf = bin\demos\demo3.3mf
-		bin\demos\primitives.3cs = bin\demos\primitives.3cs
 		bin\demos\primitives.3mf = bin\demos\primitives.3mf
 	EndProjectSection
 EndProject

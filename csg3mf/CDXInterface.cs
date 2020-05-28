@@ -80,9 +80,12 @@ namespace csg3mf
       [PreserveSig] void Render();
     }
 
+    public enum Unit { meter = 1, centimeter = 2, millimeter = 3, micron = 4, foot = 5, inch = 6, }
+
     [ComImport, Guid("98068F4F-7768-484B-A2F8-21D4F7B5D811"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     public interface IScene
     {
+      Unit Unit { get; set; }
       int Count { get; }
       INode this[int i] { get; }
       int Select(int i, int f);
@@ -204,7 +207,7 @@ namespace csg3mf
       float2 p; p.x = float.NaN; view.Command(Cmd.PickPlane, &p); return p;
     }
     //public static IFont GetFont(System.Drawing.Font p) => Factory.GetFont(p.FontFamily.Name, p.Size, p.Style);
-
+    
     public struct DC
     {
       IView p;

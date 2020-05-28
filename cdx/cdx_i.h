@@ -500,6 +500,26 @@ EXTERN_C const IID IID_ICDXSink;
 #endif 	/* __ICDXSink_INTERFACE_DEFINED__ */
 
 
+/* interface __MIDL_itf_cdx_0000_0002 */
+/* [local] */ 
+
+typedef 
+enum CDX_UNIT
+    {
+        CDX_UNIT_UNDEF	= 0,
+        CDX_UNIT_METER	= 1,
+        CDX_UNIT_CENTIMETER	= 2,
+        CDX_UNIT_MILLIMETER	= 3,
+        CDX_UNIT_MICRON	= 4,
+        CDX_UNIT_FOOT	= 5,
+        CDX_UNIT_INCH	= 6
+    } 	CDX_UNIT;
+
+
+
+extern RPC_IF_HANDLE __MIDL_itf_cdx_0000_0002_v0_0_c_ifspec;
+extern RPC_IF_HANDLE __MIDL_itf_cdx_0000_0002_v0_0_s_ifspec;
+
 #ifndef __ICDXScene_INTERFACE_DEFINED__
 #define __ICDXScene_INTERFACE_DEFINED__
 
@@ -515,6 +535,12 @@ EXTERN_C const IID IID_ICDXScene;
     ICDXScene : public IUnknown
     {
     public:
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Unit( 
+            /* [retval][out] */ CDX_UNIT *p) = 0;
+        
+        virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_Unit( 
+            /* [in] */ CDX_UNIT p) = 0;
+        
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Count( 
             /* [retval][out] */ UINT *p) = 0;
         
@@ -566,6 +592,14 @@ EXTERN_C const IID IID_ICDXScene;
         
         ULONG ( STDMETHODCALLTYPE *Release )( 
             ICDXScene * This);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Unit )( 
+            ICDXScene * This,
+            /* [retval][out] */ CDX_UNIT *p);
+        
+        /* [propput] */ HRESULT ( STDMETHODCALLTYPE *put_Unit )( 
+            ICDXScene * This,
+            /* [in] */ CDX_UNIT p);
         
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Count )( 
             ICDXScene * This,
@@ -629,6 +663,12 @@ EXTERN_C const IID IID_ICDXScene;
 #define ICDXScene_Release(This)	\
     ( (This)->lpVtbl -> Release(This) ) 
 
+
+#define ICDXScene_get_Unit(This,p)	\
+    ( (This)->lpVtbl -> get_Unit(This,p) ) 
+
+#define ICDXScene_put_Unit(This,p)	\
+    ( (This)->lpVtbl -> put_Unit(This,p) ) 
 
 #define ICDXScene_get_Count(This,p)	\
     ( (This)->lpVtbl -> get_Count(This,p) ) 
