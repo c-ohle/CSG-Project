@@ -8,9 +8,8 @@ using static csg3mf.CDX;
 
 namespace csg3mf
 {
-  unsafe class CDXView : UserControl, ISink, IComparable<(int id, object test)>
+  unsafe class CDXView : UserControl, ISink, UIForm.ICommandTarget
   {
-    int IComparable<(int id, object test)>.CompareTo((int id, object test) p) => OnCommand(p.id, p.test);
     internal IView view; internal List<string> infos;
     long drvsettings = 0x400000000;
     protected unsafe override void OnHandleCreated(EventArgs _)
@@ -45,7 +44,7 @@ namespace csg3mf
           new UIForm.MenuItem(2100, "Properties...", Keys.Alt | Keys.Enter)});
     }
      
-    internal int OnCommand(int id, object test)
+    public int OnCommand(int id, object test)
     {
       switch (id)
       {
@@ -89,7 +88,7 @@ namespace csg3mf
 
     int OnCenter(object test) //todo: undo
     {
-      if (!view.Scene.Nodes().Any(p => p.Mesh != null && p.Mesh.VertexCount != 0)) return 0;
+      if (!view.Scene.Descendants().Any(p => p.Mesh != null && p.Mesh.VertexCount != 0)) return 0;
       if (test != null) return 1;
       float abst = 100; view.Command(Cmd.Center, &abst);
       Invalidate(); return 1;
@@ -492,7 +491,7 @@ namespace csg3mf
       try { cont = csg3mf.Container.Import3MF(s, out _, out wp); } catch { return; }
 
       var scene = view.Scene;
-      var pp = cont.Nodes.Nodes().ToArray();
+      var pp = cont.Nodes.Descendants().ToArray();
       var tt = pp.Select(p => p.Parent != null ? p.Parent.Index : -1).ToArray();
       var ab = scene.Count; cont.Nodes.Clear();
       for (int i = 0; i < pp.Length; i++) scene.Insert(scene.Count, pp[i]);

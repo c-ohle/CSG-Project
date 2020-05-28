@@ -133,7 +133,7 @@ namespace csg3mf
       if (p.Parent == site) return p.TransformF;
       return p.TransformF * p.Parent.GetTransformF(site);
     }
-    public static IEnumerable<INode> Nodes(this IScene p)
+    public static IEnumerable<INode> Descendants(this IScene p)
     {
       for (int i = 0; i < p.Count; i++) yield return p[i];
     }
@@ -149,7 +149,10 @@ namespace csg3mf
     {
       return p.Select(f).Select(i => p[i]);
     }
-
+    public static IEnumerable<INode> Nodes(this IScene p)
+    {
+      return p.Select(-1 << 8).Select(i => p[i]);
+    }
     public static IEnumerable<INode> Nodes(this INode p)
     { //=> p.Scene.Nodes().Where(t => t.Parent == p);
       var s = p.Scene; return s.Select(p.Index << 8).Select(i => s[i]);

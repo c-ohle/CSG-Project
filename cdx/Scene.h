@@ -231,7 +231,8 @@ struct CNode : public ICDXNode
   }
   HRESULT __stdcall put_Mesh(ICSGMesh* p)
   {
-    mesh = (ICSGMesh*)p; vb.Release(); ib.Release(); return 0;
+    mesh = (ICSGMesh*)p; vb.Release(); ib.Release(); 
+    if (materials.n == 0) materials.setsize(1); return 0;
   }
   HRESULT __stdcall get_Color(UINT* p)
   {
@@ -240,8 +241,7 @@ struct CNode : public ICDXNode
   HRESULT __stdcall put_Color(UINT p)
   {
     if (materials.n == 0) materials.setsize(1);
-    materials.p[0].color = p;
-    return 0;
+    materials.p[0].color = p; return 0;
   }
   HRESULT __stdcall get_MaterialCount(UINT* p)
   {
@@ -254,7 +254,13 @@ struct CNode : public ICDXNode
   HRESULT __stdcall GetMaterial(UINT i, UINT* start, UINT* count, UINT* color, IStream** tex)
   {
     if (i >= materials.n) return E_INVALIDARG;
-    auto& m = materials.p[i]; *start = m.i; *count = m.n; *color = m.color;
+    auto& m = materials.p[i]; 
+    if (materials.n == 1 && mesh.p)
+    {
+      UINT ni; mesh.p->get_IndexCount(&ni);
+      m.i = 0; m.n = ni;
+    }
+    *start = m.i; *count = m.n; *color = m.color;
     if (*tex = (m.tex.p ? m.tex.p->str.p : 0)) (*tex)->AddRef();
     return 0;
   }
@@ -321,7 +327,7 @@ struct CScene : public ICDXScene
     else
     {
       auto t = (f >> 8) < count ? (void*)nodes.p[f >> 8] : this;
-      while (++a < count) if(nodes.p[a]->parent == t) { *p = a; return 0; }
+      while (++a < count) if (nodes.p[a]->parent == t) { *p = a; return 0; }
     }
     *p = -1; return 1;
   }
@@ -331,6 +337,5 @@ struct CScene : public ICDXScene
   HRESULT __stdcall AddNode(BSTR name, ICDXNode** p);
   HRESULT __stdcall SaveToStream(IStream* str);
   HRESULT __stdcall LoadFromStream(IStream* str);
-  //HRESULT __stdcall SaveSelection(IStream* str);
 };
 

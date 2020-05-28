@@ -13,7 +13,7 @@ namespace csg3mf
     {
       mainframe = this;
       BackColor = Color.FromArgb(120, 134, 169);
-      Application.Idle += (p, e) => 
+      Application.Idle += (p, e) =>
       {
         for (int i = 0; i < Controls.Count; i++)
         {
@@ -22,7 +22,7 @@ namespace csg3mf
           for (int k = 0; k < ctrls.Count; k++)
           {
             var t = ctrls[k]; if (!t.Visible) continue;
-            if (t is IComparable<(int id, object test)> c) c.CompareTo((0, this)); break;
+            if (t is ICommandTarget c) c.OnCommand(0, this); break;
           }
         }
       };
@@ -30,9 +30,9 @@ namespace csg3mf
     protected virtual int OnCommand(int id, object test)
     {
       if (activeframe != null)
-        if (activeframe.ActiveControl is IComparable<(int id, object test)> c)
+        if (activeframe.ActiveControl is ICommandTarget c)
         {
-          var x = c.CompareTo((id, test));
+          var x = c.OnCommand(id, test);
           if (x != 0) return x;
         }
       //for (int i = 0; i < Controls.Count; i++)
@@ -49,12 +49,12 @@ namespace csg3mf
       //}
       return 0;
     }
-    protected Control ShowView(Type t, object tag = null, DockStyle prefdock = DockStyle.Right, int prefsize = 0)
+    public static Control ShowView(Type t, object tag = null, DockStyle prefdock = DockStyle.Right, int prefsize = 0)
     {
       Frame dockat = null; int firstframe = 0;
-      for (int i = Controls.Count - 1; i >= 0; i--)
+      for (int i = mainframe.Controls.Count - 1; i >= 0; i--)
       {
-        var p = Controls[i] as Frame; if (p == null) { firstframe = i; continue; }
+        var p = mainframe.Controls[i] as Frame; if (p == null) { firstframe = i; continue; }
         if (dockat == null && p.Dock == prefdock) dockat = p;
         for (int k = 0; k < p.Controls.Count; k++)
         {
@@ -65,9 +65,12 @@ namespace csg3mf
       if (dockat == null)
       {
         dockat = new Frame { Dock = prefdock };
-        if (prefdock == DockStyle.Left || prefdock == DockStyle.Right) dockat.Width = prefsize != 0 ? prefsize : ClientSize.Width / 4;
-        else dockat.Height = prefsize != 0 ? prefsize : ClientSize.Height / 4;
-        SuspendLayout(); Controls.Add(dockat); Controls.SetChildIndex(dockat, prefdock == DockStyle.Fill ? 0 : firstframe); ResumeLayout(); PerformLayout();
+        if (prefdock == DockStyle.Left || prefdock == DockStyle.Right) dockat.Width = prefsize != 0 ? prefsize : mainframe.ClientSize.Width / 4;
+        else dockat.Height = prefsize != 0 ? prefsize : mainframe.ClientSize.Height / 4;
+        mainframe.SuspendLayout();
+        mainframe.Controls.Add(dockat); 
+        mainframe.Controls.SetChildIndex(dockat, prefdock == DockStyle.Fill ? 0 : firstframe);
+        mainframe.ResumeLayout(); mainframe.PerformLayout();
       }
       var ctrl = (Control)Activator.CreateInstance(t); ctrl.Tag = tag; ctrl.Visible = false;
       dockat.Controls.Add(ctrl); dockat.PerformLayout();
@@ -76,18 +79,18 @@ namespace csg3mf
     }
     int TryCommand(object sender, int id, object test)
     {
-      try 
+      try
       {
-        if(sender != null)
+        if (sender != null)
         {
-          if (sender is IComparable<(int id, object test)> c)
+          if (sender is ICommandTarget c)
           {
-            var x = c.CompareTo((id, test));
+            var x = c.OnCommand(id, test);
             if (x != 0) return x;
           }
           return 0;
         }
-        return OnCommand(id, test); 
+        return OnCommand(id, test);
       }
       catch (Exception e)
       {
@@ -129,7 +132,7 @@ namespace csg3mf
               p.Visible ?
                 (wo == ((i << 8) | 3) ? Color.Gray : Color.FromArgb(0xbb, 0xbb, 0xbb)) :
                 (wo == ((i << 8) | 3) ? Color.Gray : Color.LightGray), TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
-            x += dx; p.TabIndex = x;
+            x += dx; p.TabIndex = Math.Max(0, x);
           }
         }
         else
@@ -146,7 +149,7 @@ namespace csg3mf
             gr.FillRectangle(!active ? brush1 : p.Visible ? Brushes.White : brush2, new Rectangle(x, rc.Bottom, dx, title));
             if (i != 0) gr.FillRectangle(Brushes.Gray, new Rectangle(x, rc.Bottom + 2, 1, title));
             TextRenderer.DrawText(gr, s, font, new Rectangle(x, rc.Bottom, dx, title), active ? Color.Black : Color.LightGray, TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
-            x += dx; p.TabIndex = x;
+            x += dx; p.TabIndex = Math.Max(0, x);
           }
         }
       }
@@ -263,7 +266,7 @@ namespace csg3mf
       void close(int i)
       {
         var ctrls = Controls;
-        if (ctrls[i] is IComparable<(int id, object test)> p && p.CompareTo((65301, null)) != 0) return;
+        if (ctrls[i] is ICommandTarget p && p.OnCommand(65301, null) != 0) return;
         if (ctrls.Count <= 1) { Dispose(); return; }
         if (ctrls[i].Visible) { ctrls[i].Visible = false; ctrls[i + 1 < ctrls.Count ? i + 1 : i - 1].Visible = true; }
         ctrls[i].Dispose(); Invalidate();
@@ -418,7 +421,7 @@ namespace csg3mf
         if (id != 0) mainframe.TryCommand(null, id, Tag);
       }
     }
-    internal class Button : ToolStripButton
+    public class Button : ToolStripButton
     {
       internal int id;
       public Button(int id, string text, Image img)
@@ -438,6 +441,10 @@ namespace csg3mf
         var v = Tag as CodeEditor; if (v != null) { Items.Clear(); v.OnContextMenu(Items); }
         MenuItem.Update(Items); e.Cancel = Items.Count == 0;
       }
+    }
+    public interface ICommandTarget
+    {
+      int OnCommand(int id, object test);
     }
   }
 }

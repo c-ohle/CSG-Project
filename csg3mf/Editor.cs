@@ -19,7 +19,7 @@ using System.Windows.Forms;
 
 namespace csg3mf
 {
-  class CodeEditor : UserControl, IComparable<(int id, object test)>
+  class CodeEditor : UserControl, UIForm.ICommandTarget
   {
     static CodeEditor()
     {
@@ -52,15 +52,6 @@ namespace csg3mf
       BackColor = SystemColors.Window;
       AutoScroll = true;
       DoubleBuffered = true;
-    }
-    public override bool Equals(object p)
-    {
-      //if (p is Archive) { Serialize((Archive)p); return true; }
-      return base.Equals(p);
-    }
-    public override int GetHashCode()
-    {
-      return base.GetHashCode();
     }
     public int Tabwidth
     {
@@ -232,7 +223,12 @@ namespace csg3mf
     public string EditText
     {
       get { return text; }
-      set { text = value; }
+      set
+      {
+        text = value; if (!IsHandleCreated) return;
+        sela = selb = Math.Min(sela, text.Length);
+        ranges?.Clear(); _format(); _updateranges(); _updatelineflags();
+      }
     }
     public bool IsModified
     {
@@ -545,6 +541,7 @@ namespace csg3mf
     {
       ContextMenuStrip.Dispose(); EndToolTip();
     }
+    protected override void OnLoad(EventArgs e) { }
     protected unsafe override void OnPaint(PaintEventArgs e)
     {
       var text = this.text;
@@ -556,7 +553,6 @@ namespace csg3mf
       var hdc = g.GetHdc();
       var oldfont = Native.SelectObject(hdc, font);
       Native.SetBkMode(hdc, 1); //rcaret.Width = 0;
-
       fixed (char* s = text)
       {
         int tn = text.Length, lx = aspx + sidedx, asy = AutoScrollPosition.Y + 4;
@@ -692,12 +688,19 @@ namespace csg3mf
     }
     protected override void WndProc(ref Message m)
     {
-      if (m.Msg == 0x0113) //WM_TIMER
+      switch (m.Msg)
       {
-        if (curticks++ < 5) return; curticks = 0; careton ^= true; Invalidate(rcaret);
-        if (tipticks != 0 && --tipticks == 0) ontip(); return;
+        case 0x0113: //WM_TIMER
+          if (curticks++ < 5) return; curticks = 0; careton ^= true; Invalidate(rcaret);
+          if (tipticks != 0 && --tipticks == 0) ontip();
+          return;
+        case 0x0014: // WM_ERASEBKGND
+          m.Result = (IntPtr)1; return;
+        case 0x0005: //WM_SIZE
+        case 0x0114: //WM_HSCROLL
+          Invalidate();
+          break;
       }
-      if (m.Msg == 0x0005 || m.Msg == 0x0114) Invalidate(); // WM_SIZE, WM_HSCROLL
       base.WndProc(ref m);
     }
     protected override void OnScroll(ScrollEventArgs se)
@@ -990,8 +993,11 @@ namespace csg3mf
           if (tb == tn) break;
           ta = tb + 1; li++;
         }
-
       AutoScrollMinSize = new Size(maxx + 32, ly + linehight);
+    }
+    protected override void OnLayout(LayoutEventArgs e)
+    {
+      base.OnLayout(e);
     }
     void _updateranges()
     {
@@ -1048,7 +1054,6 @@ namespace csg3mf
       }
       if (na > 0) Native.TextOutW(hdc, X + xa, Y, s + ia, na);
     }
-    int IComparable<(int id, object test)>.CompareTo((int id, object test) p) => OnCommand(p.id, p.test);
   }
 
   class XmlEditor : CodeEditor
@@ -1102,11 +1107,6 @@ namespace csg3mf
         lastchar = c;
       }
       return 0;
-    }
-    protected override void OnHandleCreated(EventArgs e)
-    {
-      //base.EditText = ((Entity)this.Tag).Save().ToString().Replace("\r", string.Empty);
-      base.OnHandleCreated(e);
     }
     public override int OnCommand(int id, object test)
     {
@@ -1327,7 +1327,7 @@ namespace csg3mf
         case 5040: { if (test == null) ignorexceptions ^= true; return 1 | (ignorexceptions ? 0 : 2); }
         case 5050: return onhelp(test);
         case 5100: return onformat(test);
-        case 5105: return onprotect(test);
+        //case 5105: return onprotect(test);
         case 5110: return onremusings(test);
         case 5111: return onsortusings(test);
         //case 5201: return onstopexcept(test);
@@ -1370,7 +1370,6 @@ namespace csg3mf
       data[0] = new object[] { compress(text) };
       if (isdebug()) setspots(); setdata(neuron, data);
     }
-
     int onrename(object test)
     {
       if (base.ReadOnly || overid == 0 || (overid & 0xf) == 8) return 0;
@@ -2053,42 +2052,9 @@ namespace csg3mf
     {
       if ((maxerror & 4) != 0) return 0; if (state == 7) return 0; if (test != null) return 1;
       compiler.Compile(neuron.GetType(), text, 2);
-      var form = new Form
-      {
-        Text = string.Format($"{ParentForm.Text} - {"ILCode"}"),
-        //Icon = ParentForm.Icon,
-        StartPosition = FormStartPosition.Manual,
-        Location = Parent.Location + new Size(32, 64),
-        Size = Parent.Size, //Width = Width * 2 / 3, Height = Height * 2 / 3, 
-        ShowInTaskbar = false,
-        ShowIcon = false
-      };
-      var edit = new CodeEditor { Dock = DockStyle.Fill, EditText = compiler._trace_.ToString(), ReadOnly = true };
-      form.Controls.Add(edit);
-      form.Controls.Add(form.MainMenuStrip = new MenuStrip());
-      form.MainMenuStrip.Items.AddRange(new ToolStripItem[]
-      {
-        new MenuItem("&Edit",
-          new MenuItem(2030, "Cop&y", Keys.C|Keys.Control ),
-          new ToolStripSeparator(),
-          new MenuItem(2060, "Select &all", Keys.A|Keys.Control ),
-          new ToolStripSeparator(),
-          new MenuItem(2065, "&Find...", Keys.F|Keys.Control ),
-          new MenuItem(2066, "Find forward", Keys.F3|Keys.Control ),
-          new MenuItem(2067, "Find next", Keys.F3 ),
-          new MenuItem(2068, "Find prev", Keys.F3|Keys.Shift ),
-          new ToolStripSeparator(),
-          new MenuItem(5027, "Goto &Definition", Keys.F12 )
-        )
-       });
-      var t = MenuItem.CommandRoot; MenuItem.CommandRoot = edit.OnCommand;
-      form.StartPosition = FormStartPosition.CenterParent; form.ShowDialog(this); MenuItem.CommandRoot = t;
-      //form.Show(this);
+      var view = (CodeEditor)UIForm.ShowView(typeof(CodeEditor), this, DockStyle.Fill);
+      view.Text = "IL Code"; view.ReadOnly = true; view.EditText = compiler._trace_.ToString();
       return 1;
-    }
-    int onprotect(object test)
-    {
-      return 0;
     }
     int onremusings(object test)
     {

@@ -49,7 +49,7 @@ namespace csg3mf
         finally { Marshal.FreeHGlobal(buffer); }
         /////////////
         if (cont.Nodes.Count != 0 && cont.Nodes[0].TransformF.mx.LengthSq > 10) //curiosity bug fix
-          foreach (var p in cont.Nodes.Nodes()) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
+          foreach (var p in cont.Nodes.Descendants()) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
         /////////////
         var uri = new Uri("/Metadata/csg.cs", UriKind.Relative);
         if (!package.PartExists(uri)) { script = null; return cont; }
@@ -187,14 +187,14 @@ namespace csg3mf
       var bmid = uid++; basematerials.SetAttributeValue("id", bmid);
       var nodes = this;
       var buffer = Marshal.AllocHGlobal(65536);
-      try { foreach (var group in nodes.Nodes.Nodes().Where(p => p.Parent == null)) add(group, build); }
+      try { foreach (var group in nodes.Nodes.Nodes()) add(group, build); }
       finally { Marshal.FreeHGlobal(buffer); }
       void add(INode group, XElement dest)
       {
         var obj = new XElement(ns + "object"); obj.SetAttributeValue("id", 0);
         if (group.Name != null) obj.SetAttributeValue("name", group.Name);
         if (group.IsStatic) obj.SetAttributeValue("static", true);
-        var desc = nodes.Nodes.Nodes().Where(p => p.Parent == group);
+        var desc = group.Nodes();// nodes.Nodes.Nodes().Where(p => p.Parent == group);
         var components = desc.Any() ? new XElement(ns + "components") : null;
         if (group.Mesh != null)
         {
