@@ -74,6 +74,7 @@ HRESULT CNode::AddNode(BSTR name, ICDXNode** p)
 
 bool equals(ID3D11Buffer* buffer, const void* p, UINT n)
 {
+  if (!buffer) return false;
   D3D11_BUFFER_DESC bd; buffer->GetDesc(&bd);
   if (bd.ByteWidth != n) return false;
   bd.Usage = D3D11_USAGE_STAGING;

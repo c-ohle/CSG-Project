@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -135,10 +137,24 @@ namespace csg3mf
       public static implicit operator Variant(float p) { Variant v; ((float*)&v)[2] = p; v.vt = (ushort)VarType.Float; return v; }
       public static implicit operator Variant(double p) { Variant v; ((double*)&v)[1] = p; v.vt = (ushort)VarType.Double; return v; }
       public static implicit operator Variant(decimal p) { Variant v; ((decimal*)&v)[0] = p; v.vt = (ushort)VarType.Decimal; return v; }
-      public static implicit operator Variant(string s) { Variant v; v.vt = (ushort)VarType.String; var p = Marshal.StringToBSTR(s); v.vp = p.ToPointer(); Marshal.FreeBSTR(p); return v; }
+      //public static implicit operator Variant(string s) { Variant v; v.vt = (ushort)VarType.String | (1 << 8); var p = Marshal.StringToBSTR(s); v.vp = p.ToPointer(); Marshal.FreeBSTR(p); return v; }
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    class RationalConverter : TypeConverter
+    {
+      public override bool CanConvertFrom(ITypeDescriptorContext context, Type sourceType) => sourceType == typeof(string);
+      public override bool CanConvertTo(ITypeDescriptorContext context, Type destinationType) => destinationType == typeof(string);
+      public override object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, object value)
+      {
+        return Rational.Parse((string)value);
+      }
+      public override object ConvertTo(ITypeDescriptorContext context, CultureInfo culture, object value, Type destinationType)
+      {
+        return ((Rational)value).ToString();
+      }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 16), TypeConverter(typeof(RationalConverter))]
     public struct Rational : IEquatable<Rational>
     {
       [FieldOffset(0)] readonly int t;
@@ -146,6 +162,12 @@ namespace csg3mf
       [FieldOffset(8)] readonly IVector p;
       public override string ToString() => p.GetString(i);
       public string ToString(int digits, int fl = 3) => p.GetString(i, digits, fl);
+      public static Rational Parse(string s)
+      {
+        var p = ctor(1); Variant v; v.vt = (ushort)VarType.String | (1 << 8);
+        fixed (char* t = s) { v.vp = t; p.p.SetValue(p.i, v); }
+        return p;
+      }
       Rational(IVector p, int i, int c) { t = (int)VarType.Rational | (c << 8); this.i = i; this.p = p; }
       public override int GetHashCode()
       {
@@ -168,7 +190,6 @@ namespace csg3mf
       public static implicit operator Rational(float v) => ctor(v);
       public static implicit operator Rational(double v) => ctor(v);
       public static implicit operator Rational(decimal v) => ctor(v);
-      public static implicit operator Rational(string v) => ctor(v);
       public static explicit operator int(Rational v) { Variant t; *(int*)&t = (int)VarType.Int; v.p.GetValue(v.i, ref t); return ((int*)&t)[2]; }
       public static explicit operator float(Rational v) { Variant t; *(int*)&t = (int)VarType.Float; v.p.GetValue(v.i, ref t); return ((float*)&t)[2]; }
       public static explicit operator double(Rational v) { Variant t; *(int*)&t = (int)VarType.Double; v.p.GetValue(v.i, ref t); return ((double*)&t)[1]; }
@@ -467,7 +488,7 @@ namespace csg3mf
     }
     [DllImport("shlwapi.dll")]
     public static extern IStream SHCreateMemStream(void* p = null, int n = 0); //todo: check refcount 
-    public static IStream Stream(byte[] a) { fixed(byte*p=a) return SHCreateMemStream(p, a.Length); }
+    public static IStream Stream(byte[] a) { fixed (byte* p = a) return SHCreateMemStream(p, a.Length); }
     //public static long Position(this IStream str) { long v; str.Seek(0, 1, &v); return v; }
 #if (!DEBUG)
     internal const bool DEBUG = false;

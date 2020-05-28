@@ -851,7 +851,7 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
     return d_font.CopyTo((CFont**)data);
   case CDX_DRAW_SET_FONT:
     d_font = (CFont*)data;
-    return 0;
+    return 0; 
   case CDX_DRAW_FILL_RECT:
   {
     auto p = BeginVertices(4);

@@ -366,6 +366,7 @@ namespace csg3mf
         if (id == 0)
         {
           p2 = view.PickPlane(); if (p2 == p1) return; var dm = (float4x3)(p2 - p1);
+          if (dm.mp.LengthSq > 1000) { }
           (mover ?? (mover = getmover()))(0, dm);
         }
         if (id == 1)

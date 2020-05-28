@@ -177,11 +177,64 @@ namespace csg3mf
         case 1025: return OnSave(test, true);
         case 1050: return OnLastFiles(test);
         case 1100: if (test == null) Close(); return 1;
-        case 2100: if (test == null) { var p = (PropertyGrid)ShowView(typeof(PropertyGrid)); p.SelectedObject = p; } return 1;
+        case 2100: if (test == null) { var p = (Properties)ShowView(typeof(Properties), view, DockStyle.Left); /*p.SelectedObject = p;*/ } return 1;
+        //case 2100: if (test == null) { var p = (PropertyGrid)ShowView(typeof(PropertyGrid)); p.SelectedObject = p; } return 1;
         case 1120: return OnShow3MF(test);
       }
       return base.OnCommand(id, test);
     }
+    class Properties : PropertyGrid, ICommandTarget
+    {
+      class CNode
+      {
+        internal INode p;
+        public string Name { get => p.Name; set => p.Name = value; }
+        public Color Color { get => Color.FromArgb(unchecked((int)p.Color)); set => p.Color = (uint)value.ToArgb(); }
+        
+        public CSG.Rational LocationX { get => p.Transform[09]; set { var t = p.Transform; t[09] = value; p.Transform = t; } }
+        public CSG.Rational LocationY { get => p.Transform[10]; set { var t = p.Transform; t[10] = value; p.Transform = t; } }
+        public CSG.Rational LocationZ { get => p.Transform[11]; set { var t = p.Transform; t[11] = value; p.Transform = t; } }
+
+        public float fLocationX { get => p.TransformF._41; set { var t = p.TransformF; t._41 = value; p.TransformF = t; } }
+        public float fLocationY { get => p.TransformF._42; set { var t = p.TransformF; t._42 = value; p.TransformF = t; } }
+        public float fLocationZ { get => p.TransformF._43; set { var t = p.TransformF; t._43 = value; p.TransformF = t; } }
+      }
+
+      protected override void OnPropertyValueChanged(PropertyValueChangedEventArgs e)
+      {
+        var view = (CDXView)Tag;
+        view.Invalidate(); Refresh();
+      }
+
+      INode[] nodes;
+      int ICommandTarget.OnCommand(int id, object test)
+      {
+        switch (id)
+        {
+          case 0:
+            {
+              var view = (CDXView)Tag;
+              var scene = view.view.Scene;
+              if (nodes != null)
+              {
+                int i = 0, a = -1, b;
+                for (; (b = scene.Select(a, 1)) != -1 && i < nodes.Length && scene[b] == nodes[i]; a = b, i++) ;
+                if (b != -1 || i != nodes.Length) nodes = null;
+              }
+              if (nodes == null)
+              {
+                nodes = scene.Selection().ToArray();
+                SelectedObjects = nodes.Select(p => new CNode { p = p }).ToArray();
+                return 0;
+              }
+              if (ActiveControl != null) return 0;
+              Refresh(); return 0;
+            }
+        }
+        return 0;
+      }
+    }
+
     int OnNew(object test)
     {
       if (test != null) return 1;
@@ -319,8 +372,6 @@ namespace csg3mf
         Controls.Add(tb);
         Visible = true;
       }
-    } 
+    }
   }
-  
-  
 }

@@ -580,7 +580,6 @@ namespace csg3mf
         m._33 = cc * v.z * v.z + c;
         return m;
       }
-
       public static implicit operator float4x3(float s)
       {
         return new float4x3() { _11 = s, _22 = s, _33 = s };
