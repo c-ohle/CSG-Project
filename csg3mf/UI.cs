@@ -13,19 +13,21 @@ namespace csg3mf
     {
       mainframe = this;
       BackColor = Color.FromArgb(120, 134, 169);
-      Application.Idle += (p, e) =>
-      {
-        for (int i = 0; i < Controls.Count; i++)
-        {
-          var frame = Controls[i] as Frame; if (frame == null) continue;
-          var ctrls = frame.Controls;
-          for (int k = 0; k < ctrls.Count; k++)
-          {
-            var t = ctrls[k]; if (!t.Visible) continue;
-            if (t is ICommandTarget c) c.OnCommand(0, this); break;
-          }
-        }
-      };
+      //Application.Idle += (p, e) =>
+      //{
+      //  if (lastmsg == 0x0113) return;
+      //  Debug.WriteLine($"msg: {lastmsg:X8}");
+      //  for (int i = 0; i < Controls.Count; i++)
+      //  {
+      //    var frame = Controls[i] as Frame; if (frame == null) continue;
+      //    var ctrls = frame.Controls;
+      //    for (int k = 0; k < ctrls.Count; k++)
+      //    {
+      //      var t = ctrls[k]; if (!t.Visible) continue;
+      //      if (t is ICommandTarget c) c.OnCommand(0, this); break;
+      //    }
+      //  }
+      //};
     }
     protected virtual int OnCommand(int id, object test)
     {
@@ -68,13 +70,13 @@ namespace csg3mf
         if (prefdock == DockStyle.Left || prefdock == DockStyle.Right) dockat.Width = prefsize != 0 ? prefsize : mainframe.ClientSize.Width / 4;
         else dockat.Height = prefsize != 0 ? prefsize : mainframe.ClientSize.Height / 4;
         mainframe.SuspendLayout();
-        mainframe.Controls.Add(dockat); 
+        mainframe.Controls.Add(dockat);
         mainframe.Controls.SetChildIndex(dockat, prefdock == DockStyle.Fill ? 0 : firstframe);
         mainframe.ResumeLayout(); mainframe.PerformLayout();
       }
       var ctrl = (Control)Activator.CreateInstance(t); ctrl.Tag = tag; ctrl.Visible = false;
       dockat.Controls.Add(ctrl); dockat.PerformLayout();
-      dockat.activate(dockat.Controls.Count - 1); //dockat.ActiveControl.Update(); 
+      dockat.activate(dockat.Controls.Count - 1);
       return ctrl;
     }
     int TryCommand(object sender, int id, object test)

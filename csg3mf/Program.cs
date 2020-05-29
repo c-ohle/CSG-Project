@@ -177,64 +177,12 @@ namespace csg3mf
         case 1025: return OnSave(test, true);
         case 1050: return OnLastFiles(test);
         case 1100: if (test == null) Close(); return 1;
-        case 2100: if (test == null) { var p = (Properties)ShowView(typeof(Properties), view, DockStyle.Left); /*p.SelectedObject = p;*/ } return 1;
+        case 2100: if (test == null) { var p = (CDXView.Properties)ShowView(typeof(CDXView.Properties), view, DockStyle.Left); /*p.SelectedObject = p;*/ } return 1;
         //case 2100: if (test == null) { var p = (PropertyGrid)ShowView(typeof(PropertyGrid)); p.SelectedObject = p; } return 1;
         case 1120: return OnShow3MF(test);
       }
       return base.OnCommand(id, test);
     }
-    class Properties : PropertyGrid, ICommandTarget
-    {
-      class CNode
-      {
-        internal INode p;
-        public string Name { get => p.Name; set => p.Name = value; }
-        public Color Color { get => Color.FromArgb(unchecked((int)p.Color)); set => p.Color = (uint)value.ToArgb(); }
-        
-        public CSG.Rational LocationX { get => p.Transform[09]; set { var t = p.Transform; t[09] = value; p.Transform = t; } }
-        public CSG.Rational LocationY { get => p.Transform[10]; set { var t = p.Transform; t[10] = value; p.Transform = t; } }
-        public CSG.Rational LocationZ { get => p.Transform[11]; set { var t = p.Transform; t[11] = value; p.Transform = t; } }
-
-        public float fLocationX { get => p.TransformF._41; set { var t = p.TransformF; t._41 = value; p.TransformF = t; } }
-        public float fLocationY { get => p.TransformF._42; set { var t = p.TransformF; t._42 = value; p.TransformF = t; } }
-        public float fLocationZ { get => p.TransformF._43; set { var t = p.TransformF; t._43 = value; p.TransformF = t; } }
-      }
-
-      protected override void OnPropertyValueChanged(PropertyValueChangedEventArgs e)
-      {
-        var view = (CDXView)Tag;
-        view.Invalidate(); Refresh();
-      }
-
-      INode[] nodes;
-      int ICommandTarget.OnCommand(int id, object test)
-      {
-        switch (id)
-        {
-          case 0:
-            {
-              var view = (CDXView)Tag;
-              var scene = view.view.Scene;
-              if (nodes != null)
-              {
-                int i = 0, a = -1, b;
-                for (; (b = scene.Select(a, 1)) != -1 && i < nodes.Length && scene[b] == nodes[i]; a = b, i++) ;
-                if (b != -1 || i != nodes.Length) nodes = null;
-              }
-              if (nodes == null)
-              {
-                nodes = scene.Selection().ToArray();
-                SelectedObjects = nodes.Select(p => new CNode { p = p }).ToArray();
-                return 0;
-              }
-              if (ActiveControl != null) return 0;
-              Refresh(); return 0;
-            }
-        }
-        return 0;
-      }
-    }
-
     int OnNew(object test)
     {
       if (test != null) return 1;
@@ -374,4 +322,116 @@ namespace csg3mf
       }
     }
   }
+
+  partial class CDXView
+  {
+    internal class Properties : PropertyGrid, UIForm.ICommandTarget
+    {
+      class CScene
+      {
+        internal IScene p;
+        [Category("General")]
+        public Unit BaseUnit { get => p.Unit; set => p.Unit = value; }
+        [Category("Internal")]
+        public int Nodes { get => p.Count; }
+      }
+      class CNode
+      {
+        internal INode p;
+        [Category("General")]
+        public string Name { get => p.Name; set => p.Name = value; }
+        [Category("General")]
+        public bool Fixed { get => p.IsStatic; set => p.IsStatic = value; }
+        [Category("Material")]
+        public Color Color { get => Color.FromArgb(unchecked((int)p.Color)); set => p.Color = (uint)value.ToArgb(); }
+        [Category("Material")]
+        public int MaterialCount { get => p.MaterialCount; }
+
+        [Category("Transform")]
+        public CSG.Rational LocationX { get => p.Transform[09]; set { var t = p.Transform; t[09] = value; p.Transform = t; } }
+        [Category("Transform")]
+        public CSG.Rational LocationY { get => p.Transform[10]; set { var t = p.Transform; t[10] = value; p.Transform = t; } }
+        [Category("Transform")]
+        public CSG.Rational LocationZ { get => p.Transform[11]; set { var t = p.Transform; t[11] = value; p.Transform = t; } }
+
+        [Category("Transform")]
+        public float fLocationX { get => p.TransformF._41; set { var t = p.TransformF; t._41 = value; p.TransformF = t; } }
+        [Category("Transform")]
+        public float fLocationY { get => p.TransformF._42; set { var t = p.TransformF; t._42 = value; p.TransformF = t; } }
+        [Category("Transform")]
+        public float fLocationZ { get => p.TransformF._43; set { var t = p.TransformF; t._43 = value; p.TransformF = t; } }
+      }
+
+      protected override void OnHandleCreated(EventArgs e)
+      {
+        view = (CDXView)Tag; base.OnHandleCreated(e); view.inval |= 1;
+        Font = SystemFonts.MenuFont; DoubleBuffered = true;
+        Native.SetTimer(Handle, IntPtr.Zero, 100, IntPtr.Zero);
+      }
+      protected unsafe override void WndProc(ref Message m)
+      {
+        if (m.Msg == 0x0113) //WM_TIMER 
+        {
+          if ((view.inval & 1) == 0) return;
+          if (!Visible) return;
+          view.inval ^= 1;
+          var scene = view.view.Scene;
+          if (nodes != null)
+          {
+            int i = 0, a = -1, b;
+            for (; (b = scene.Select(a, 1)) != -1 && i < nodes.Length && scene[b] == nodes[i]; a = b, i++) ;
+            if (b != -1 || i != nodes.Length) nodes = null;
+          }
+          if (nodes == null)
+          {
+            nodes = scene.Selection().ToArray();
+            if (nodes.Length == 0) SelectedObject = new CScene { p = scene };
+            else SelectedObjects = nodes.Select(p => new CNode { p = p }).ToArray();
+          }
+          else Refresh();
+        }
+        base.WndProc(ref m);
+      }
+      CDXView view; INode[] nodes; object[] oldvals;
+      int UIForm.ICommandTarget.OnCommand(int id, object test)
+      {
+        return view.OnCommand(id, test);
+      }
+      protected override void OnSelectedGridItemChanged(SelectedGridItemChangedEventArgs e)
+      {
+        var g = e.NewSelection; oldvals = null;
+        if (g.GridItemType != GridItemType.Property || g.Value != null) return;
+        var t = g.GetType().GetProperty("Instance"); if (t == null) return;
+        var a = t.GetValue(g) as object[]; if (a == null) return;
+        var d = g.PropertyDescriptor; t = d.ComponentType.GetProperty(d.Name);
+        oldvals = a.Select(p => t.GetValue(p)).ToArray();
+      }
+      protected override void OnPropertyValueChanged(PropertyValueChangedEventArgs e)
+      {
+        var g = e.ChangedItem;
+        var h = g.GetType().GetProperty("Instance");
+        var p = h.GetValue(g);
+        var d = g.PropertyDescriptor;
+        var t = d.ComponentType.GetProperty(d.Name);
+        var o = e.OldValue ?? oldvals;
+        view.AddUndo(() =>
+        {
+          if (p is object[] a)
+          {
+            var v = new object[a.Length];
+            for (int i = 0; i < a.Length; i++) { v[i] = t.GetValue(a[i]); t.SetValue(a[i], o is object[] oo ? oo[i] : o); }
+            o = v;
+          }
+          else
+          {
+            var v = t.GetValue(p); t.SetValue(p, o); o = v;
+          }
+        });
+        view.Invalidate();
+      }
+    }
+
+
+  }
+
 }

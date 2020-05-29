@@ -8,7 +8,7 @@ using static csg3mf.CDX;
 
 namespace csg3mf
 {
-  unsafe class CDXView : UserControl, ISink, UIForm.ICommandTarget
+  unsafe partial class CDXView : UserControl, ISink, UIForm.ICommandTarget
   {
     internal IView view; internal List<string> infos;
     long drvsettings = 0x400000000;
@@ -43,23 +43,26 @@ namespace csg3mf
           new ToolStripSeparator(),
           new UIForm.MenuItem(2100, "Properties...", Keys.Alt | Keys.Enter)});
     }
-     
+
+    int inval;
+    public new void Invalidate() { inval = 1; base.Invalidate(); }
+
     public int OnCommand(int id, object test)
     {
       switch (id)
       {
         case 2010: //Undo
-          if (!Focused) return 0;
+          //if (!Focused) return 0;
           if (undos == null || undoi == 0) return 8;
           if (test == null) { undos[undoi - 1](); undoi--; Invalidate(); }
           return 1;
         case 2011: //Redo
-          if (!Focused) return 0;
+          //if (!Focused) return 0;
           if (undos == null || undoi >= undos.Count) return 8;
           if (test == null) { undos[undoi](); undoi++; Invalidate(); }
           return 1;
         case 2060: //SelectAll
-          if (!Focused) return 0;
+          //if (!Focused) return 0;
           if (test != null) return 1;
           foreach (var p in view.Scene.SelectNodes(-1 << 8)) p.IsSelect = !p.IsStatic; Invalidate();
           return 1;
@@ -262,7 +265,7 @@ namespace csg3mf
       var l = v.Length;
       var t = Environment.TickCount;
       view.Camera.TransformF = m * (v.Normalize() * (l * 0.1f * e.Delta * (1f / 120))); Invalidate();
-      if (t - lastwheel > 500) addundo(undo(view.Camera, m)); lastwheel = t;
+      if (t - lastwheel > 500) AddUndo(undo(view.Camera, m)); lastwheel = t;
     }
     static int lastwheel;
 
@@ -280,7 +283,7 @@ namespace csg3mf
           if (!moves && v.LengthSq < 0.03) return; moves = true;
           view.Camera.TransformF = cm * !tm * float4x3.RotationAxis(cm.mx, -v.y) * float4x3.RotationZ(v.x) * tm;
         }
-        if (id == 1) addundo(undo(view.Camera, cm));
+        if (id == 1) AddUndo(undo(view.Camera, cm));
       };
     }
     Action<int> camera_movxy()
@@ -291,7 +294,7 @@ namespace csg3mf
       return id =>
       {
         if (id == 0) { p2 = view.PickPlane(); camera.TransformF = m * (p1 - p2); }
-        if (id == 1) addundo(undo(camera, m));
+        if (id == 1) AddUndo(undo(camera, m));
       };
     }
     Action<int> camera_movz()
@@ -303,7 +306,7 @@ namespace csg3mf
       return id =>
       {
         if (id == 0) { p2 = view.PickPlane(); camera.TransformF = m * new float3(0, 0, view.PickPlane().x - p1.x); }
-        if (id == 1) addundo(undo(camera, m));
+        if (id == 1) AddUndo(undo(camera, m));
       };
     }
     Action<int> camera_rotz(int mode)
@@ -319,7 +322,7 @@ namespace csg3mf
       return id =>
       {
         if (id == 0) { var p2 = view.PickPlane(); camera.TransformF = m * -rot * float4x3.RotationZ(a1 - view.PickPlane().Angel) * rot; }
-        if (id == 1) addundo(undo(camera, m));
+        if (id == 1) AddUndo(undo(camera, m));
       };
     }
     Action<int> camera_rotx()
@@ -329,7 +332,7 @@ namespace csg3mf
       return id =>
       {
         if (id == 0) { p2 = view.PickPlane(); camera.TransformF = float4x3.RotationX(Math.Atan(p2.y) - Math.Atan(p1.y)) * m; Invalidate(); }
-        if (id == 1) addundo(undo(camera, m));
+        if (id == 1) AddUndo(undo(camera, m));
       };
     }
     Action<int> tool_select()
@@ -366,7 +369,7 @@ namespace csg3mf
         if (id == 0)
         {
           p2 = view.PickPlane(); if (p2 == p1) return; var dm = (float4x3)(p2 - p1);
-          if (dm.mp.LengthSq > 1000) { }
+          if (dm.mp.LengthSq > 100000) { }
           (mover ?? (mover = getmover()))(0, dm);
         }
         if (id == 1)
@@ -511,7 +514,7 @@ namespace csg3mf
         if (id == 1)
         {
           scene.Select(); for (int i = 0; i < rp.Length; i++) rp[i].IsSelect = true;
-          addundo(undodel(Enumerable.Range(ab, pp.Length).ToArray())); Invalidate();
+          AddUndo(undodel(Enumerable.Range(ab, pp.Length).ToArray())); Invalidate();
         }
         if (id == 2) { for (int i = scene.Count - 1; i >= ab; i--) scene.Remove(i); Invalidate(); }
       };
@@ -548,7 +551,7 @@ namespace csg3mf
     }
     public bool IsModified { get => undoi != 0; set { undos = null; undoi = 0; } }
     List<Action> undos; int undoi;
-    void addundo(Action p)
+    void AddUndo(Action p)
     {
       if (p == null) return;
       if (undos == null) undos = new List<Action>();
@@ -557,7 +560,7 @@ namespace csg3mf
     }
     void execute(Action p)
     {
-      p(); addundo(p); Invalidate();
+      p(); AddUndo(p); Invalidate();
     }
     Action undo(INode p, float4x3 m)
     {
@@ -598,7 +601,7 @@ namespace csg3mf
       return (id, m) =>
       {
         if (id == 0) { for (int i = 0; i < pp.Length; i++) pp[i].TransformF = mm[i] * m; }
-        if (id == 2) addundo(undo(pp.Select((p, i) => undo(p, mm[i]))));
+        if (id == 2) AddUndo(undo(pp.Select((p, i) => undo(p, mm[i]))));
       };
     }
 

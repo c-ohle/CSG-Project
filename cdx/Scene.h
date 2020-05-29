@@ -236,7 +236,7 @@ struct CNode : public ICDXNode
   }
   HRESULT __stdcall get_Color(UINT* p)
   {
-    *p = materials.n != 0 ? materials.p[0].color : 0xff808080; return 0;
+    *p = materials.n != 0 ? materials.p[0].color : 0; return 0;
   }
   HRESULT __stdcall put_Color(UINT p)
   {
