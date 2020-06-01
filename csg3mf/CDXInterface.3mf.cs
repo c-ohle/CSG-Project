@@ -124,7 +124,9 @@ namespace csg3mf
         var item = new XElement(ns + (dest.Name.LocalName == "build" ? "item" : "component"));
         var objectid = uid++; obj.SetAttributeValue("id", objectid);
         item.SetAttributeValue("objectid", objectid);
-        var ss = (char*)buffer.ToPointer(); group.Transform.GetValues(new Variant(ss, 12));
+        var ss = (char*)buffer.ToPointer(); //
+        //group.Transform.GetValues(new Variant(ss, 12));
+        group.GetTransform(new Variant(ss, 12));
         item.SetAttributeValue("transform", new string(ss));
         dest.Add(item);
       };

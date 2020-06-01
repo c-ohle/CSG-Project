@@ -111,12 +111,14 @@ namespace csg3mf
       CSG.IMesh Mesh { get; set; }
       uint Color { get; set; }
       int MaterialCount { get; set; }
+      object Tag { [return: MarshalAs(UnmanagedType.IUnknown)] get; [param: MarshalAs(UnmanagedType.IUnknown)] set; }
       void GetMaterial(int i, out int start, out int count, out uint color, out COM.IStream tex);
       void SetMaterial(int i, int start, int count, uint color, COM.IStream tex);
       void GetTexturCoords(out CSG.Variant v);
       void SetTexturCoords(CSG.Variant v);
-      INode AddNode(string name);
+      void GetTransform(ref CSG.Variant v);
       void SetTransform(CSG.Variant v);
+      INode AddNode(string name);
     }
 
     [ComImport, Guid("F063C32D-59D1-4A0D-B209-323268059C12"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
@@ -207,7 +209,7 @@ namespace csg3mf
       float2 p; p.x = float.NaN; view.Command(Cmd.PickPlane, &p); return p;
     }
     //public static IFont GetFont(System.Drawing.Font p) => Factory.GetFont(p.FontFamily.Name, p.Size, p.Style);
-    
+
     public struct DC
     {
       IView p;
@@ -309,6 +311,7 @@ namespace csg3mf
         float2 v; v.x = p.X; v.y = p.Y; return v;
       }
       public float LengthSq => x * x + y * y;
+      public float Length => (float)Math.Sqrt(x * x + y * y);
       public double Angel => Math.Atan2(y, x);
       public static bool operator ==(float2 a, float2 b) { return a.x == b.x && a.y == b.y; }
       public static bool operator !=(float2 a, float2 b) { return a.x != b.x || a.y != b.y; }
@@ -339,6 +342,7 @@ namespace csg3mf
     public struct float3 : IEquatable<float3>
     {
       public float x, y, z;
+      public float2 xy => new float2(x, y);
       public override string ToString()
       {
         return $"{x:R}; {y:R}; {z:R}";
@@ -436,6 +440,7 @@ namespace csg3mf
     public struct float4 : IEquatable<float4>
     {
       public float x, y, z, w;
+      public float3 xyz => new float3(x, y, z);
       public float4(float x, float y, float z, float w)
       {
         this.x = x; this.y = y; this.z = z; this.w = w;
@@ -546,24 +551,17 @@ namespace csg3mf
       {
         float4x3 m; (&m)->_11 = x; m._22 = y; m._33 = z; return m;
       }
-      static void rot(float4x3* m, int x, double a)
-      {
-        var sc = new float2(a);
-        if (x == 0) { m->_11 = 1; m->_22 = m->_33 = sc.x; m->_32 = -(m->_23 = sc.y); return; }
-        if (x == 1) { m->_22 = 1; m->_11 = m->_33 = sc.x; m->_13 = -(m->_31 = sc.y); return; }
-        if (x == 2) { m->_33 = 1; m->_11 = m->_22 = sc.x; m->_21 = -(m->_12 = sc.y); return; }
-      }
       public static float4x3 RotationX(double a)
       {
-        float4x3 m; rot(&m, 0, a); return m;
+        var sc = new float2(a); var m = new float4x3(); m._11 = 1; m._22 = m._33 = sc.x; m._32 = -(m._23 = sc.y); return m;
       }
       public static float4x3 RotationY(double a)
       {
-        float4x3 m; rot(&m, 1, a); return m;
+        var sc = new float2(a); var m = new float4x3(); m._22 = 1; m._11 = m._33 = sc.x; m._13 = -(m._31 = sc.y); return m;
       }
       public static float4x3 RotationZ(double a)
       {
-        float4x3 m; rot(&m, 2, a); return m;
+        var sc = new float2(a); var m = new float4x3(); m._33 = 1; m._11 = m._22 = sc.x; m._21 = -(m._12 = sc.y); return m;
       }
       public static float4x3 RotationAxis(float3 v, float a)
       {
@@ -622,7 +620,6 @@ namespace csg3mf
       }
       public static float4x3 operator *(in float4x3 a, in float4x3 b)
       {
-        //float3x4 c; mul(&a, &b, &c); return c;
         float x = a._11, y = a._12, z = a._13; float4x3 r;
         r._11 = b._11 * x + b._21 * y + b._31 * z;
         r._12 = b._12 * x + b._22 * y + b._32 * z;

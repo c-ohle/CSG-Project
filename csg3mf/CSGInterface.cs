@@ -137,7 +137,6 @@ namespace csg3mf
       public static implicit operator Variant(float p) { Variant v; ((float*)&v)[2] = p; v.vt = (ushort)VarType.Float; return v; }
       public static implicit operator Variant(double p) { Variant v; ((double*)&v)[1] = p; v.vt = (ushort)VarType.Double; return v; }
       public static implicit operator Variant(decimal p) { Variant v; ((decimal*)&v)[0] = p; v.vt = (ushort)VarType.Decimal; return v; }
-      //public static implicit operator Variant(string s) { Variant v; v.vt = (ushort)VarType.String | (1 << 8); var p = Marshal.StringToBSTR(s); v.vp = p.ToPointer(); Marshal.FreeBSTR(p); return v; }
     }
 
     class RationalConverter : TypeConverter
@@ -169,10 +168,7 @@ namespace csg3mf
         return p;
       }
       Rational(IVector p, int i, int c) { t = (int)VarType.Rational | (c << 8); this.i = i; this.p = p; }
-      public override int GetHashCode()
-      {
-        return base.GetHashCode();
-      }
+      public override int GetHashCode() => p.GetHashCode(i, 1);
       public override bool Equals(object p) => p is Rational b && Equals(b);
       public bool Equals(Rational b) => p.Equals(i, b.p, b.i, 1);
       public int CompareTo(Rational b) => p.CompareTo(i, b.p, b.i);
@@ -392,6 +388,7 @@ namespace csg3mf
         internal void SetValues(Variant v) => m.p.SetValue(m.i, v);
         internal void SetIdentity() { var v = stackalloc int[12] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 }; m.p.SetValue(m.i, new Variant(v, 12)); }
         public static explicit operator CDX.float4x3(Matrix m) { CDX.float4x3 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
+        public static implicit operator Matrix(CDX.float4x3 m) { var t = new Matrix(0); t.SetValues(new Variant(&m._11, 12)); return t; }
         //public void Save()
         //{
         //  var str = COM.SHCreateMemStream();

@@ -144,12 +144,15 @@ interface ICDXNode : IUnknown
   [propput] HRESULT Color([in] UINT p);
   [propget] HRESULT MaterialCount([out, retval] UINT* p);
   [propput] HRESULT MaterialCount([in] UINT p);
+  [propget] HRESULT Tag([out, retval] IUnknown** p);
+  [propput] HRESULT Tag([in] IUnknown* p);
   HRESULT GetMaterial([in] UINT i, [out] UINT* start, [out] UINT* count, [out] UINT* color, [out] IStream** tex);
   HRESULT SetMaterial([in] UINT i, [in] UINT start, [in] UINT count, [in] UINT color, [in] IStream* tex);
   HRESULT GetTexturCoords([out] CSGVAR* m);
   HRESULT SetTexturCoords([in] CSGVAR m);
-  HRESULT AddNode([in] BSTR name, [out, retval] ICDXNode** p);
+  HRESULT GetTransform([in, out] CSGVAR* m);
   HRESULT SetTransform([in] CSGVAR m);
+  HRESULT AddNode([in] BSTR name, [out, retval] ICDXNode** p);
 };
 
 [object, uuid(F063C32D-59D1-4A0D-B209-323268059C12), pointer_default(unique)]

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -163,7 +164,7 @@ namespace csg3mf
         edit = sv.edit; sv.Text = "Script"; Neuron.Debugger = (p, v) => edit.Show(v);
       }
       view = (CDXView)ShowView(typeof(CDXView), cont.Nodes, DockStyle.Fill);
-      view.Text = "Camera"; cont.OnUpdate = view.Invalidate; view.infos = cont.Infos;
+      view.Text = "Camera"; cont.OnUpdate = () => { view.IsModified = false; view.Invalidate(); }; view.infos = cont.Infos;
       Update(); DoubleBuffered = false;
       if (path != null) mru(path, path);
     }
@@ -323,43 +324,94 @@ namespace csg3mf
     }
   }
 
-  partial class CDXView
+  unsafe partial class CDXView
   {
     internal class Properties : PropertyGrid, UIForm.ICommandTarget
     {
-      class CScene
+      struct CScene
       {
-        internal IScene p;
+        internal CDXView p;
         [Category("General")]
-        public Unit BaseUnit { get => p.Unit; set => p.Unit = value; }
+        public Unit BaseUnit { get => p.view.Scene.Unit; set => p.view.Scene.Unit = value; }
         [Category("Internal")]
-        public int Nodes { get => p.Count; }
+        public int Nodes { get => p.view.Scene.Count; }
+        //[Category("Internal")]
+        //public CNode Camera { get => new CNode { p = p.view.Camera }; }
       }
-      class CNode
+
+      struct CNode
       {
         internal INode p;
         [Category("General")]
         public string Name { get => p.Name; set => p.Name = value; }
         [Category("General")]
-        public bool Fixed { get => p.IsStatic; set => p.IsStatic = value; }
+        public bool Static { get => p.IsStatic; set => p.IsStatic = value; }
         [Category("Material")]
         public Color Color { get => Color.FromArgb(unchecked((int)p.Color)); set => p.Color = (uint)value.ToArgb(); }
         [Category("Material")]
         public int MaterialCount { get => p.MaterialCount; }
 
+        [Category("Transform")] public CSG.Rational LocationX { get => p.Transform[09]; set { var t = p.Transform; t[09] = value; p.Transform = t; } }
+        [Category("Transform")] public CSG.Rational LocationY { get => p.Transform[10]; set { var t = p.Transform; t[10] = value; p.Transform = t; } }
+        [Category("Transform")] public CSG.Rational LocationZ { get => p.Transform[11]; set { var t = p.Transform; t[11] = value; p.Transform = t; } }
         [Category("Transform")]
-        public CSG.Rational LocationX { get => p.Transform[09]; set { var t = p.Transform; t[09] = value; p.Transform = t; } }
+        public float RotationX
+        {
+          get => (float)Math.Round(geteuler().x * (float)(180 / Math.PI), 4);
+          set { var e = geteuler(); e.x = value * (float)(Math.PI / 180); seteuler(e); }
+        }
         [Category("Transform")]
-        public CSG.Rational LocationY { get => p.Transform[10]; set { var t = p.Transform; t[10] = value; p.Transform = t; } }
+        public float RotationY
+        {
+          get => (float)Math.Round(geteuler().y * (float)(180 / Math.PI), 4);
+          set { var e = geteuler(); e.y = value * (float)(Math.PI / 180); seteuler(e); }
+        }
         [Category("Transform")]
-        public CSG.Rational LocationZ { get => p.Transform[11]; set { var t = p.Transform; t[11] = value; p.Transform = t; } }
+        public float RotationZ
+        {
+          get => (float)Math.Round(geteuler().z * (float)(180 / Math.PI), 4);
+          set { var e = geteuler(); e.z = value * (float)(Math.PI / 180); seteuler(e); }
+        }
 
-        [Category("Transform")]
-        public float fLocationX { get => p.TransformF._41; set { var t = p.TransformF; t._41 = value; p.TransformF = t; } }
-        [Category("Transform")]
-        public float fLocationY { get => p.TransformF._42; set { var t = p.TransformF; t._42 = value; p.TransformF = t; } }
-        [Category("Transform")]
-        public float fLocationZ { get => p.TransformF._43; set { var t = p.TransformF; t._43 = value; p.TransformF = t; } }
+        float3 geteuler()
+        {
+          var ee = p.Tag as (float3 a, float3 b)[];
+          var e = euler(p.TransformF); if (ee == null) return e;
+          if (ee[ee.Length - 1].a == e) return ee[ee.Length - 1].b;
+          if (ee.Length > 1 && ee[ee.Length - 2].a == e) { Array.Resize(ref ee, ee.Length - 1); p.Tag = ee; return ee[ee.Length - 1].b; }
+          return e;
+        }
+        void seteuler(float3 e)
+        {
+          var m1 = p.TransformF; var m2 = euler(e) * m1.mp; p.TransformF = m2;
+          var ee = p.Tag as (float3 a, float3 b)[];
+          if (ee == null || ee[ee.Length - 1].a != euler(m1)) { Array.Resize(ref ee, ee != null ? ee.Length + 1 : 1); p.Tag = ee; }
+          ee[ee.Length - 1] = (euler(m2), e);
+        }
+        static float3 euler(in float4x3 m)
+        {
+          var s = m.mx.Length; var t = m._13 / s;
+          return new float3(
+            +(float)Math.Atan2(m._23, m._33),
+            -(float)Math.Asin(t),
+            t == 1 || t == -1 ? -(float)Math.Atan2(m._21, m._22) : (float)Math.Atan2(m._12, m._11));
+        }
+        static float4x3 euler(float3 e) => float4x3.RotationX(e.x) * float4x3.RotationY(e.y) * float4x3.RotationZ(e.z);
+
+        //[Category("TransformF")] public float LocationXf { get => p.TransformF._41; set { var t = p.TransformF; t._41 = value; p.TransformF = t; } }
+        //[Category("TransformF")] public float LocationYf { get => p.TransformF._42; set { var t = p.TransformF; t._42 = value; p.TransformF = t; } }
+        //[Category("TransformF")] public float LocationZf { get => p.TransformF._43; set { var t = p.TransformF; t._43 = value; p.TransformF = t; } }
+
+        //public string Trans1 { get { var t = p.Transform; return $"{t[0]} {t[1]} {t[2]}"; } }
+        //public string Trans2 { get { var t = p.Transform; return $"{t[3]} {t[4]} {t[5]}"; } }
+        //public string Trans3 { get { var t = p.Transform; return $"{t[6]} {t[7]} {t[8]}"; } }
+        //public string Trans4 { get { var t = p.Transform; return $"{t[9]} {t[10]} {t[11]}"; } }
+        //
+        //public string fTrans1 { get { var t = p.TransformF; return $"{t.mx}"; } }
+        //public string fTrans2 { get { var t = p.TransformF; return $"{t.my}"; } }
+        //public string fTrans3 { get { var t = p.TransformF; return $"{t.mz}"; } }
+        //public string fTrans4 { get { var t = p.TransformF; return $"{t.mp}"; } }
+
       }
 
       protected override void OnHandleCreated(EventArgs e)
@@ -385,8 +437,8 @@ namespace csg3mf
           if (nodes == null)
           {
             nodes = scene.Selection().ToArray();
-            if (nodes.Length == 0) SelectedObject = new CScene { p = scene };
-            else SelectedObjects = nodes.Select(p => new CNode { p = p }).ToArray();
+            if (nodes.Length == 0) SelectedObject = new CScene { p = view };
+            else SelectedObjects = nodes.Select(p => (object)new CNode { p = p }).ToArray();
           }
           else Refresh();
         }
@@ -414,6 +466,7 @@ namespace csg3mf
         var d = g.PropertyDescriptor;
         var t = d.ComponentType.GetProperty(d.Name);
         var o = e.OldValue ?? oldvals;
+        //if (!(p is object[]) && t.GetValue(p).Equals(o)) return;
         view.AddUndo(() =>
         {
           if (p is object[] a)
@@ -422,16 +475,10 @@ namespace csg3mf
             for (int i = 0; i < a.Length; i++) { v[i] = t.GetValue(a[i]); t.SetValue(a[i], o is object[] oo ? oo[i] : o); }
             o = v;
           }
-          else
-          {
-            var v = t.GetValue(p); t.SetValue(p, o); o = v;
-          }
+          else { var v = t.GetValue(p); t.SetValue(p, o); o = v; }
         });
         view.Invalidate();
       }
     }
-
-
   }
-
 }

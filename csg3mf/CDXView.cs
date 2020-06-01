@@ -22,7 +22,7 @@ namespace csg3mf
       view.BkColor = 0xffcccccc;
       view.Scene = Tag as IScene;// cont.Nodes;
       OnCenter(null);
-       
+
       AllowDrop = true;
       ContextMenuStrip = new UIForm.ContextMenu();
       ContextMenuStrip.Opening += (x, y) => { var p = mainover(); if (p != null && !p.IsSelect && !p.IsStatic) { p.Select(); Invalidate(); } };
@@ -82,9 +82,9 @@ namespace csg3mf
           if (test != null) return (view.Render & (CDX.Render)(1 << (id - 2210))) != 0 ? 3 : 1;
           view.Render ^= (CDX.Render)(1 << (id - 2210)); Application.UserAppDataRegistry.SetValue("fl", (int)view.Render);
           Invalidate(); return 1;
-        //case 65301: //can close
-        //  if(Tag is IScene) return 1;
-        //  return 0;
+          //case 65301: //can close
+          //  if(Tag is IScene) return 1;
+          //  return 0;
       }
       return 0;
     }
@@ -234,7 +234,7 @@ namespace csg3mf
           case Keys.Alt: tool = main.IsStatic ? camera_rotz(0) : obj_rotz(main); break;
           case Keys.Control | Keys.Shift: tool = main.IsStatic ? camera_rotx() : obj_rot(main, 0); break;
           case Keys.Control | Keys.Alt: tool = main.IsStatic ? camera_rotz(1) : obj_rot(main, 1); break;
-          case Keys.Control | Keys.Alt | Keys.Shift: if (main.IsStatic) main.Select(); else obj_rot(main, 2); break;
+          case Keys.Control | Keys.Alt | Keys.Shift: if (main.IsStatic) main.Select(); else tool = obj_rot(main, 2); break;
           default: tool = tool_select(); break;
         }
       if (tool != null) Capture = true; Invalidate();
@@ -567,6 +567,11 @@ namespace csg3mf
       if (m == p.TransformF) return null;
       return () => { var t = p.TransformF; p.TransformF = m; m = t; };
     }
+    Action undo(INode p, CSG.Rational.Matrix m)
+    {
+      if (m.Equals(p.Transform)) return null;
+      return () => { var t = p.Transform; p.Transform = m; m = t; };
+    }
     Action undo(IEnumerable<Action> a)
     {
       var b = a.OfType<Action>().ToArray(); if (b.Length == 0) return null;
@@ -594,6 +599,7 @@ namespace csg3mf
         }
       };
     }
+#if (true)
     Action<int, float4x3> getmover()
     {
       var pp = view.Scene.Selection().ToArray();
@@ -604,7 +610,18 @@ namespace csg3mf
         if (id == 2) AddUndo(undo(pp.Select((p, i) => undo(p, mm[i]))));
       };
     }
-
+#else
+    Action<int, float4x3> getmover()
+    {
+      var pp = view.Scene.Selection().ToArray();
+      var mm = pp.Select(p => p.Transform).ToArray();
+      return (id, m) =>
+      {
+        if (id == 0) { for (int i = 0; i < pp.Length; i++) pp[i].Transform = mm[i] * m; }
+        if (id == 2) AddUndo(undo(pp.Select((p, i) => undo(p, mm[i]))));
+      };
+    }
+#endif
     IFont font = Factory.GetFont("Arial", 13, System.Drawing.FontStyle.Bold);
     //IFont font = GetFont(System.Drawing.SystemFonts.MenuFont);
     //Stopwatch sw;

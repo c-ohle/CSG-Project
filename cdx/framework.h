@@ -12,9 +12,10 @@
 #define ATL_NO_ASSERT_ON_DESTROY_NONEXISTENT_WINDOW
 
 #include "resource.h"
+#include <corecrt_math_defines.h>
+
 #include <atlbase.h>
 #include <atlcom.h>
-//#include <atlctl.h>
 
 #include <directxmath.h>
 #include <directxpackedvector.h>
@@ -138,6 +139,11 @@ struct carray
   {
     if (n < c) setsize(((c >> s) + 1) << s);
     return p;
+  }
+  void remove(UINT i)
+  {
+    ((WP*)&p[i])->WP::~WP();
+    memcpy(p + i, p + i + 1, (--n - i) * sizeof(T));
   }
 };
 

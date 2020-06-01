@@ -390,6 +390,7 @@ HRESULT CScene::SaveToStream(IStream* str)
 {
   Archive ar(str, true);
   ar.WriteCount(ar.version = 1);
+  ar.WriteCount(unit);
   ar.WriteCount(count);
   for (UINT i = 0; i < count; i++)
   {
@@ -400,35 +401,12 @@ HRESULT CScene::SaveToStream(IStream* str)
   for (UINT i = 0; i < count; i++) nodes.p[i]->serialize(ar);
   return ar.hr;
 }
-
-//HRESULT CScene::SaveSelection(IStream* str)
-//{
-//  BOOL selonly = true;
-//  void* scene = this; UINT ni = 0, * ii = (UINT*)stackptr;
-//  for (UINT i = 0; i < count; i++)
-//  {
-//    if (!selonly) { ii[ni++] = i; continue; }
-//    auto p = nodes.p[i]; if (!(p->flags & NODE_FL_INSEL)) continue;
-//    ii[ni++] = i; if (p->flags & NODE_FL_SELECT) scene = p->parent;
-//  }
-//  Archive ar(str, true);
-//  ar.WriteCount(ar.version = 1);
-//  ar.WriteCount(ni);
-//  for (UINT i = 0; i < ni; i++)
-//  {
-//    UINT x = 0; auto p = nodes.p[ii[i]];
-//    if (p->parent != scene) for (x = 1; nodes.p[ii[x - 1]] != p->parent; x++);
-//    ar.WriteCount(x);
-//  }
-//  for (UINT i = 0; i < ni; i++) nodes.p[ii[i]]->serialize(ar);
-//  return ar.hr;
-//}
-
 HRESULT CScene::LoadFromStream(IStream* str)
 {
   Archive ar(str, false);
   if ((ar.version = ar.ReadCount()) > 1) return E_FAIL;
-  Clear(); nodes.setsize(count = ar.ReadCount());
+  Clear(); 
+  unit = (CDX_UNIT)ar.ReadCount(); nodes.setsize(count = ar.ReadCount());
   for (UINT i = 0; i < count; i++) nodes.p[i] = new CNode();
   for (UINT i = 0; i < count; i++)
   {

@@ -936,6 +936,12 @@ EXTERN_C const IID IID_ICDXNode;
         virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_MaterialCount( 
             /* [in] */ UINT p) = 0;
         
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Tag( 
+            /* [retval][out] */ IUnknown **p) = 0;
+        
+        virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_Tag( 
+            /* [in] */ IUnknown *p) = 0;
+        
         virtual HRESULT STDMETHODCALLTYPE GetMaterial( 
             /* [in] */ UINT i,
             /* [out] */ UINT *start,
@@ -956,12 +962,15 @@ EXTERN_C const IID IID_ICDXNode;
         virtual HRESULT STDMETHODCALLTYPE SetTexturCoords( 
             /* [in] */ CSGVAR m) = 0;
         
-        virtual HRESULT STDMETHODCALLTYPE AddNode( 
-            /* [in] */ BSTR name,
-            /* [retval][out] */ ICDXNode **p) = 0;
+        virtual HRESULT STDMETHODCALLTYPE GetTransform( 
+            /* [out][in] */ CSGVAR *m) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE SetTransform( 
             /* [in] */ CSGVAR m) = 0;
+        
+        virtual HRESULT STDMETHODCALLTYPE AddNode( 
+            /* [in] */ BSTR name,
+            /* [retval][out] */ ICDXNode **p) = 0;
         
     };
     
@@ -1068,6 +1077,14 @@ EXTERN_C const IID IID_ICDXNode;
             ICDXNode * This,
             /* [in] */ UINT p);
         
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Tag )( 
+            ICDXNode * This,
+            /* [retval][out] */ IUnknown **p);
+        
+        /* [propput] */ HRESULT ( STDMETHODCALLTYPE *put_Tag )( 
+            ICDXNode * This,
+            /* [in] */ IUnknown *p);
+        
         HRESULT ( STDMETHODCALLTYPE *GetMaterial )( 
             ICDXNode * This,
             /* [in] */ UINT i,
@@ -1092,14 +1109,18 @@ EXTERN_C const IID IID_ICDXNode;
             ICDXNode * This,
             /* [in] */ CSGVAR m);
         
-        HRESULT ( STDMETHODCALLTYPE *AddNode )( 
+        HRESULT ( STDMETHODCALLTYPE *GetTransform )( 
             ICDXNode * This,
-            /* [in] */ BSTR name,
-            /* [retval][out] */ ICDXNode **p);
+            /* [out][in] */ CSGVAR *m);
         
         HRESULT ( STDMETHODCALLTYPE *SetTransform )( 
             ICDXNode * This,
             /* [in] */ CSGVAR m);
+        
+        HRESULT ( STDMETHODCALLTYPE *AddNode )( 
+            ICDXNode * This,
+            /* [in] */ BSTR name,
+            /* [retval][out] */ ICDXNode **p);
         
         END_INTERFACE
     } ICDXNodeVtbl;
@@ -1187,6 +1208,12 @@ EXTERN_C const IID IID_ICDXNode;
 #define ICDXNode_put_MaterialCount(This,p)	\
     ( (This)->lpVtbl -> put_MaterialCount(This,p) ) 
 
+#define ICDXNode_get_Tag(This,p)	\
+    ( (This)->lpVtbl -> get_Tag(This,p) ) 
+
+#define ICDXNode_put_Tag(This,p)	\
+    ( (This)->lpVtbl -> put_Tag(This,p) ) 
+
 #define ICDXNode_GetMaterial(This,i,start,count,color,tex)	\
     ( (This)->lpVtbl -> GetMaterial(This,i,start,count,color,tex) ) 
 
@@ -1199,11 +1226,14 @@ EXTERN_C const IID IID_ICDXNode;
 #define ICDXNode_SetTexturCoords(This,m)	\
     ( (This)->lpVtbl -> SetTexturCoords(This,m) ) 
 
-#define ICDXNode_AddNode(This,name,p)	\
-    ( (This)->lpVtbl -> AddNode(This,name,p) ) 
+#define ICDXNode_GetTransform(This,m)	\
+    ( (This)->lpVtbl -> GetTransform(This,m) ) 
 
 #define ICDXNode_SetTransform(This,m)	\
     ( (This)->lpVtbl -> SetTransform(This,m) ) 
+
+#define ICDXNode_AddNode(This,name,p)	\
+    ( (This)->lpVtbl -> AddNode(This,name,p) ) 
 
 #endif /* COBJMACROS */
 

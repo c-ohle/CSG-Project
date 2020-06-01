@@ -33,11 +33,12 @@ struct Material
 
 struct CCSGVAR : CSGVAR
 {
-  CCSGVAR(const XMFLOAT4X3A& m) { vt = CSG_TYPE_FLOAT; count = 12; *(const float**)&p = &m._11; }
+  CCSGVAR(const XMFLOAT4X3A& m, BYTE n = 12) { vt = CSG_TYPE_FLOAT; count = n; *(const float**)&p = &m._11; }
   CCSGVAR(ICSGVector* p, UINT c, UINT l = 0) { vt = CSG_TYPE_RATIONAL; count = c; length = l; *(ICSGVector**)&this->p = p; }
   CCSGVAR(XMFLOAT2* p, UINT n) { vt = CSG_TYPE_FLOAT; count = 2; length = n; *(XMFLOAT2**)&this->p = p; }
   CCSGVAR(XMFLOAT3* p, UINT n) { vt = CSG_TYPE_FLOAT; count = 3; length = n; *(XMFLOAT3**)&this->p = p; }
   CCSGVAR(UINT* p, UINT n) { vt = CSG_TYPE_INT; count = 1; length = n; *(UINT**)&this->p = p; }
+  CCSGVAR(const DECIMAL* p, BYTE n) { vt = CSG_TYPE_DECIMAL; count = n; *(const DECIMAL**)&this->p = p; }
   static XMMATRIX copy(ICSGVector* source) { XMFLOAT4X3A m; CCSGVAR r(m); source->GetValue(0, &r); return XMLoadFloat4x3A(&m); }
 };
 
@@ -204,7 +205,12 @@ struct CNode : public ICDXNode
   HRESULT __stdcall get_Transform(CSGVAR* p)
   {
     ICSGVector* v; CHR(_CSGFactory()->CreateVector(12, &v));
-    if (!transform.p) { XMFLOAT4X3A m; XMStoreFloat4x3A(&m, matrix); v->SetValue(0, CCSGVAR(m)); }
+    if (!transform.p)
+    {
+      XMFLOAT4X3A m; XMStoreFloat4x3A(&m, matrix); //v->SetValue(0, CCSGVAR(m));
+      //DECIMAL dd[12]; for (UINT i = 0; i < 12; i++) VarDecFromR4((&m._11)[i], dd + i); v->SetValue(0, CCSGVAR(dd, 12));
+      v->SetValue(0, CCSGVAR(m, 9)); DECIMAL dd[3]; for (UINT i = 0; i < 3; i++) VarDecFromR4((&m._41)[i], dd + i); v->SetValue(9, CCSGVAR(dd, 3));
+    }
     else v->Copy(0, transform.p, 0, 12);
     *p = CCSGVAR(v, 12); return 0;
   }
@@ -215,6 +221,24 @@ struct CNode : public ICDXNode
       auto s = *(ICSGVector**)&p.p;
       if (!transform.p) _CSGFactory()->CreateVector(12, &transform.p);
       transform.p->Copy(0, s, p.length, 12); matrix = CCSGVAR::copy(transform.p);
+      return 0;
+    }
+    return E_INVALIDARG;
+  }
+  HRESULT __stdcall GetTransform(CSGVAR* m)
+  {
+    if (transform.p)
+      return transform.p->GetValue(0, m);
+    if (m->vt == CSG_TYPE_STRING && m->count <= 12)
+    {
+      XMFLOAT4X3A a; XMStoreFloat4x3A(&a, matrix);
+      WCHAR* s = *(WCHAR**)&m->p;
+      for (UINT i = 0; i < m->count; i++)
+      {
+        if (i) *s++ = L' ';
+        auto n = swprintf_s(s, 256, L"%.9g", (&a._11)[i]);
+        s += n;
+      }
       return 0;
     }
     return E_INVALIDARG;
@@ -231,7 +255,7 @@ struct CNode : public ICDXNode
   }
   HRESULT __stdcall put_Mesh(ICSGMesh* p)
   {
-    mesh = (ICSGMesh*)p; vb.Release(); ib.Release(); 
+    mesh = (ICSGMesh*)p; vb.Release(); ib.Release();
     if (materials.n == 0) materials.setsize(1); return 0;
   }
   HRESULT __stdcall get_Color(UINT* p)
@@ -254,7 +278,7 @@ struct CNode : public ICDXNode
   HRESULT __stdcall GetMaterial(UINT i, UINT* start, UINT* count, UINT* color, IStream** tex)
   {
     if (i >= materials.n) return E_INVALIDARG;
-    auto& m = materials.p[i]; 
+    auto& m = materials.p[i];
     if (materials.n == 1 && mesh.p)
     {
       UINT ni; mesh.p->get_IndexCount(&ni);
@@ -279,6 +303,16 @@ struct CNode : public ICDXNode
   HRESULT __stdcall GetTexturCoords(CSGVAR* m);
   HRESULT __stdcall SetTexturCoords(CSGVAR m);
   HRESULT __stdcall AddNode(BSTR name, ICDXNode** p);
+
+  CComPtr<IUnknown> tag;
+  HRESULT __stdcall get_Tag(IUnknown** p)
+  {
+    return tag.CopyTo(p);
+  }
+  HRESULT __stdcall put_Tag(IUnknown* p)
+  {
+    tag = p; return 0;
+  }
 };
 
 struct CScene : public ICDXScene
@@ -312,7 +346,7 @@ struct CScene : public ICDXScene
     if (!count) delete this;
     return count;
   }
-  
+
   HRESULT __stdcall get_Unit(CDX_UNIT* p) { *p = unit; return 0; }
   HRESULT __stdcall put_Unit(CDX_UNIT p) { unit = p; return 0; }
   HRESULT __stdcall get_Count(UINT* p) { *p = count; return 0; }
