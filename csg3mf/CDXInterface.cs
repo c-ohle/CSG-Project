@@ -18,6 +18,7 @@ namespace csg3mf
     [ComImport, Guid("f0993d73-ea2a-4bf1-b128-826d4a3ba584"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     public interface IFactory
     {
+      int Version { get; }
       string Devices { get; }
       void SetDevice(uint id);
       IView CreateView(IntPtr wnd, ISink sink, uint samples);
@@ -106,7 +107,6 @@ namespace csg3mf
       int Index { get; set; }
       bool IsSelect { get; set; }
       bool IsStatic { get; set; }
-      float4x3 TransformF { get; set; }
       CSG.Rational.Matrix Transform { get; set; }
       CSG.IMesh Mesh { get; set; }
       uint Color { get; set; }
@@ -132,11 +132,24 @@ namespace csg3mf
       float Height { get; }
     }
 
-    public static float4x3 GetTransformF(this INode p, INode site = null)
+    public static void SetTransform(this INode p, float4x3 m)
+    {
+      p.SetTransform(new CSG.Variant((float*)&m, 12));
+    }
+    public static float4x3 GetTransform(this INode p)
+    {
+      float4x3 m; p.GetTransform(new CSG.Variant((float*)&m, 12)); return m;
+    }
+    public static float4x3 GetTransform(this INode p, INode site)
     {
       if (p == site) return 1;
-      if (p.Parent == site) return p.TransformF;
-      return p.TransformF * p.Parent.GetTransformF(site);
+      if (p.Parent == site) return p.GetTransform();
+      return p.GetTransform() * p.Parent.GetTransform(site);
+    }
+    public static CSG.Rational GetTransval(this INode p, ushort i)
+    {
+      var t = (CSG.Rational)0; var v = (CSG.Variant)t; (&v.vt)[1] = i; 
+      p.GetTransform(v); return t;
     }
     public static IEnumerable<INode> Descendants(this IScene p)
     {
@@ -209,7 +222,6 @@ namespace csg3mf
       float2 p; p.x = float.NaN; view.Command(Cmd.PickPlane, &p); return p;
     }
     //public static IFont GetFont(System.Drawing.Font p) => Factory.GetFont(p.FontFamily.Name, p.Size, p.Style);
-
     public struct DC
     {
       IView p;
@@ -313,6 +325,7 @@ namespace csg3mf
       public float LengthSq => x * x + y * y;
       public float Length => (float)Math.Sqrt(x * x + y * y);
       public double Angel => Math.Atan2(y, x);
+      public float2 Round(int d) => new float2((float)Math.Round(x,d), (float)Math.Round(y, d));
       public static bool operator ==(float2 a, float2 b) { return a.x == b.x && a.y == b.y; }
       public static bool operator !=(float2 a, float2 b) { return a.x != b.x || a.y != b.y; }
       public static float2 operator -(float2 v) { v.x = -v.x; v.y = -v.y; return v; }

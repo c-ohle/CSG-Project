@@ -7,8 +7,8 @@
 /* at Tue Jan 19 04:14:07 2038
  */
 /* Compiler settings for cdx.idl:
-    Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0622 
-    protocol : all , ms_ext, c_ext, robust
+    Oicf, W1, Zp8, env=Win32 (32b run), target_arch=X86 8.01.0622 
+    protocol : dce , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
     VC __declspec() decoration level: 
          __declspec(uuid()), __declspec(selectany), __declspec(novtable)
@@ -906,12 +906,6 @@ EXTERN_C const IID IID_ICDXNode;
         virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_IsStatic( 
             /* [in] */ BOOL p) = 0;
         
-        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_TransformF( 
-            /* [retval][out] */ XMFLOAT4X3 *p) = 0;
-        
-        virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_TransformF( 
-            /* [in] */ XMFLOAT4X3 p) = 0;
-        
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Transform( 
             /* [retval][out] */ CSGVAR *p) = 0;
         
@@ -1036,14 +1030,6 @@ EXTERN_C const IID IID_ICDXNode;
         /* [propput] */ HRESULT ( STDMETHODCALLTYPE *put_IsStatic )( 
             ICDXNode * This,
             /* [in] */ BOOL p);
-        
-        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_TransformF )( 
-            ICDXNode * This,
-            /* [retval][out] */ XMFLOAT4X3 *p);
-        
-        /* [propput] */ HRESULT ( STDMETHODCALLTYPE *put_TransformF )( 
-            ICDXNode * This,
-            /* [in] */ XMFLOAT4X3 p);
         
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Transform )( 
             ICDXNode * This,
@@ -1177,12 +1163,6 @@ EXTERN_C const IID IID_ICDXNode;
 
 #define ICDXNode_put_IsStatic(This,p)	\
     ( (This)->lpVtbl -> put_IsStatic(This,p) ) 
-
-#define ICDXNode_get_TransformF(This,p)	\
-    ( (This)->lpVtbl -> get_TransformF(This,p) ) 
-
-#define ICDXNode_put_TransformF(This,p)	\
-    ( (This)->lpVtbl -> put_TransformF(This,p) ) 
 
 #define ICDXNode_get_Transform(This,p)	\
     ( (This)->lpVtbl -> get_Transform(This,p) ) 
@@ -1391,6 +1371,9 @@ EXTERN_C const IID IID_ICDXFactory;
     ICDXFactory : public IUnknown
     {
     public:
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Version( 
+            /* [retval][out] */ UINT *pVal) = 0;
+        
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Devices( 
             /* [retval][out] */ BSTR *p) = 0;
         
@@ -1433,6 +1416,10 @@ EXTERN_C const IID IID_ICDXFactory;
         
         ULONG ( STDMETHODCALLTYPE *Release )( 
             ICDXFactory * This);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Version )( 
+            ICDXFactory * This,
+            /* [retval][out] */ UINT *pVal);
         
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Devices )( 
             ICDXFactory * This,
@@ -1483,6 +1470,9 @@ EXTERN_C const IID IID_ICDXFactory;
 #define ICDXFactory_Release(This)	\
     ( (This)->lpVtbl -> Release(This) ) 
 
+
+#define ICDXFactory_get_Version(This,pVal)	\
+    ( (This)->lpVtbl -> get_Version(This,pVal) ) 
 
 #define ICDXFactory_get_Devices(This,p)	\
     ( (This)->lpVtbl -> get_Devices(This,p) ) 

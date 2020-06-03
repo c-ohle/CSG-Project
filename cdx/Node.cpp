@@ -439,3 +439,92 @@ HRESULT CNode::SetTexturCoords(CSGVAR m)
   memcpy(texcoords.p->p, *(void**)&m.p, m.length * sizeof(XMFLOAT2));
   return 0;
 }
+
+static void matdec(UINT i, float f, DECIMAL* p)
+{
+  if (i < 9 && f && abs(f) < 1)
+  {
+    VarDecFromI4((int)round((double)f * 2000000000), p); //2000000000
+    DECIMAL y; VarDecFromI4(2000000000, &y); VarDecDiv(p, &y, p); return;
+  }
+  VarDecFromR4(f, p);
+}
+
+HRESULT CNode::get_Transform(CSGVAR* p)
+{
+  ICSGVector* v; CHR(_CSGFactory()->CreateVector(12, &v));
+  if (!transform.p)
+  {
+    XMFLOAT4X3A m; XMStoreFloat4x3A(&m, matrix);
+    //v->SetValue(0, CCSGVAR(m));
+    //v->SetValue(0, CCSGVAR(m, 9)); DECIMAL dd[3]; for (UINT i = 0; i < 3; i++) VarDecFromR4((&m._41)[i], dd + i); v->SetValue(9, CCSGVAR(dd, 3));
+    DECIMAL dd[12]; for (UINT i = 0; i < 12; i++) matdec(i, (&m._11)[i], dd + i); 
+    v->SetValue(0, CCSGVAR(dd, 12));
+  }
+  else v->Copy(0, transform.p, 0, 12);
+  *p = CCSGVAR(v, 12); return 0;
+}
+HRESULT CNode::put_Transform(CSGVAR p)
+{
+  if (p.vt == CSG_TYPE_RATIONAL && p.count == 12)
+  {
+    auto s = *(ICSGVector**)&p.p;
+    if (!transform.p) _CSGFactory()->CreateVector(12, &transform.p);
+    transform.p->Copy(0, s, p.length, 12); matrix = CCSGVAR::copy(transform.p);
+    return 0;
+  }
+  return E_INVALIDARG;
+}
+HRESULT CNode::GetTransform(CSGVAR* m)
+{
+  if (m->vt == CSG_TYPE_FLOAT && m->count == 12)
+  {
+    XMStoreFloat4x3(*(XMFLOAT4X3**)&m->p, matrix);
+    return 0;
+  }
+  UINT ab = m->vt == CSG_TYPE_RATIONAL ? m->dummy : 0;
+  if (transform.p) 
+    return transform.p->GetValue(ab, m);
+   
+  XMFLOAT4X3A a; XMStoreFloat4x3A(&a, matrix);
+  if (m->vt == CSG_TYPE_RATIONAL)
+  {
+    DECIMAL dd[12]; for (UINT i = 0; i < m->count; i++) matdec(ab + i, (&a._11)[ab + i], dd + i);
+    (*(ICSGVector**)&m->p)->SetValue(m->length, CCSGVAR(dd,m->count));
+    return 0;
+  }
+  if (m->vt == CSG_TYPE_STRING && m->count <= 12)
+  {
+    WCHAR* s = *(WCHAR**)&m->p;
+    for (UINT i = 0; i < m->count; i++)
+    {
+      if (i) *s++ = L' ';
+      auto n = swprintf_s(s, 256, L"%.9g", (&a._11)[i]);
+      s += n;
+    }
+    return 0;
+  }
+  return E_INVALIDARG;
+}
+HRESULT CNode::SetTransform(CSGVAR m)
+{
+  if (m.vt == CSG_TYPE_FLOAT && m.count == 12)
+  {
+    auto pm = *(const XMFLOAT4X3**)&m.p;
+    if (transform.p)
+    {
+      XMFLOAT4X3A am; XMStoreFloat4x3A(&am, matrix);
+      for (UINT i = 0; i < 12; i++)
+      {
+        auto f = (&pm->_11)[i]; if (f == (&am._11)[i]) continue;
+        DECIMAL d; matdec(i, f, &d); transform.p->SetValue(i, CCSGVAR(d));
+        //transform.p->SetValue(i, CCSGVAR(f));
+      }
+    }
+    matrix = XMLoadFloat4x3(pm); //transform.Release();
+    return 0;
+  }
+  if (!transform.p) _CSGFactory()->CreateVector(12, &transform.p);
+  transform.p->SetValue(0, m); matrix = CCSGVAR::copy(transform.p);
+  return 0;
+}

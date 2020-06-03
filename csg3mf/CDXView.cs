@@ -111,15 +111,15 @@ namespace csg3mf
       var a = scene.Select(1); if (a.Take(2).Count() != 2) return 0;
       if (test != null) return 1;
 
-      var mi = new CSG.Rational.Vector3(+int.MaxValue, +int.MaxValue, +int.MaxValue);
-      var ma = new CSG.Rational.Vector3(-int.MaxValue, -int.MaxValue, -int.MaxValue);
+      var mi = new float3(+float.MaxValue, +float.MaxValue, +float.MaxValue);
+      var ma = new float3(-float.MaxValue, -float.MaxValue, -float.MaxValue);
       foreach (var p in scene.Select(2).Select(i => scene[i]))
       {
         if (p.Mesh == null) continue;
-        var m = p.Transform; for (var t = p; !t.IsSelect; m *= (t = t.Parent).Transform) ;
-        foreach (var v in p.Mesh.Vertices())
+        var m = p.GetTransform(null);
+        foreach (var v in p.Mesh.VerticesF3())
         {
-          var t = v.Transform(m);
+          var t = v * m;
           if (t.x < mi.x) mi.x = t.x; if (t.x > ma.x) ma.x = t.x;
           if (t.y < mi.y) mi.y = t.y; if (t.y > ma.y) ma.y = t.y;
           if (t.z < mi.z) mi.z = t.z; if (t.z > ma.z) ma.z = t.z;
@@ -128,7 +128,7 @@ namespace csg3mf
       var mp = (mi + ma) / 2;
 
       var ii = a.ToArray(); var gr = scene.AddNode("Group"); scene.Remove(gr.Index);
-      gr.Transform = CSG.Rational.Matrix.Translation(mp.x, mp.y, mi.z);
+      gr.SetTransform(float4x3.Translation(mp.x, mp.y, mi.z));
       execute(() =>
       {
         scene.Select();
@@ -259,12 +259,12 @@ namespace csg3mf
     {
       if (tool != null) return;
       if (view.MouseOverNode == -1) return;
-      var m = view.Camera.TransformF;//.GetTransformF();
+      var m = view.Camera.GetTransform();//.GetTransformF();
       var node = view.Scene[view.MouseOverNode];
-      var v = (view.MouseOverPoint * node.GetTransformF()) - m.mp;
+      var v = (view.MouseOverPoint * node.GetTransform(null)) - m.mp;
       var l = v.Length;
       var t = Environment.TickCount;
-      view.Camera.TransformF = m * (v.Normalize() * (l * 0.1f * e.Delta * (1f / 120))); Invalidate();
+      view.Camera.SetTransform(m * (v.Normalize() * (l * 0.1f * e.Delta * (1f / 120)))); Invalidate();
       if (t - lastwheel > 500) AddUndo(undo(view.Camera, m)); lastwheel = t;
     }
     static int lastwheel;
@@ -274,71 +274,71 @@ namespace csg3mf
       var mb = float4x3.Identity; view.Command(Cmd.GetBox, &mb);
       var boxmin = *(float3*)&mb._11; var boxmax = *(float3*)&mb._22;
       var pm = (boxmin + boxmax) * 0.5f; var tm = (float4x3)pm;
-      var cm = view.Camera.TransformF; var p1 = (float2)Cursor.Position; bool moves = false;
+      var cm = view.Camera.GetTransform(); var p1 = (float2)Cursor.Position; bool moves = false;
       return id =>
       {
         if (id == 0)
         {
           var v = (Cursor.Position - p1) * -0.01f;
           if (!moves && v.LengthSq < 0.03) return; moves = true;
-          view.Camera.TransformF = cm * !tm * float4x3.RotationAxis(cm.mx, -v.y) * float4x3.RotationZ(v.x) * tm;
+          view.Camera.SetTransform(cm * !tm * float4x3.RotationAxis(cm.mx, -v.y) * float4x3.RotationZ(v.x) * tm);
         }
         if (id == 1) AddUndo(undo(view.Camera, cm));
       };
     }
     Action<int> camera_movxy()
     {
-      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransform(null);
       view.SetPlane(wp = new float3(0, 0, wp.z)); var p1 = view.PickPlane(); var p2 = p1;
-      var camera = view.Camera; var m = camera.TransformF;
+      var camera = view.Camera; var m = camera.GetTransform();
       return id =>
       {
-        if (id == 0) { p2 = view.PickPlane(); camera.TransformF = m * (p1 - p2); }
+        if (id == 0) { p2 = view.PickPlane(); camera.SetTransform(m * (p1 - p2)); }
         if (id == 1) AddUndo(undo(camera, m));
       };
     }
     Action<int> camera_movz()
     {
-      var camera = view.Camera; var m = camera.TransformF;
-      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+      var camera = view.Camera; var m = camera.GetTransform();
+      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransform(null);
       view.SetPlane(float4x3.RotationY(Math.PI / 2) * float4x3.RotationZ(((float2)m.mz).Angel) * wp);
       var p1 = view.PickPlane(); var p2 = p1; //var mover = move(camera);
       return id =>
       {
-        if (id == 0) { p2 = view.PickPlane(); camera.TransformF = m * new float3(0, 0, view.PickPlane().x - p1.x); }
+        if (id == 0) { p2 = view.PickPlane(); camera.SetTransform(m * new float3(0, 0, view.PickPlane().x - p1.x)); }
         if (id == 1) AddUndo(undo(camera, m));
       };
     }
     Action<int> camera_rotz(int mode)
     {
-      var camera = view.Camera; var m = camera.TransformF; var rot = m.mp; //var scene = camera.Ancestor<Scene>(); 
+      var camera = view.Camera; var m = camera.GetTransform(); var rot = m.mp; //var scene = camera.Ancestor<Scene>(); 
       if (mode != 0)
       {
         var p = view.Scene.Selection().FirstOrDefault();
-        if (p != null) rot = p.GetTransformF().mp;
+        if (p != null) rot = p.GetTransform(null).mp;
       }
-      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransform(null);
       view.SetPlane(new float3(rot.x, rot.y, wp.z)); var a1 = view.PickPlane().Angel; //var mover = move(camera);
       return id =>
       {
-        if (id == 0) { var p2 = view.PickPlane(); camera.TransformF = m * -rot * float4x3.RotationZ(a1 - view.PickPlane().Angel) * rot; }
+        if (id == 0) { var p2 = view.PickPlane(); camera.SetTransform(m * -rot * float4x3.RotationZ(a1 - view.PickPlane().Angel) * rot); }
         if (id == 1) AddUndo(undo(camera, m));
       };
     }
     Action<int> camera_rotx()
     {
-      var camera = view.Camera; var m = camera.TransformF;
+      var camera = view.Camera; var m = camera.GetTransform();
       view.SetPlane(m * m.mz); var p1 = view.PickPlane(); var p2 = p1; //var mover = move(camera);
       return id =>
       {
-        if (id == 0) { p2 = view.PickPlane(); camera.TransformF = float4x3.RotationX(Math.Atan(p2.y) - Math.Atan(p1.y)) * m; Invalidate(); }
+        if (id == 0) { p2 = view.PickPlane(); camera.SetTransform(float4x3.RotationX(Math.Atan(p2.y) - Math.Atan(p1.y)) * m); Invalidate(); }
         if (id == 1) AddUndo(undo(camera, m));
       };
     }
     Action<int> tool_select()
     {
       var over = view.Scene[view.MouseOverNode];
-      var wp = view.MouseOverPoint * over.GetTransformF();
+      var wp = view.MouseOverPoint * over.GetTransform(null);
       view.SetPlane(wp = new float3(0, 0, wp.z)); var p1 = view.PickPlane(); var p2 = p1;
       return id =>
       {
@@ -361,20 +361,20 @@ namespace csg3mf
     Action<int> obj_movxy(INode main)
     {
       var ws = main.IsSelect; if (!ws) main.Select();
-      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
-      view.SetPlane(wp = new float3(0, 0, wp.z)); var p1 = view.PickPlane(); var p2 = p1;
+      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransform(null);
+      view.SetPlane(wp = new float3(0, 0, wp.z)); var p1 = view.PickPlane();
       Action<int, float4x3> mover = null;
       return id =>
       {
         if (id == 0)
         {
-          p2 = view.PickPlane(); if (p2 == p1) return; var dm = (float4x3)(p2 - p1);
-          if (dm.mp.LengthSq > 100000) { }
-          (mover ?? (mover = getmover()))(0, dm);
+          var p2 = view.PickPlane(); var dp = (p2 - p1).Round(4);
+          if (mover == null && dp == default) return;
+          (mover ?? (mover = getmover()))(0, dp);
         }
         if (id == 1)
         {
-          if (mover != null) mover(2, 0);
+          if (mover != null) mover(2, default);
           else if (ws) main.Select();
         }
       };
@@ -382,28 +382,28 @@ namespace csg3mf
     Action<int> obj_movz(INode main)
     {
       var ws = main.IsSelect; if (!ws) main.Select();
-      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransform(null);
       var bo = float4x3.Identity; view.Command(Cmd.GetBoxSel, &bo);
       var miz = bo.mx.z; var lov = miz != float.MaxValue ? miz : 0; var boxz = lov; var ansch = Math.Abs(boxz) < 0.1f;
-      view.SetPlane(float4x3.RotationY(Math.PI / 2) * float4x3.RotationZ(((float2)view.Camera.TransformF.my).Angel) * wp);
+      view.SetPlane(float4x3.RotationY(Math.PI / 2) * float4x3.RotationZ(((float2)view.Camera.GetTransform().my).Angel) * wp);
       var p1 = view.PickPlane(); var p2 = p1; var mover = getmover();
       return id =>
       {
         if (id == 0)
         {
-          p2 = view.PickPlane(); if (p2 == p1) return; var dz = p1.x - p2.x;
+          p2 = view.PickPlane(); if (p2 == p1) return; var dz = (float)Math.Round(p1.x - p2.x, 4);
           if (miz != float.MaxValue) { var ov = boxz + dz; if (ov < 0 && ov > -0.5f && lov >= 0) { if (!ansch) { ansch = true; } dz = -boxz; ov = 0; } else ansch = false; lov = ov; }
           mover(0, float4x3.Translation(0, 0, dz));
         }
-        if (id == 1) mover(2, 0);
+        if (id == 1) mover(2, default);
       };
     }
     Action<int> obj_rotz(INode main)
     {
       if (!main.IsSelect) main.Select();
-      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
-      var scene = main.Parent; var ms = scene != null ? scene.GetTransformF() : 1;
-      var mw = main.GetTransformF(); var mp = mw.mp;
+      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransform(null);
+      var scene = main.Parent; var ms = scene != null ? scene.GetTransform(null) : 1;
+      var mw = main.GetTransform(null); var mp = mw.mp;
       view.SetPlane(new float3(mp.x, mp.y, wp.z));
       var v = Math.Abs(mw._13) > 0.8f ? new float2(mw._21, mw._22) : new float2(mw._11, mw._12);
       var w0 = v.Angel;
@@ -416,21 +416,21 @@ namespace csg3mf
           var a2 = view.PickPlane().Angel; var rw = raster(w0 + a2 - a1);
           mover(0, ms * float4x3.RotationZ(rw - w0) * !ms);
         }
-        if (id == 1) mover(2, 0);
+        if (id == 1) mover(2, default);
       };
     }
     Action<int> obj_rot(INode main, int xyz)
     {
       if (!main.IsSelect) main.Select();
-      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
-      var wm = main.GetTransformF(main.Parent);
-      var op = wp * !main.GetTransformF();
+      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransform(null);
+      var wm = main.GetTransform(main.Parent);
+      var op = wp * !main.GetTransform(null);
       var mr = (xyz == 0 ?
         float4x3.RotationY(+(Math.PI / 2)) * new float3(op.x, 0, 0) : xyz == 1 ?
         float4x3.RotationX(-(Math.PI / 2)) * new float3(0, op.y, 0) :
         new float3(0, 0, op.z)) * wm;
       var w0 = Math.Abs(mr._33) > 0.9f ? Math.Atan2(mr._12, mr._22) : Math.Atan2(mr._13, mr._23);
-      view.SetPlane(float4x3.RotationZ(-w0) * mr * (main.Parent != null ? main.Parent.GetTransformF() : 1));
+      view.SetPlane(float4x3.RotationZ(-w0) * mr * (main.Parent != null ? main.Parent.GetTransform(null) : 1));
       var a1 = view.PickPlane().Angel; var angelgrid = angelstep(); var mover = getmover();
       return (id) =>
       {
@@ -445,13 +445,13 @@ namespace csg3mf
           }
           mover(0, !wm * mr * wm);
         }
-        if (id == 1) mover(2, 0);
+        if (id == 1) mover(2, default);
       };
     }
     Action<int> obj_drag(INode main)
     {
       var ws = main.IsSelect; if (!ws) main.IsSelect = true;
-      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransformF();
+      var wp = view.MouseOverPoint * view.Scene[view.MouseOverNode].GetTransform(null);
       var p1 = (float2)Cursor.Position;
       return id =>
       {
@@ -501,7 +501,7 @@ namespace csg3mf
       for (int i = 0; i < pp.Length; i++) scene.Insert(scene.Count, pp[i]);
       for (int i = 0; i < tt.Length; i++) if (tt[i] != -1) scene[ab + i].Parent = scene[ab + tt[i]];
       var rp = pp.Where(p => !pp.Contains(p.Parent)).ToArray();
-      var mm = rp.Select(p => p.TransformF).ToArray();
+      var mm = rp.Select(p => p.GetTransform()).ToArray();
 
       view.Command(Cmd.SetPlane, null); view.SetPlane(wp); //var p1 = view.PickPlane();
       tool = id =>
@@ -509,7 +509,7 @@ namespace csg3mf
         if (id == 0)
         {
           var p2 = view.PickPlane(); var dm = (float4x3)p2;
-          for (int i = 0; i < rp.Length; i++) rp[i].TransformF = mm[i] * dm; Invalidate();
+          for (int i = 0; i < rp.Length; i++) rp[i].SetTransform(mm[i] * dm); Invalidate();
         }
         if (id == 1)
         {
@@ -564,8 +564,8 @@ namespace csg3mf
     }
     Action undo(INode p, float4x3 m)
     {
-      if (m == p.TransformF) return null;
-      return () => { var t = p.TransformF; p.TransformF = m; m = t; };
+      if (m == p.GetTransform()) return null;
+      return () => { var t = p.GetTransform(); p.SetTransform(m); m = t; };
     }
     Action undo(INode p, CSG.Rational.Matrix m)
     {
@@ -599,14 +599,14 @@ namespace csg3mf
         }
       };
     }
-#if (true)
+#if (false)
     Action<int, float4x3> getmover()
     {
       var pp = view.Scene.Selection().ToArray();
-      var mm = pp.Select(p => p.TransformF).ToArray();
+      var mm = pp.Select(p => p.Transform).ToArray();
       return (id, m) =>
       {
-        if (id == 0) { for (int i = 0; i < pp.Length; i++) pp[i].TransformF = mm[i] * m; }
+        if (id == 0) { for (int i = 0; i < pp.Length; i++) pp[i].SetTransformF((float4x3)mm[i] * m); }
         if (id == 2) AddUndo(undo(pp.Select((p, i) => undo(p, mm[i]))));
       };
     }
@@ -617,7 +617,7 @@ namespace csg3mf
       var mm = pp.Select(p => p.Transform).ToArray();
       return (id, m) =>
       {
-        if (id == 0) { for (int i = 0; i < pp.Length; i++) pp[i].Transform = mm[i] * m; }
+        if (id == 0) { for (int i = 0; i < pp.Length; i++) pp[i].SetTransform((float4x3)mm[i] * m); }
         if (id == 2) AddUndo(undo(pp.Select((p, i) => undo(p, mm[i]))));
       };
     }

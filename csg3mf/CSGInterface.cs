@@ -167,7 +167,6 @@ namespace csg3mf
         fixed (char* t = s) { v.vp = t; p.p.SetValue(p.i, v); }
         return p;
       }
-      Rational(IVector p, int i, int c) { t = (int)VarType.Rational | (c << 8); this.i = i; this.p = p; }
       public override int GetHashCode() => p.GetHashCode(i, 1);
       public override bool Equals(object p) => p is Rational b && Equals(b);
       public bool Equals(Rational b) => p.Equals(i, b.p, b.i, 1);
@@ -221,6 +220,7 @@ namespace csg3mf
         var r = new Rational(b.p, b.i, c); b.i += c; return r;
       }
       [ThreadStatic] static (IVector p, int i) buff;
+      Rational(IVector p, int i, int c) { t = (int)VarType.Rational | (c << 8); this.i = i; this.p = p; }
 
       public readonly struct Vector2 : IEquatable<Vector2>
       {
@@ -388,7 +388,15 @@ namespace csg3mf
         internal void SetValues(Variant v) => m.p.SetValue(m.i, v);
         internal void SetIdentity() { var v = stackalloc int[12] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 }; m.p.SetValue(m.i, new Variant(v, 12)); }
         public static explicit operator CDX.float4x3(Matrix m) { CDX.float4x3 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
-        public static implicit operator Matrix(CDX.float4x3 m) { var t = new Matrix(0); t.SetValues(new Variant(&m._11, 12)); return t; }
+        public static implicit operator Matrix(CDX.float4x3 m) 
+        { 
+          var t = new Matrix(0);    
+          t.SetValues(new Variant(&m._11, 12));
+          //var tt = stackalloc decimal[12];
+          //for (int i = 0; i < 12; i++) tt[i] = (decimal)(&m._11)[i];
+          //t.SetValues(new Variant(tt, 12));
+          return t;  
+        }
         //public void Save()
         //{
         //  var str = COM.SHCreateMemStream();

@@ -181,8 +181,17 @@ namespace csg3mf
         case 2100: if (test == null) { var p = (CDXView.Properties)ShowView(typeof(CDXView.Properties), view, DockStyle.Left); /*p.SelectedObject = p;*/ } return 1;
         //case 2100: if (test == null) { var p = (PropertyGrid)ShowView(typeof(PropertyGrid)); p.SelectedObject = p; } return 1;
         case 1120: return OnShow3MF(test);
+        case 5070: if (test == null) OnAbout(); return 1;
       }
       return base.OnCommand(id, test);
+    }
+    unsafe void OnAbout()
+    {
+      var a = CSG.Factory.Version;
+      var b = CDX.Factory.Version;
+      MessageBox.Show($"CSG Version {((byte*)&a)[3]}.{((byte*)&a)[2]} {((byte*)&a)[0] << 3} Bit {(((byte*)&a)[1] != 0 ? "Debug" : "Release")}\n" +
+                      $"CDX Version {((byte*)&b)[3]}.{((byte*)&b)[2]} {((byte*)&b)[0] << 3} Bit {(((byte*)&b)[1] != 0 ? "Debug" : "Release")}",
+        Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
     int OnNew(object test)
     {
@@ -350,10 +359,9 @@ namespace csg3mf
         public Color Color { get => Color.FromArgb(unchecked((int)p.Color)); set => p.Color = (uint)value.ToArgb(); }
         [Category("Material")]
         public int MaterialCount { get => p.MaterialCount; }
-
-        [Category("Transform")] public CSG.Rational LocationX { get => p.Transform[09]; set { var t = p.Transform; t[09] = value; p.Transform = t; } }
-        [Category("Transform")] public CSG.Rational LocationY { get => p.Transform[10]; set { var t = p.Transform; t[10] = value; p.Transform = t; } }
-        [Category("Transform")] public CSG.Rational LocationZ { get => p.Transform[11]; set { var t = p.Transform; t[11] = value; p.Transform = t; } }
+        [Category("Transform")] public CSG.Rational LocationX { get => p.GetTransval(09); set { var t = p.Transform; t[09] = value; p.Transform = t; } }
+        [Category("Transform")] public CSG.Rational LocationY { get => p.GetTransval(10); set { var t = p.Transform; t[10] = value; p.Transform = t; } }
+        [Category("Transform")] public CSG.Rational LocationZ { get => p.GetTransval(11); set { var t = p.Transform; t[11] = value; p.Transform = t; } }
         [Category("Transform")]
         public float RotationX
         {
@@ -376,14 +384,14 @@ namespace csg3mf
         float3 geteuler()
         {
           var ee = p.Tag as (float3 a, float3 b)[];
-          var e = euler(p.TransformF); if (ee == null) return e;
+          var e = euler(p.GetTransform()); if (ee == null) return e;
           if (ee[ee.Length - 1].a == e) return ee[ee.Length - 1].b;
           if (ee.Length > 1 && ee[ee.Length - 2].a == e) { Array.Resize(ref ee, ee.Length - 1); p.Tag = ee; return ee[ee.Length - 1].b; }
           return e;
         }
         void seteuler(float3 e)
         {
-          var m1 = p.TransformF; var m2 = euler(e) * m1.mp; p.TransformF = m2;
+          var m1 = p.GetTransform(); var m2 = euler(e) * m1.mp; p.SetTransform(m2);
           var ee = p.Tag as (float3 a, float3 b)[];
           if (ee == null || ee[ee.Length - 1].a != euler(m1)) { Array.Resize(ref ee, ee != null ? ee.Length + 1 : 1); p.Tag = ee; }
           ee[ee.Length - 1] = (euler(m2), e);
@@ -398,20 +406,17 @@ namespace csg3mf
         }
         static float4x3 euler(float3 e) => float4x3.RotationX(e.x) * float4x3.RotationY(e.y) * float4x3.RotationZ(e.z);
 
-        //[Category("TransformF")] public float LocationXf { get => p.TransformF._41; set { var t = p.TransformF; t._41 = value; p.TransformF = t; } }
-        //[Category("TransformF")] public float LocationYf { get => p.TransformF._42; set { var t = p.TransformF; t._42 = value; p.TransformF = t; } }
-        //[Category("TransformF")] public float LocationZf { get => p.TransformF._43; set { var t = p.TransformF; t._43 = value; p.TransformF = t; } }
+#if(DEBUG)
+        public string flt_matrix1 => $"{p.GetTransform().mx}";
+        public string flt_matrix2 => $"{p.GetTransform().my}";
+        public string flt_matrix3 => $"{p.GetTransform().mz}";
+        public string flt_matrix4 => $"{p.GetTransform().mp}";
 
-        //public string Trans1 { get { var t = p.Transform; return $"{t[0]} {t[1]} {t[2]}"; } }
-        //public string Trans2 { get { var t = p.Transform; return $"{t[3]} {t[4]} {t[5]}"; } }
-        //public string Trans3 { get { var t = p.Transform; return $"{t[6]} {t[7]} {t[8]}"; } }
-        //public string Trans4 { get { var t = p.Transform; return $"{t[9]} {t[10]} {t[11]}"; } }
-        //
-        //public string fTrans1 { get { var t = p.TransformF; return $"{t.mx}"; } }
-        //public string fTrans2 { get { var t = p.TransformF; return $"{t.my}"; } }
-        //public string fTrans3 { get { var t = p.TransformF; return $"{t.mz}"; } }
-        //public string fTrans4 { get { var t = p.TransformF; return $"{t.mp}"; } }
-
+        public string rat_matrix1 => $"{p.GetTransval(0)} {p.GetTransval(1)} {p.GetTransval(2)}";
+        public string rat_matrix2 => $"{p.GetTransval(3)} {p.GetTransval(4)} {p.GetTransval(5)}";
+        public string rat_matrix3 => $"{p.GetTransval(6)} {p.GetTransval(7)} {p.GetTransval(8)}";
+        public string rat_matrix4 => $"{p.GetTransval(9)} {p.GetTransval(10)} {p.GetTransval(11)}";
+#endif
       }
 
       protected override void OnHandleCreated(EventArgs e)

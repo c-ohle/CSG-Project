@@ -190,7 +190,7 @@ namespace csg3mf
         try { foreach (var p in build.Elements(ns + "item")) convert(scene.AddNode(null), p); }
         finally { Marshal.FreeHGlobal(buffer); }
         /////////////
-        if (scene.Count != 0 && scene[0].TransformF.mx.LengthSq > 10) //curiosity bug fix
+        if (scene.Count != 0 && scene[0].GetTransform().mx.LengthSq > 10) //curiosity bug fix
           foreach (var p in scene.Descendants()) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
         /////////////
         var uri = new Uri("/Metadata/csg.cs", UriKind.Relative);

@@ -35,6 +35,8 @@ struct CCSGVAR : CSGVAR
 {
   CCSGVAR(const XMFLOAT4X3A& m, BYTE n = 12) { vt = CSG_TYPE_FLOAT; count = n; *(const float**)&p = &m._11; }
   CCSGVAR(ICSGVector* p, UINT c, UINT l = 0) { vt = CSG_TYPE_RATIONAL; count = c; length = l; *(ICSGVector**)&this->p = p; }
+  CCSGVAR(float p) { vt = CSG_TYPE_FLOAT; count = 0; length = 0; *(float*)&this->p = p; }
+  CCSGVAR(const DECIMAL& p) { *(DECIMAL*)this = p; vt = CSG_TYPE_DECIMAL; count = 0; }
   CCSGVAR(XMFLOAT2* p, UINT n) { vt = CSG_TYPE_FLOAT; count = 2; length = n; *(XMFLOAT2**)&this->p = p; }
   CCSGVAR(XMFLOAT3* p, UINT n) { vt = CSG_TYPE_FLOAT; count = 3; length = n; *(XMFLOAT3**)&this->p = p; }
   CCSGVAR(UINT* p, UINT n) { vt = CSG_TYPE_INT; count = 1; length = n; *(UINT**)&this->p = p; }
@@ -194,61 +196,10 @@ struct CNode : public ICDXNode
   {
     if (p) flags |= NODE_FL_STATIC; else flags &= ~NODE_FL_STATIC; return 0;
   }
-  HRESULT __stdcall get_TransformF(XMFLOAT4X3* p)
-  {
-    XMStoreFloat4x3(p, matrix); return 0;
-  }
-  HRESULT __stdcall put_TransformF(XMFLOAT4X3 p)
-  {
-    matrix = XMLoadFloat4x3(&p); transform.Release(); return 0;
-  }
-  HRESULT __stdcall get_Transform(CSGVAR* p)
-  {
-    ICSGVector* v; CHR(_CSGFactory()->CreateVector(12, &v));
-    if (!transform.p)
-    {
-      XMFLOAT4X3A m; XMStoreFloat4x3A(&m, matrix); //v->SetValue(0, CCSGVAR(m));
-      //DECIMAL dd[12]; for (UINT i = 0; i < 12; i++) VarDecFromR4((&m._11)[i], dd + i); v->SetValue(0, CCSGVAR(dd, 12));
-      v->SetValue(0, CCSGVAR(m, 9)); DECIMAL dd[3]; for (UINT i = 0; i < 3; i++) VarDecFromR4((&m._41)[i], dd + i); v->SetValue(9, CCSGVAR(dd, 3));
-    }
-    else v->Copy(0, transform.p, 0, 12);
-    *p = CCSGVAR(v, 12); return 0;
-  }
-  HRESULT __stdcall put_Transform(CSGVAR p)
-  {
-    if (p.vt == CSG_TYPE_RATIONAL && p.count == 12)
-    {
-      auto s = *(ICSGVector**)&p.p;
-      if (!transform.p) _CSGFactory()->CreateVector(12, &transform.p);
-      transform.p->Copy(0, s, p.length, 12); matrix = CCSGVAR::copy(transform.p);
-      return 0;
-    }
-    return E_INVALIDARG;
-  }
-  HRESULT __stdcall GetTransform(CSGVAR* m)
-  {
-    if (transform.p)
-      return transform.p->GetValue(0, m);
-    if (m->vt == CSG_TYPE_STRING && m->count <= 12)
-    {
-      XMFLOAT4X3A a; XMStoreFloat4x3A(&a, matrix);
-      WCHAR* s = *(WCHAR**)&m->p;
-      for (UINT i = 0; i < m->count; i++)
-      {
-        if (i) *s++ = L' ';
-        auto n = swprintf_s(s, 256, L"%.9g", (&a._11)[i]);
-        s += n;
-      }
-      return 0;
-    }
-    return E_INVALIDARG;
-  }
-  HRESULT __stdcall SetTransform(CSGVAR m)
-  {
-    if (!transform.p) _CSGFactory()->CreateVector(12, &transform.p);
-    transform.p->SetValue(0, m); matrix = CCSGVAR::copy(transform.p);
-    return 0;
-  }
+  HRESULT __stdcall get_Transform(CSGVAR* p);
+  HRESULT __stdcall put_Transform(CSGVAR p);
+  HRESULT __stdcall GetTransform(CSGVAR* m);
+  HRESULT __stdcall SetTransform(CSGVAR m);
   HRESULT __stdcall get_Mesh(ICSGMesh** p)
   {
     if (*p = mesh.p) mesh.p->AddRef(); return 0;

@@ -134,8 +134,6 @@ interface ICDXNode : IUnknown
   [propput] HRESULT IsSelect([in] BOOL p);
   [propget] HRESULT IsStatic([out, retval] BOOL* p);
   [propput] HRESULT IsStatic([in] BOOL p);
-  [propget] HRESULT TransformF([out, retval] XMFLOAT4X3* p);
-  [propput] HRESULT TransformF([in] XMFLOAT4X3 p);
   [propget] HRESULT Transform([out, retval] CSGVAR* p);
   [propput] HRESULT Transform([in] CSGVAR p);
   [propget] HRESULT Mesh([out, retval] ICSGMesh** p);
@@ -169,6 +167,7 @@ interface ICDXFont : IUnknown
 [object, uuid(f0993d73-ea2a-4bf1-b128-826d4a3ba584), pointer_default(unique)]
 interface ICDXFactory : IUnknown
 {
+  [propget] HRESULT Version([out, retval] UINT* pVal);
   [propget] HRESULT Devices([out, retval] BSTR* p);
   HRESULT SetDevice([in] UINT id);
   HRESULT CreateView([in] HWND hwnd, [in] ICDXSink* sink, [in] UINT sampels, [out, retval] ICDXView** p);

@@ -28,6 +28,14 @@ public:
 	HRESULT __stdcall CreateView(HWND hwnd, ICDXSink* sink, UINT samp, ICDXView** p);
 	HRESULT __stdcall CreateScene(UINT reserve, ICDXScene** p);
 	HRESULT __stdcall GetFont(BSTR name, FLOAT size, UINT style, ICDXFont** p);
+	HRESULT __stdcall get_Version(UINT* pVal)
+	{
+		auto p = (BYTE*)pVal;
+		p[0] = sizeof(void*);
+		p[1] = Debug ? 1 : 0;
+		p[2] = p[3] = 1;
+		return S_OK;
+	}
 };
 
 OBJECT_ENTRY_AUTO(__uuidof(Factory), CFactory)
