@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Windows.Forms;
 using static csg3mf.CDX;
 
@@ -40,6 +41,8 @@ namespace csg3mf
           new UIForm.MenuItem(2154, "Cut Plane"),//, Keys.Alt | Keys.C),
           new ToolStripSeparator(),
           new UIForm.MenuItem(4020, "Static"),
+          new ToolStripSeparator(),
+          new UIForm.MenuItem(4021, "Script..."),
           new ToolStripSeparator(),
           new UIForm.MenuItem(2100, "Properties...", Keys.Alt | Keys.Enter)});
     }
@@ -108,25 +111,25 @@ namespace csg3mf
     int OnGroup(object test)
     {
       var scene = view.Scene;
-      var a = scene.Select(1); if (a.Take(2).Count() != 2) return 0;
+      var a = scene.Select(1); if (!a.Any()) return 0;// if (a.Take(2).Count() != 2) return 0;
       if (test != null) return 1;
-
-      var mi = new float3(+float.MaxValue, +float.MaxValue, +float.MaxValue);
-      var ma = new float3(-float.MaxValue, -float.MaxValue, -float.MaxValue);
-      foreach (var p in scene.Select(2).Select(i => scene[i]))
-      {
-        if (p.Mesh == null) continue;
-        var m = p.GetTransform(null);
-        foreach (var v in p.Mesh.VerticesF3())
-        {
-          var t = v * m;
-          if (t.x < mi.x) mi.x = t.x; if (t.x > ma.x) ma.x = t.x;
-          if (t.y < mi.y) mi.y = t.y; if (t.y > ma.y) ma.y = t.y;
-          if (t.z < mi.z) mi.z = t.z; if (t.z > ma.z) ma.z = t.z;
-        }
-      }
+      //var mi = new float3(+float.MaxValue, +float.MaxValue, +float.MaxValue);
+      //var ma = new float3(-float.MaxValue, -float.MaxValue, -float.MaxValue);
+      //foreach (var p in scene.Select(2).Select(i => scene[i]))
+      //{
+      //  if (p.Mesh == null) continue;
+      //  var m = p.GetTransform(null);
+      //  foreach (var v in p.Mesh.VerticesF3())
+      //  {
+      //    var t = v * m;
+      //    if (t.x < mi.x) mi.x = t.x; if (t.x > ma.x) ma.x = t.x;
+      //    if (t.y < mi.y) mi.y = t.y; if (t.y > ma.y) ma.y = t.y;
+      //    if (t.z < mi.z) mi.z = t.z; if (t.z > ma.z) ma.z = t.z;
+      //  }
+      //}
+      var bo = float4x3.Identity; view.Command(Cmd.GetBoxSel, &bo);
+      var mi = bo.mx; var ma = *(float3*)&bo._22;
       var mp = (mi + ma) / 2;
-
       var ii = a.ToArray(); var gr = scene.AddNode("Group"); scene.Remove(gr.Index);
       gr.SetTransform(float4x3.Translation(mp.x, mp.y, mi.z));
       execute(() =>

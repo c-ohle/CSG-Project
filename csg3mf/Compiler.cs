@@ -1736,7 +1736,16 @@ namespace csg3mf
       }
 
       //if (b.StartsWith('(')) { b.Trim(); }
-      if (b.Take('!')) { if (wt != null) { ParseStrong(b, typeof(bool)); mb.Ldc_I4(0); mb.Ceq(); } return typeof(bool); }
+      if (b.Take('!')) 
+      {
+        var vt = Parse(b, null);
+        if (vt != null) 
+        {
+          var mi = vt.GetMethod("op_LogicalNot", BindingFlags.Static | BindingFlags.Public, null, new Type[] { vt }, null);
+          if (mi != null) { if (wt != null) { ParseStrong(b, vt); mb.Call(mi); } return mi.ReturnType; }
+        }
+        if (wt != null) { ParseStrong(b, typeof(bool)); mb.Ldc_I4(0); mb.Ceq(); } return typeof(bool); 
+      }
       if (b.Take('~'))
       {
         var vt = Parse(b, null); if (vt == null) return null; if (wt == null) return vt;

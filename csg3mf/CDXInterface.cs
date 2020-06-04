@@ -131,7 +131,7 @@ namespace csg3mf
       float Descent { get; }
       float Height { get; }
     }
-
+#if(false)
     public static void AddAnnotation(this INode p, object v)
     {
       var e = p.Tag; if (e == null) { p.Tag = v; return; }
@@ -149,8 +149,9 @@ namespace csg3mf
     public static void RemoveAnnotation(this INode p, object v)
     {
       var e = p.Tag; var a = e as object[]; if (a == null) { if (e == v) p.Tag = null; return; }
-      for (int i = 0, k = 0; i < a.Length; i++) if (a[i] != v) if ((a[k++] = a[i]) == null) break;
+      int i = 0, k = 0; for (; i < a.Length && a[i] != null; i++) if (a[i] != v) a[k++] = a[i]; a[k] = null;
     }
+#endif
     public static void SetTransform(this INode p, float4x3 m)
     {
       p.SetTransform(new CSG.Variant((float*)&m, 12));

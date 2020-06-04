@@ -1213,7 +1213,7 @@ namespace csg3mf
         var l = i; for (; l < n && IsLetter(text[l]); l++) ;
         var r = l - i; if (r == 0) { charcolor[i] = 0; continue; }
         byte color = 0;
-        if (r > 1 && !char.IsDigit(text[l]))
+        if (r > 1 && !(l < text.Length && char.IsDigit(text[l])))
           for (int t = 0; t < Compiler.keywords.Length; t++)
           {
             var kw = Compiler.keywords[t];

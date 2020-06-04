@@ -107,6 +107,6 @@ struct CView : ICDXView
     XMStoreFloat3(p, vv[VV_OVERPOS]); return 0;
   }
   HRESULT __stdcall Draw(CDX_DRAW id, UINT* data);
-  HRESULT __stdcall Command(CDX_CMD  cmd, UINT* data);
+  HRESULT __stdcall Command(CDX_CMD  cmd, UINT* data); 
   HRESULT __stdcall Thumbnail(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* str);
 };

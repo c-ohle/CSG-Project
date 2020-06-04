@@ -128,7 +128,7 @@ namespace csg3mf
        });
       Controls.Add(MainMenuStrip);
       //Controls.Add(new StatusBar());// BackColor = Color.FromArgb(80, 85, 130) });
-
+      Neuron.Debugger = (p, v) => ((ScriptView)ShowView(typeof(ScriptView), p, DockStyle.Fill)).edit.Show(v);
       var reg = Application.UserAppDataRegistry;
       var args = Environment.GetCommandLineArgs();
       if (args.Length > 1)
@@ -161,12 +161,13 @@ namespace csg3mf
       {
         NeuronEditor.InitNeuron(cont, script);
         var sv = (ScriptView)ShowView(typeof(ScriptView), cont, DockStyle.Left, ClientSize.Width / 2);
-        edit = sv.edit; sv.Text = "Script"; Neuron.Debugger = (p, v) => edit.Show(v);
+        edit = sv.edit; sv.Text = "Script";
       }
       view = (CDXView)ShowView(typeof(CDXView), cont.Nodes, DockStyle.Fill);
       view.Text = "Camera"; cont.OnUpdate = () => { view.IsModified = false; view.Invalidate(); }; view.infos = cont.Infos;
       Update(); DoubleBuffered = false;
       if (path != null) mru(path, path);
+
     }
     protected override int OnCommand(int id, object test)
     {
@@ -185,6 +186,7 @@ namespace csg3mf
         case 3015: //OnDriver(test);
         case 3016: //OnSamples(test);
           return view.OnCommand(id, test);
+        case 4021: return OnScript(test);
       }
       return base.OnCommand(id, test);
     }
@@ -334,6 +336,170 @@ namespace csg3mf
         Visible = true;
       }
     }
+    int OnScript(object test)
+    {
+      var a = view.view.Scene.Selection();
+      if (a.Take(2).Count() != 1) return 0;
+      if (test != null) return 1;
+      var sv = (ScriptView)ShowView(typeof(ScriptView), XNode.From(a.First()), DockStyle.Left);
+      return 1;
+    }
+  }
+
+  class XNode : Neuron, ICustomTypeDescriptor
+  {
+    internal static XNode From(INode p)
+    {
+      var node = p.Tag as XNode;
+      if (node == null) { p.Tag = node = new XNode(p); NeuronEditor.InitNeuron(node, ""); }
+      return node;
+    }
+    XNode(INode p) => Node = p;
+    protected readonly INode Node;
+    public override object Invoke(int id, object p)
+    {
+      if (id == 1) pdc = null;
+      //if (id == 5) return this; //AutoStop
+      //if (id == 6) { /*OnUpdate?.Invoke();*/ return null; } //step
+      //if (id == 3) System.Windows.Forms.Application.RaiseIdle(null);
+      return base.Invoke(id, p);
+    }
+
+    [Category("General")]
+    public string Name { get => Node.Name; set => Node.Name = value; }
+    [Category("General")]
+    public bool Static { get => Node.IsStatic; set => Node.IsStatic = value; }
+    [Category("Material")]
+    public Color Color { get => Color.FromArgb(unchecked((int)Node.Color)); set => Node.Color = (uint)value.ToArgb(); }
+    [Category("Material")]
+    public int MaterialCount { get => Node.MaterialCount; }
+    [Category("Transform")] public CSG.Rational LocationX { get => Node.GetTransval(09); set { var t = Node.Transform; t[09] = value; Node.Transform = t; } }
+    [Category("Transform")] public CSG.Rational LocationY { get => Node.GetTransval(10); set { var t = Node.Transform; t[10] = value; Node.Transform = t; } }
+    [Category("Transform")] public CSG.Rational LocationZ { get => Node.GetTransval(11); set { var t = Node.Transform; t[11] = value; Node.Transform = t; } }
+    [Category("Transform")]
+    public float RotationX
+    {
+      get => (float)Math.Round(geteuler().x * (float)(180 / Math.PI), 4);
+      set { var e = geteuler(); e.x = value * (float)(Math.PI / 180); seteuler(e); }
+    }
+    [Category("Transform")]
+    public float RotationY
+    {
+      get => (float)Math.Round(geteuler().y * (float)(180 / Math.PI), 4);
+      set { var e = geteuler(); e.y = value * (float)(Math.PI / 180); seteuler(e); }
+    }
+    [Category("Transform")]
+    public float RotationZ
+    {
+      get => (float)Math.Round(geteuler().z * (float)(180 / Math.PI), 4);
+      set { var e = geteuler(); e.z = value * (float)(Math.PI / 180); seteuler(e); }
+    }
+
+    (float3 a, float3 b)[] ee;
+    float3 geteuler()
+    {
+      var e = euler(Node.GetTransform()); if (ee == null) return e;
+      if (ee[ee.Length - 1].a == e) return ee[ee.Length - 1].b;
+      if (ee.Length > 1 && ee[ee.Length - 2].a == e) { Array.Resize(ref ee, ee.Length - 1); return ee[ee.Length - 1].b; }
+      return e;
+    }
+    void seteuler(float3 e)
+    {
+      var m1 = Node.GetTransform(); var m2 = euler(e) * m1.mp; Node.SetTransform(m2);
+      if (ee == null || ee[ee.Length - 1].a != euler(m1)) Array.Resize(ref ee, ee != null ? ee.Length + 1 : 1);
+      ee[ee.Length - 1] = (euler(m2), e);
+    }
+    static float3 euler(in float4x3 m)
+    {
+      var s = m.mx.Length; var t = m._13 / s;
+      return new float3(
+        +(float)Math.Atan2(m._23, m._33),
+        -(float)Math.Asin(t),
+        t == 1 || t == -1 ? -(float)Math.Atan2(m._21, m._22) : (float)Math.Atan2(m._12, m._11));
+    }
+    static float4x3 euler(float3 e) => float4x3.RotationX(e.x) * float4x3.RotationY(e.y) * float4x3.RotationZ(e.z);
+
+#if (DEBUG)
+    public string flt_matrix1 => $"{Node.GetTransform().mx}";
+    public string flt_matrix2 => $"{Node.GetTransform().my}";
+    public string flt_matrix3 => $"{Node.GetTransform().mz}";
+    public string flt_matrix4 => $"{Node.GetTransform().mp}";
+
+    public string rat_matrix1 => $"{Node.GetTransval(0)} {Node.GetTransval(1)} {Node.GetTransval(2)}";
+    public string rat_matrix2 => $"{Node.GetTransval(3)} {Node.GetTransval(4)} {Node.GetTransval(5)}";
+    public string rat_matrix3 => $"{Node.GetTransval(6)} {Node.GetTransval(7)} {Node.GetTransval(8)}";
+    public string rat_matrix4 => $"{Node.GetTransval(9)} {Node.GetTransval(10)} {Node.GetTransval(11)}";
+#endif
+
+    AttributeCollection ICustomTypeDescriptor.GetAttributes() => TypeDescriptor.GetAttributes(this, true);
+    string ICustomTypeDescriptor.GetClassName() => TypeDescriptor.GetClassName(this, true);
+    string ICustomTypeDescriptor.GetComponentName() => TypeDescriptor.GetComponentName(this, true);
+    TypeConverter ICustomTypeDescriptor.GetConverter() => TypeDescriptor.GetConverter(this, true);
+    EventDescriptor ICustomTypeDescriptor.GetDefaultEvent() => TypeDescriptor.GetDefaultEvent(this, true);
+    PropertyDescriptor ICustomTypeDescriptor.GetDefaultProperty() => TypeDescriptor.GetDefaultProperty(this, true);
+    object ICustomTypeDescriptor.GetEditor(Type editorBaseType) => TypeDescriptor.GetEditor(this, editorBaseType, true);
+    EventDescriptorCollection ICustomTypeDescriptor.GetEvents() => TypeDescriptor.GetEvents(this, true);
+    EventDescriptorCollection ICustomTypeDescriptor.GetEvents(Attribute[] attributes) => TypeDescriptor.GetEvents(this, attributes, true);
+    PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties() => TypeDescriptor.GetProperties(this, true);
+    object ICustomTypeDescriptor.GetPropertyOwner(PropertyDescriptor pd) => this;// TypeDescriptor.GetPropertyOwner(this,pd);
+    PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties(Attribute[] attributes)
+    {
+      if (pdc != null) return pdc;
+      pdc = TypeDescriptor.GetProperties(this, attributes, true);
+      var me = GetMethod("Exchange") as Action<Neuron, IExchange>;
+      if (me != null)
+      {
+        var e = new Test(); me(this, e);
+        if (e.props.Count != 0) pdc = new PropertyDescriptorCollection(e.props.Concat(pdc.Cast<PropertyDescriptor>()).ToArray());
+      }
+      return pdc;
+    }
+
+    PropertyDescriptorCollection pdc;
+
+    class PD : PropertyDescriptor
+    {
+      public PD(string name, Type t, object v, string c) : base(name, null) { type = t; value = v; category = c; }
+      Type type; object value; string category;
+      public override string Category => category ?? base.Category;
+      public override Type ComponentType => typeof(XNode);
+      public override bool IsReadOnly => false;
+      public override Type PropertyType => type;
+      public override bool CanResetValue(object component) => false;
+      public override void ResetValue(object component) { }
+      public override bool ShouldSerializeValue(object component) => false;
+      public override object GetValue(object component)
+      {
+        return value;
+      }
+      public override void SetValue(object component, object value)
+      {
+
+      }
+    }
+
+    class Test : IExchange//, ICustomTypeDescriptor
+    {
+      internal List<PropertyDescriptor> props = new List<PropertyDescriptor>();
+      string group;
+      bool IExchange.Group(string name)
+      {
+        group = name;
+        return true;
+      }
+      bool IExchange.Exchange<T>(string name, ref T value)
+      {
+        props.Add(new PD(name, typeof(T), value, group));
+        return false;
+      }
+    }
+
+  }
+
+  public interface IExchange
+  {
+    bool Group(string name);
+    bool Exchange<T>(string name, ref T value);
   }
 
   unsafe partial class CDXView
@@ -351,9 +517,54 @@ namespace csg3mf
         //public CNode Camera { get => new CNode { p = p.view.Camera }; }
       }
 
-      struct CNode
+#if(false)
+      struct CNode : ICustomTypeDescriptor
       {
-        internal INode p;
+        AttributeCollection ICustomTypeDescriptor.GetAttributes() => TypeDescriptor.GetAttributes(this, true);
+        string ICustomTypeDescriptor.GetClassName() => TypeDescriptor.GetClassName(this, true);
+        string ICustomTypeDescriptor.GetComponentName() => TypeDescriptor.GetComponentName(this, true);
+        TypeConverter ICustomTypeDescriptor.GetConverter() => TypeDescriptor.GetConverter(this, true);
+        EventDescriptor ICustomTypeDescriptor.GetDefaultEvent() => TypeDescriptor.GetDefaultEvent(this, true);
+        PropertyDescriptor ICustomTypeDescriptor.GetDefaultProperty() => TypeDescriptor.GetDefaultProperty(this, true);
+        object ICustomTypeDescriptor.GetEditor(Type editorBaseType) => TypeDescriptor.GetEditor(this, editorBaseType, true);
+        EventDescriptorCollection ICustomTypeDescriptor.GetEvents() => TypeDescriptor.GetEvents(this, true);
+        EventDescriptorCollection ICustomTypeDescriptor.GetEvents(Attribute[] attributes) => TypeDescriptor.GetEvents(this, attributes, true);
+        PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties() => TypeDescriptor.GetProperties(this, true);
+        object ICustomTypeDescriptor.GetPropertyOwner(PropertyDescriptor pd) => this;// TypeDescriptor.GetPropertyOwner(this,pd);
+        PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties(Attribute[] attributes)
+        {
+          var a = TypeDescriptor.GetProperties(this, attributes, true);
+          var neuron = p.Annotation<XNode>();
+          if (neuron != null)
+          {
+            var me = neuron.GetMethod("Exchange") as Action<Neuron, IExchange>;
+            if (me != null)
+            {
+              var e = new Test(); me(neuron, e);
+              if (e.props.Count != 0) a = new PropertyDescriptorCollection(e.props.Concat(a.Cast<PropertyDescriptor>()).ToArray());
+            }
+          }
+          return a;
+        }
+
+        internal CNode(INode p)
+        {
+          this.p = p;
+
+          // var neuron = p.Annotation<XNeuron>();
+          // if (neuron != null)
+          // {
+          //   var me = neuron.GetMethod("Exchange") as Action<Neuron, IExchange>;
+          //   if (me != null)
+          //   {
+          //     var props = new Test();
+          //     me(neuron, props);
+          //   }
+          //   //var a = TypeDescriptor.GetProperties(this);
+          //   //var t = a[0].GetValue(this);
+          // }
+        }
+        readonly INode p;
         [Category("General")]
         public string Name { get => p.Name; set => p.Name = value; }
         [Category("General")]
@@ -416,7 +627,7 @@ namespace csg3mf
         }
         static float4x3 euler(float3 e) => float4x3.RotationX(e.x) * float4x3.RotationY(e.y) * float4x3.RotationZ(e.z);
 
-#if(DEBUG)
+#if (DEBUG)
         public string flt_matrix1 => $"{p.GetTransform().mx}";
         public string flt_matrix2 => $"{p.GetTransform().my}";
         public string flt_matrix3 => $"{p.GetTransform().mz}";
@@ -428,7 +639,7 @@ namespace csg3mf
         public string rat_matrix4 => $"{p.GetTransval(9)} {p.GetTransval(10)} {p.GetTransval(11)}";
 #endif
       }
-
+#endif
       protected override void OnHandleCreated(EventArgs e)
       {
         view = (CDXView)Tag; base.OnHandleCreated(e); view.inval |= 1;
@@ -453,7 +664,7 @@ namespace csg3mf
           {
             nodes = scene.Selection().ToArray();
             if (nodes.Length == 0) SelectedObject = new CScene { p = view };
-            else SelectedObjects = nodes.Select(p => (object)new CNode { p = p }).ToArray();
+            else SelectedObjects = nodes.Select(p => (object)XNode.From(p)).ToArray();
           }
           else Refresh();
         }

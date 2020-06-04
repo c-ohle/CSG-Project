@@ -145,7 +145,7 @@ namespace csg3mf
             var p = ctrls[i]; var s = p.Text; bool active = p.Visible;
             if (active) TextRenderer.DrawText(gr, s, font, new Rectangle(rc.X + 3, rc.Y - title, rc.Width - 6, title), focus ? Color.Black : Color.White, TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter);
             TextRenderer.DrawText(gr, "🗙", font, new Rectangle(rc.Right - title, rc.Y - title - 2, title, title),
-              (wo & 2) != 0 ? (focus ? Color.Black : Color.Gray) : (focus?Color.Gray : Color.FromArgb(0xbb, 0xbb, 0xbb)), TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
+              (wo & 2) != 0 ? (focus ? Color.Black : Color.Gray) : (focus ? Color.Gray : Color.FromArgb(0xbb, 0xbb, 0xbb)), TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
             if (n == 1) break; active |= (wo & ~2) == ((i << 8) | 1);
             var dx = Math.Min(rc.Width - x, Math.Max(64, Math.Min(150, TextRenderer.MeasureText(s, font).Width + 10)));
             gr.FillRectangle(!active ? brush1 : p.Visible ? Brushes.White : brush2, new Rectangle(x, rc.Bottom, dx, title));
@@ -443,6 +443,12 @@ namespace csg3mf
         var v = Tag as CodeEditor; if (v != null) { Items.Clear(); v.OnContextMenu(Items); }
         MenuItem.Update(Items); e.Cancel = Items.Count == 0;
       }
+    }
+    public class ToolStrip : System.Windows.Forms.ToolStrip
+    {
+      protected override void OnHandleCreated(EventArgs e) { Application.Idle += idle; base.OnHandleCreated(e); }
+      protected override void OnHandleDestroyed(EventArgs e) { Application.Idle -= idle; base.OnHandleDestroyed(e); }
+      void idle(object sender, EventArgs e) => MenuItem.Update(Items);
     }
     public interface ICommandTarget
     {
