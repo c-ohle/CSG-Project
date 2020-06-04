@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Security;
 using System.Windows.Forms;
 using System.Xml;
@@ -69,7 +70,6 @@ namespace csg3mf
       INode Camera { get; set; }
       int MouseOverNode { get; }
       float3 MouseOverPoint { get; }
-      float4x4 MouseOverPlane { get; }
       void Draw(Draw draw, void* data);
       void Command(Cmd cmd, void* data);
       void Thumbnail(int dx, int dy, int samples, uint bkcolor, COM.IStream str);
@@ -132,6 +132,25 @@ namespace csg3mf
       float Height { get; }
     }
 
+    public static void AddAnnotation(this INode p, object v)
+    {
+      var e = p.Tag; if (e == null) { p.Tag = v; return; }
+      var a = e as object[]; if (a == null) { p.Tag = new object[] { e, v }; return; }
+      int i = 0; for (; i < a.Length; i++) if (a[i] == null) { a[i] = v; return; }
+      Array.Resize(ref a, i << 1); a[i] = v; p.Tag = a;
+    }
+    public static object Annotation(this INode p, Type t)
+    {
+      var e = p.Tag; var a = e as object[]; if (a == null) return t.IsInstanceOfType(e) ? e : null;
+      for (int i = 0; i < a.Length && a[i] != null; i++) if (t.IsInstanceOfType(a[i])) return a[i];
+      return null;
+    }
+    public static T Annotation<T>(this INode p) where T : class => p.Annotation(typeof(T)) as T;
+    public static void RemoveAnnotation(this INode p, object v)
+    {
+      var e = p.Tag; var a = e as object[]; if (a == null) { if (e == v) p.Tag = null; return; }
+      for (int i = 0, k = 0; i < a.Length; i++) if (a[i] != v) if ((a[k++] = a[i]) == null) break;
+    }
     public static void SetTransform(this INode p, float4x3 m)
     {
       p.SetTransform(new CSG.Variant((float*)&m, 12));
@@ -148,7 +167,7 @@ namespace csg3mf
     }
     public static CSG.Rational GetTransval(this INode p, ushort i)
     {
-      var t = (CSG.Rational)0; var v = (CSG.Variant)t; (&v.vt)[1] = i; 
+      var t = (CSG.Rational)0; var v = (CSG.Variant)t; (&v.vt)[1] = i;
       p.GetTransform(v); return t;
     }
     public static IEnumerable<INode> Descendants(this IScene p)
@@ -187,8 +206,7 @@ namespace csg3mf
     {
       if (a.Mesh == null || b.Mesh == null) return;
       var m = b.Mesh.Clone(); m.Transform(b.Transform * !a.Transform);
-      CSG.Tesselator.Join(a.Mesh, m, op);
-      Marshal.ReleaseComObject(m);
+      CSG.Tesselator.Join(a.Mesh, m, op); Marshal.ReleaseComObject(m);
     }
     public static void Union(this INode a, INode b) => Join(a, b, CSG.JoinOp.Union);
     public static void Difference(this INode a, INode b) => Join(a, b, CSG.JoinOp.Difference);
@@ -325,7 +343,7 @@ namespace csg3mf
       public float LengthSq => x * x + y * y;
       public float Length => (float)Math.Sqrt(x * x + y * y);
       public double Angel => Math.Atan2(y, x);
-      public float2 Round(int d) => new float2((float)Math.Round(x,d), (float)Math.Round(y, d));
+      public float2 Round(int d) => new float2((float)Math.Round(x, d), (float)Math.Round(y, d));
       public static bool operator ==(float2 a, float2 b) { return a.x == b.x && a.y == b.y; }
       public static bool operator !=(float2 a, float2 b) { return a.x != b.x || a.y != b.y; }
       public static float2 operator -(float2 v) { v.x = -v.x; v.y = -v.y; return v; }
@@ -655,13 +673,6 @@ namespace csg3mf
         c.z = b._13 * a.x + b._23 * a.y + b._33 * a.z + b._43;
         return c;
       }
-    }
-    public struct float4x4
-    {
-      public float _11, _12, _13, _14;
-      public float _21, _22, _23, _24;
-      public float _31, _32, _33, _34;
-      public float _41, _42, _43, _44;
     }
   }
 }

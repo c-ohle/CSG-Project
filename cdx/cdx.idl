@@ -68,7 +68,6 @@ interface ICDXView : IUnknown
   [propput] HRESULT Camera([in] ICDXNode* p);
   [propget] HRESULT OverNode([out, retval] UINT* p);
   [propget] HRESULT OverPoint([out, retval] XMFLOAT3* p);
-  [propget] HRESULT OverPlane([out, retval] XMFLOAT4X4* p);
   HRESULT Draw([in] CDX_DRAW idc, [in] UINT* data);
   HRESULT Command([in] CDX_CMD cmd, [in] UINT* data);
   HRESULT Thumbnail([in] UINT dx, [in] UINT dy, [in] UINT samples, [in] UINT bkcolor, [in] IStream* str);

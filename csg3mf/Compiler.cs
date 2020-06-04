@@ -321,7 +321,6 @@ namespace csg3mf
     }
     internal void Reset()
     {
-      Debug.WriteLineIf(inlocs.Count != 0, "todo: inlocs.Count " + inlocs.Count);
       nextid = maxerror = nglob = lastprop = 0; types = null; code = null;
       for (int i = 0, n = tokens.Count; i < n; i++) { pmap[i] = null; vmap[i] = 0; }
       tokens.Clear(); blocks.Clear(); usings.Clear(); usingst.Clear(); usingsuse.Clear(); errors.Clear(); funcs.Clear(); funsat.Clear(); attris.Clear(); elsestack.Clear(); //constids.Clear();
@@ -1613,7 +1612,8 @@ namespace csg3mf
                 }
                 else
                 {
-                  var mi = __operator(op, vt, rt);
+                  MethodInfo mi = null; __operator(op, vt, rt, ref mi);
+                  if (mi == null) mi = __operator(op, vt, rt);
                   if (mi == null) mi = __operator(op, vt, vt); //dec += 3
                   if (mi == null /*|| mi.ReturnType != vt*/) { Error(0019, "Operator '{0}' cannot be applied to operands of type '{1}' and '{2}'", op, vt, rt); return null; }
                   var pp = TypeHelper.GetParametersNoCopy(mi); ParseStrong(c, pp[1].ParameterType); mb.Call(mi);

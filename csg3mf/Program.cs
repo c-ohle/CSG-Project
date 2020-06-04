@@ -182,6 +182,9 @@ namespace csg3mf
         //case 2100: if (test == null) { var p = (PropertyGrid)ShowView(typeof(PropertyGrid)); p.SelectedObject = p; } return 1;
         case 1120: return OnShow3MF(test);
         case 5070: if (test == null) OnAbout(); return 1;
+        case 3015: //OnDriver(test);
+        case 3016: //OnSamples(test);
+          return view.OnCommand(id, test);
       }
       return base.OnCommand(id, test);
     }
@@ -383,17 +386,24 @@ namespace csg3mf
 
         float3 geteuler()
         {
-          var ee = p.Tag as (float3 a, float3 b)[];
+          var ee = p.Annotation<(float3 a, float3 b)[]>();
           var e = euler(p.GetTransform()); if (ee == null) return e;
           if (ee[ee.Length - 1].a == e) return ee[ee.Length - 1].b;
-          if (ee.Length > 1 && ee[ee.Length - 2].a == e) { Array.Resize(ref ee, ee.Length - 1); p.Tag = ee; return ee[ee.Length - 1].b; }
+          if (ee.Length > 1 && ee[ee.Length - 2].a == e)
+          {
+            p.RemoveAnnotation(ee); Array.Resize(ref ee, ee.Length - 1); p.AddAnnotation(ee);
+            return ee[ee.Length - 1].b;
+          }
           return e;
         }
         void seteuler(float3 e)
         {
           var m1 = p.GetTransform(); var m2 = euler(e) * m1.mp; p.SetTransform(m2);
-          var ee = p.Tag as (float3 a, float3 b)[];
-          if (ee == null || ee[ee.Length - 1].a != euler(m1)) { Array.Resize(ref ee, ee != null ? ee.Length + 1 : 1); p.Tag = ee; }
+          var ee = p.Annotation<(float3 a, float3 b)[]>();// Tag as (float3 a, float3 b)[];
+          if (ee == null || ee[ee.Length - 1].a != euler(m1))
+          {
+            p.RemoveAnnotation(ee); Array.Resize(ref ee, ee != null ? ee.Length + 1 : 1); p.AddAnnotation(ee);
+          }
           ee[ee.Length - 1] = (euler(m2), e);
         }
         static float3 euler(in float4x3 m)

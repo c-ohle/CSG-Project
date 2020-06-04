@@ -7,8 +7,8 @@
 /* at Tue Jan 19 04:14:07 2038
  */
 /* Compiler settings for cdx.idl:
-    Oicf, W1, Zp8, env=Win32 (32b run), target_arch=X86 8.01.0622 
-    protocol : dce , ms_ext, c_ext, robust
+    Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0622 
+    protocol : all , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
     VC __declspec() decoration level: 
          __declspec(uuid()), __declspec(selectany), __declspec(novtable)
@@ -231,9 +231,6 @@ EXTERN_C const IID IID_ICDXView;
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_OverPoint( 
             /* [retval][out] */ XMFLOAT3 *p) = 0;
         
-        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_OverPlane( 
-            /* [retval][out] */ XMFLOAT4X4 *p) = 0;
-        
         virtual HRESULT STDMETHODCALLTYPE Draw( 
             /* [in] */ CDX_DRAW idc,
             /* [in] */ UINT *data) = 0;
@@ -318,10 +315,6 @@ EXTERN_C const IID IID_ICDXView;
             ICDXView * This,
             /* [retval][out] */ XMFLOAT3 *p);
         
-        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_OverPlane )( 
-            ICDXView * This,
-            /* [retval][out] */ XMFLOAT4X4 *p);
-        
         HRESULT ( STDMETHODCALLTYPE *Draw )( 
             ICDXView * This,
             /* [in] */ CDX_DRAW idc,
@@ -398,9 +391,6 @@ EXTERN_C const IID IID_ICDXView;
 
 #define ICDXView_get_OverPoint(This,p)	\
     ( (This)->lpVtbl -> get_OverPoint(This,p) ) 
-
-#define ICDXView_get_OverPlane(This,p)	\
-    ( (This)->lpVtbl -> get_OverPlane(This,p) ) 
 
 #define ICDXView_Draw(This,idc,data)	\
     ( (This)->lpVtbl -> Draw(This,idc,data) ) 

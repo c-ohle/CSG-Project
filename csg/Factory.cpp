@@ -11,7 +11,8 @@ HRESULT CFactory::get_Version(UINT* pVal)
   auto p = (BYTE*)pVal;
   p[0] = sizeof(void*);
   p[1] = Debug ? 1 : 0;
-  p[2] = p[3] = 1;
+  p[2] = 0;
+  p[3] = 1;
   return S_OK;
 }
 HRESULT CFactory::CreateTesselator(CSG_UNIT unit, ICSGTesselator** ptess)
