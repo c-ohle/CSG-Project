@@ -1054,6 +1054,8 @@ namespace csg3mf
       }
       if (na > 0) Native.TextOutW(hdc, X + xa, Y, s + ia, na);
     }
+    protected static bool IsLetter(char c) { return char.IsLetter(c) || c == '_'; }
+    protected static bool IsLetterOrDigit(char c) { return char.IsLetterOrDigit(c) || c == '_'; }
   }
 
   class XmlEditor : CodeEditor
@@ -1413,6 +1415,28 @@ namespace csg3mf
       Native.PostMessage(f.Handle, 0x0010, null, null); //WM_CLOSE 
       IsModified = false; throw new DebugStop();
     }
+    
+    internal static void NeuronInit(Neuron p, string code)
+    {
+      p.Invoke(1, new object[] { new object[] { compress(code) } });
+    }
+    internal static string NeuronCode(Neuron neuron)
+    {
+      var data = (object[])neuron.Invoke(0, null);
+      return data != null ? decompress((byte[])((object[])data[0])[0]) : string.Empty;
+    }
+    internal static void NeuronRun(Neuron neuron)
+    {
+      var data = (object[])neuron.Invoke(0, null);
+      if (data == null || isrunning(data)) return;
+      var bin = (byte[])((object[])data[0])[0]; if (bin.Length == 0) return;
+      var text = data != null ? decompress(bin) : string.Empty;
+      var compiler = new Compiler();
+      data = compiler.Compile(neuron.GetType(), text, 0); compiler.Reset();
+      ((object[])data[0])[0] = bin;
+      setdata(neuron, data);
+    }
+
     internal static byte[] compress(string s)
     {
       var a = Encoding.UTF8.GetBytes(s);
@@ -1469,10 +1493,6 @@ namespace csg3mf
       ignorexceptions = false;
       Neuron.state = state = id != 8 ? id : 0; setdata(neuron, data); //IsModified = false;
       return 1;
-    }
-    internal static void InitNeuron(Neuron p, string code)
-    {
-      p.Invoke(1, new object[] { new object[] { compress(code) } });
     }
     void updspots()
     {
@@ -1857,8 +1877,6 @@ namespace csg3mf
         if (ontimer != null) ontimer();
       }
     }
-    static bool IsLetter(char c) { return char.IsLetter(c) || c == '_'; }
-    static bool IsLetterOrDigit(char c) { return char.IsLetterOrDigit(c) || c == '_'; }
     void PostBuild()
     {
       checkover(); if (SelectionLength != 0) return;

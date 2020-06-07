@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
+using System.Text;
 using System.Windows.Forms;
 using System.Xml;
 using System.Xml.Linq;
@@ -34,7 +35,6 @@ namespace csg3mf
       {
         var obj = new XElement(ns + "object"); obj.SetAttributeValue("id", 0);
         if (group.Name != null) obj.SetAttributeValue("name", group.Name);
-        if (group.IsStatic) obj.SetAttributeValue("static", true);
         var desc = group.Nodes();// nodes.Nodes.Nodes().Where(p => p.Parent == group);
         var components = desc.Any() ? new XElement(ns + "components") : null;
         if (group.Mesh != null)
@@ -129,6 +129,14 @@ namespace csg3mf
         group.GetTransform(new Variant(ss, 12));
         item.SetAttributeValue("transform", new string(ss));
         dest.Add(item);
+        //
+        if (group.IsStatic) obj.SetAttributeValue("static", true);
+        var xn = group.Tag as XNode;
+        if (xn != null && xn.code != null)
+        {
+          obj.SetAttributeValue("script", Convert.ToBase64String(Encoding.UTF8.GetBytes(xn.code)));
+          var props = xn.getprops(); if (props != null) obj.SetAttributeValue("props", Convert.ToBase64String(Encoding.UTF8.GetBytes(props.ToString())));
+        }
       };
       if (path == null) return doc;//doc.Save("C:\\Users\\cohle\\Desktop\\test2.xml");
       var memstr = new MemoryStream();
@@ -202,6 +210,12 @@ namespace csg3mf
         {
           var oid = (string)e.Attribute("objectid");
           var obj = res.Elements(ns + "object").First(p => (string)p.Attribute("id") == oid);
+          var sss = (string)obj.Attribute("script");
+          if (sss != null) 
+          { 
+            var xn = XNode.From(node); xn.code = Encoding.UTF8.GetString(Convert.FromBase64String(sss));
+            sss = (string)obj.Attribute("props"); if (sss != null) { xn.props = Encoding.UTF8.GetString(Convert.FromBase64String(sss)); }
+          }
           var mesh = obj.Element(ns + "mesh");
           node.Name = (string)obj.Attribute("name"); var st = obj.Attribute("static"); if (st != null) { node.IsStatic = (bool)st; }
           var tra = (string)e.Attribute("transform");

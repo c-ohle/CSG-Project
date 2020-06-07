@@ -79,7 +79,7 @@ namespace csg3mf
       dockat.activate(dockat.Controls.Count - 1);
       return ctrl;
     }
-    int TryCommand(object sender, int id, object test)
+    internal int TryCommand(object sender, int id, object test)
     {
       try
       {

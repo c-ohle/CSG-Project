@@ -1736,15 +1736,16 @@ namespace csg3mf
       }
 
       //if (b.StartsWith('(')) { b.Trim(); }
-      if (b.Take('!')) 
+      if (b.Take('!'))
       {
         var vt = Parse(b, null);
-        if (vt != null) 
+        if (vt != null)
         {
           var mi = vt.GetMethod("op_LogicalNot", BindingFlags.Static | BindingFlags.Public, null, new Type[] { vt }, null);
           if (mi != null) { if (wt != null) { ParseStrong(b, vt); mb.Call(mi); } return mi.ReturnType; }
         }
-        if (wt != null) { ParseStrong(b, typeof(bool)); mb.Ldc_I4(0); mb.Ceq(); } return typeof(bool); 
+        if (wt != null) { ParseStrong(b, typeof(bool)); mb.Ldc_I4(0); mb.Ceq(); }
+        return typeof(bool);
       }
       if (b.Take('~'))
       {
@@ -4487,8 +4488,8 @@ namespace csg3mf
         case 2: return ToString(); //to overwrite ScriptEditor Title
         case 3: if (this.Invoke(5, null) != null) sp = null; Invoke("."); break; //to overwrite onstart
         case 4: Invoke("Dispose"); break; //to overwrite onstop
-                                          //case 5: return null; //AutoStop
-                                          //case 6: return null; //Step
+        case 5: return null; //AutoStop
+        case 6: return null; //Step
       }
       return null;
     }

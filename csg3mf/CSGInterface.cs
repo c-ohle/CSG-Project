@@ -388,14 +388,14 @@ namespace csg3mf
         internal void SetValues(Variant v) => m.p.SetValue(m.i, v);
         internal void SetIdentity() { var v = stackalloc int[12] { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 }; m.p.SetValue(m.i, new Variant(v, 12)); }
         public static explicit operator CDX.float4x3(Matrix m) { CDX.float4x3 t; m.GetValues(new Variant((float*)&t, 12)); return t; }
-        public static implicit operator Matrix(CDX.float4x3 m) 
-        { 
-          var t = new Matrix(0);    
+        public static implicit operator Matrix(CDX.float4x3 m)
+        {
+          var t = new Matrix(0);
           t.SetValues(new Variant(&m._11, 12));
           //var tt = stackalloc decimal[12];
           //for (int i = 0; i < 12; i++) tt[i] = (decimal)(&m._11)[i];
           //t.SetValues(new Variant(tt, 12));
-          return t;  
+          return t;
         }
         //public void Save()
         //{

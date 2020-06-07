@@ -107,6 +107,7 @@ struct CTexCoords : sarray<XMFLOAT2>
 
 struct CNode : public ICDXNode
 {
+  //~CNode() { auto s = SysAllocStringLen(name.p, name.n); TRACE(L"~CNode %ws\n", s); SysFreeString(s); }
   sarray<WCHAR> name; UINT flags = 0;
   CComPtr<ICSGVector> transform;
   CComPtr<ICSGMesh> mesh;
@@ -271,6 +272,7 @@ struct CScene : public ICDXScene
   sarray<CNode*> nodes; UINT count = 0; CDX_UNIT unit = CDX_UNIT_UNDEF;
   ~CScene()
   {
+    //TRACE(L"~CScene\n");
     Clear();
     //for (UINT i = 0; i < count; i++)
     //{

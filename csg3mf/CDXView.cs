@@ -3,16 +3,18 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Windows.Forms;
 using static csg3mf.CDX;
 
 namespace csg3mf
 {
-  unsafe partial class CDXView : UserControl, ISink, UIForm.ICommandTarget
+  unsafe class CDXView : UserControl, ISink, UIForm.ICommandTarget
   {
     internal IView view; internal List<string> infos;
     long drvsettings = 0x400000000;
+    public override string Text { get => "Camera"; set { } }
     protected unsafe override void OnHandleCreated(EventArgs _)
     {
       var reg = Application.UserAppDataRegistry;
@@ -40,16 +42,18 @@ namespace csg3mf
           new UIForm.MenuItem(2153, "Difference A ^ B"),
           new UIForm.MenuItem(2154, "Cut Plane"),//, Keys.Alt | Keys.C),
           new ToolStripSeparator(),
-          new UIForm.MenuItem(4020, "Static"),
-          new ToolStripSeparator(),
-          new UIForm.MenuItem(4021, "Script..."),
+          //new UIForm.MenuItem(4020, "Static"),
+          //new ToolStripSeparator(),
+          new UIForm.MenuItem(4021, "Script...", Keys.Shift | Keys.F12),
           new ToolStripSeparator(),
           new UIForm.MenuItem(2100, "Properties...", Keys.Alt | Keys.Enter)});
     }
-
-    int inval;
-    public new void Invalidate() { inval = 1; base.Invalidate(); }
-
+    protected override void Dispose(bool disposing)
+    {
+      if (view != null) { Marshal.ReleaseComObject(view); view = null; }
+      base.Dispose(disposing);
+    }
+    public new void Invalidate() { MainFrame.inval = 1; base.Invalidate(); }
     public int OnCommand(int id, object test)
     {
       switch (id)
@@ -69,7 +73,7 @@ namespace csg3mf
           if (test != null) return 1;
           foreach (var p in view.Scene.SelectNodes(-1 << 8)) p.IsSelect = !p.IsStatic; Invalidate();
           return 1;
-        case 4020: return OnStatic(test);
+        //case 4020: return OnStatic(test);
         case 2015: return OnDelete(test);
         case 2035: return OnGroup(test);
         case 2036: return OnUngroup(test);
@@ -85,9 +89,10 @@ namespace csg3mf
           if (test != null) return (view.Render & (CDX.Render)(1 << (id - 2210))) != 0 ? 3 : 1;
           view.Render ^= (CDX.Render)(1 << (id - 2210)); Application.UserAppDataRegistry.SetValue("fl", (int)view.Render);
           Invalidate(); return 1;
-          //case 65301: //can close
-          //  if(Tag is IScene) return 1;
-          //  return 0;
+         case 65301: //can close
+          //if(Tag is IScene) return 1;
+          if (test != null) return 1;
+          MessageBox.Show("no!"); return 1;
       }
       return 0;
     }
@@ -99,15 +104,15 @@ namespace csg3mf
       float abst = 100; view.Command(Cmd.Center, &abst);
       Invalidate(); return 1;
     }
-    int OnStatic(object test)
-    {
-      var a = view.Scene.Selection();
-      if (!a.Any()) return 0; var all = a.All(p => p.IsStatic);
-      if (test != null) return all ? 3 : 1;
-      var aa = a.Where(p => p.IsStatic == all).ToArray();
-      execute(() => { foreach (var p in aa) p.IsStatic = !p.IsStatic; });
-      return 1;
-    }
+    //int OnStatic(object test)
+    //{
+    //  var a = view.Scene.Selection();
+    //  if (!a.Any()) return 0; var all = a.All(p => p.IsStatic);
+    //  if (test != null) return all ? 3 : 1;
+    //  var aa = a.Where(p => p.IsStatic == all).ToArray();
+    //  execute(() => { foreach (var p in aa) p.IsStatic = !p.IsStatic; });
+    //  return 1;
+    //}
     int OnGroup(object test)
     {
       var scene = view.Scene;
@@ -132,7 +137,7 @@ namespace csg3mf
       var mp = (mi + ma) / 2;
       var ii = a.ToArray(); var gr = scene.AddNode("Group"); scene.Remove(gr.Index);
       gr.SetTransform(float4x3.Translation(mp.x, mp.y, mi.z));
-      execute(() =>
+      Execute(() =>
       {
         scene.Select();
         if (gr != null)
@@ -157,7 +162,7 @@ namespace csg3mf
       var ii = a.ToArray(); INode[] pp = null;
       var tt = scene.Select(1).SelectMany(i => scene.Select(i << 8)).ToArray();
       var hh = tt.Select(i => scene[i].Parent.Index).ToArray();
-      execute(() =>
+      Execute(() =>
       {
         scene.Select();
         if (pp == null)
@@ -182,7 +187,7 @@ namespace csg3mf
       var a = view.Scene.Select(2);
       if (!a.Any()) return 0;
       if (test != null) return 1;
-      execute(undodel(a.ToArray()));
+      Execute(undodel(a.ToArray()));
       return 1;
     }
     int OnDriver(object test)
@@ -470,7 +475,7 @@ namespace csg3mf
             var ii = scene.Select(2).ToArray();
             var pp = ii.Select(i => scene[i]).ToArray();
             var tt = pp.Select(p => Array.IndexOf(pp, p.Parent)).ToArray();
-            for (int i = 0; i < pp.Length; i++) blob.Insert(i, pp[i]);
+            for (int i = 0; i < pp.Length; i++) { blob.Insert(i, pp[i]); blob[i].Tag = pp[i].Tag; }
             for (int i = 0; i < pp.Length; i++) if (tt[i] != -1) blob[i].Parent = blob[tt[i]];
 
             var str = COM.SHCreateMemStream();
@@ -554,14 +559,14 @@ namespace csg3mf
     }
     public bool IsModified { get => undoi != 0; set { undos = null; undoi = 0; } }
     List<Action> undos; int undoi;
-    void AddUndo(Action p)
+    internal void AddUndo(Action p)
     {
       if (p == null) return;
       if (undos == null) undos = new List<Action>();
       undos.RemoveRange(undoi, undos.Count - undoi);
       undos.Add(p); undoi = undos.Count;
     }
-    void execute(Action p)
+    internal void Execute(Action p)
     {
       p(); AddUndo(p); Invalidate();
     }

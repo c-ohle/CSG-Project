@@ -126,6 +126,7 @@ void CView::inits(int fl)
     if (!camera.p)
     {
       camera.p = new CNode();
+      camera.p->name.setsize(6); memcpy(camera.p->name.p, L"Camera", 12);
       camera.p->matrix = XMMatrixInverse(0, XMMatrixLookAtLH(XMVectorSet(-3, -6, 3, 0), XMVectorZero(), XMVectorSet(0, 0, 1, 0)));
     }
   }
