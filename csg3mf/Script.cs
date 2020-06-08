@@ -1,59 +1,61 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace csg3mf
 {
-  public unsafe struct Script
+  unsafe struct Script
   {
-    static byte* StackPtr = (byte*)Marshal.AllocHGlobal(65536).ToPointer();
-    
+    internal static List<(int i, int n, int v, object p)> map;
+    static void __map(Script p, int v, object o) => map.Add(((int)(p.s - (char*)(ptr + 32)), p.n, v, o));
+
     public static Expression<Func<object, object[]>> Compile(Type @this, string code)
     {
-      var s = (char*)StackPtr + 16; var n = code.Length; fixed (char* p = code) Native.memcpy(s, p, (void*)((n + 1) << 1));
-      #region remove comments
-      for (int i = 0, l = n - 1; i < l; i++)
+      var n = code.Length; var mem = Marshal.AllocCoTaskMem(34 + (n << 1));
+      try
       {
-        var c = s[i]; if (c <= 32) { s[i] = ' '; continue; }
-        if (c == '"' || c == '\'') { for (++i; i < n && s[i] != c; i++) if (s[i] == '\\') i++; continue; }
-        if (c != '/') continue;
-        if (s[i + 1] == '/') { for (; i < n && s[i] != '\n'; i++) s[i] = ' '; continue; }
-        if (s[i + 1] == '*') { var t = i; for (; i < l && !(s[i] == '/' && s[i - 1] == '*'); i++) ; for (; t <= i; t++) s[t] = ' '; continue; }
+        ptr = (byte*)mem.ToPointer(); var s = (char*)ptr + 16; fixed (char* p = code) Native.memcpy(s, p, (void*)((n + 1) << 1));
+        #region remove comments
+        for (int i = 0, l = n - 1; i < l; i++)
+        {
+          var c = s[i]; if (c <= 32) { s[i] = ' '; continue; }
+          if (c == '"' || c == '\'') { for (++i; i < n && s[i] != c; i++) if (s[i] == '\\') i++; continue; }
+          if (c != '/') continue;
+          if (s[i + 1] == '/') { for (; i < n && s[i] != '\n'; i++) s[i] = ' '; continue; }
+          if (s[i + 1] == '*') { var t = i; for (; i < l && !(s[i] == '/' && s[i - 1] == '*'); i++) ; for (; t <= i; t++) s[t] = ' '; continue; }
+        }
+        #endregion
+        Script a; a.s = s; a.n = n; a.trim(); *(Script*)ptr = a;
+        var stack = new Stack { Expression.Parameter(typeof(object), "this") }; stack.@this = Expression.Parameter(@this, "this");
+        stack.npub = 1; a.Parse(stack, null, null, null, 0x08 | 0x04);
+        var t1 = a.Parse(stack, null, null, null, 0x01);
+        var t2 = Expression.Lambda<Func<object, object[]>>(t1, ".ctor", stack.Take(1)); return t2;
       }
-      #endregion
-      Script a; a.s = s; a.n = n; a.trim(); *(Script*)StackPtr = a; //todo: WeakReferene stack
-      var stack = new Stack { Expression.Parameter(typeof(object), "this") }; stack.@this = Expression.Parameter(@this, "this");
-      //stack.usings.Add(typeof(D3DView)); stack.nstats = stack.nusings = 0; //compat
-      stack.npub = 1; a.Parse(stack, null, null, null, 0x08 | 0x04);
-      var t1 = a.Parse(stack, null, null, null, 0x01);
-      var t2 = Expression.Lambda<Func<object, object[]>>(t1, ".ctor", stack.Take(1)); return t2;
+      catch { var e = (Script*)ptr; LastError = ((int)(e->s - (char*)(ptr + 32)), e->n); throw; }
+      finally { Marshal.FreeCoTaskMem(mem); }
     }
-    public static (int i, int n) GetErrorPos()
-    {
-      var e = (Script*)StackPtr; return ((int)(e->s - (char*)(StackPtr + 32)), e->n);
-    }
+    public static (int i, int n) LastError { get; private set; }
     public override string ToString() => new string(s, 0, n);
-
-    char* s; int n;
+    char* s; int n; static byte* ptr;
     class Stack : List<ParameterExpression> { internal ParameterExpression @this; internal List<object> usings = new List<object>(); internal int nstats, nusings, npub; internal List<Expression> list = new List<Expression>(); }
-
     Expression Parse(Stack stack, LabelTarget @return, LabelTarget @break, LabelTarget @continue, int flags)
     {
-      var list = stack.list; int stackab = (flags & 1) != 0 ? 1 : stack.Count, listab = list.Count; var ep = *(Script*)StackPtr;
+      var list = stack.list; int stackab = (flags & 1) != 0 ? 1 : stack.Count, listab = list.Count; var ep = *(Script*)ptr;
       if ((flags & 0x01) != 0) { stack.Add(stack.@this); list.Add(Expression.Assign(stack.@this, Expression.Convert(stack[0], stack.@this.Type))); }
       for (var c = this; c.n != 0;)
       {
         var a = c.block(); if (a.n == 0) continue;
         if (a.s[0] == '{') { if ((flags & 0x08) != 0) continue; a.trim(1, 1); list.Add(a.Parse(stack, @return, @break, @continue, 0)); continue; }
-        var t = a; var n = t.next(); *(Script*)StackPtr = a;
+        var t = a; var n = t.next(); *(Script*)ptr = a;
         if (n.equals("using"))
         {
           if ((flags & 0x08) == 0) continue;
@@ -130,7 +132,7 @@ namespace csg3mf
           int i = 0; if ((flags & 0x01) != 0) for (i = 1; !n.equals(stack[i].Name); i++) ;
           var s = n.ToString(); var istack = i; if (i == 0) { istack = @public ? stack.npub++ : stack.Count; stack.Insert(istack, null); }
           t = a.next(); t.trim(1, 1); a.trim(1, 1); var ab = stack.Count;
-          for (; t.n != 0;) { n = t.next(','); var v = n.gettype(); n.check(stack, ab); stack.Add(Expression.Parameter(GetType(stack, v), n.ToString())); }
+          for (; t.n != 0;) { n = t.next(','); var v = n.gettype(); n.check(stack, ab); stack.Add(Expression.Parameter(GetType(stack, v), n.ToString())); if (map != null) __map(n, 0x05, stack[stack.Count - 1].Type); }
           var t0 = i != 0 ? stack[istack].Type : type != typeof(void) ? Expression.GetFuncType(stack.Skip(ab).Select(p => p.Type).Concat(Enumerable.Repeat(type, 1)).ToArray()) : Expression.GetActionType(stack.Skip(ab).Select(p => p.Type).ToArray());
           var t1 = i != 0 ? stack[istack] : Expression.Variable(t0, s); stack[istack] = t1;
           if ((flags & 0x08) != 0) { stack.RemoveRange(ab, stack.Count - ab); continue; }
@@ -140,15 +142,14 @@ namespace csg3mf
         for (; n.n != 0; n = a.next())
         {
           var v = a.next(','); var b = v.next('='); if (!((flags & 0x01) != 0 && type != null)) n.check(stack, stackab);
-          if ((flags & 0x08) != 0) { if (type != null) stack.Add(Expression.Parameter(type, n.ToString())); continue; }
+          if ((flags & 0x08) != 0) { if (type != null) { stack.Add(Expression.Parameter(type, n.ToString())); if (map != null) __map(n, 0x04, type); } continue; }
           var r = type == null || v.n != 0 ? v.Parse(stack, type) : null;
           int i = 0; if ((flags & 0x01) != 0 && type != null) for (i = 1; !n.equals(stack[i].Name); i++) ;
-          var e = i != 0 ? stack[i] : Expression.Parameter(type ?? r.Type, n.ToString());
+          var e = i != 0 ? stack[i] : Expression.Parameter(type ?? r.Type, n.ToString()); if (map != null) __map(n, 0x04, e.Type);
           if (r != null) list.Add(Expression.Assign(e, Convert(r, e.Type))); if (i == 0) stack.Add(e);
         }
       }
-
-      *(Script*)StackPtr = ep;
+      *(Script*)ptr = ep;
       if ((flags & 0x04) != 0) return null;
       if ((flags & 0x02) != 0) list.Add(@return.Type != typeof(void) ? Expression.Label(@return, Expression.Default(@return.Type)) : Expression.Label(@return));
       if ((flags & 0x01) != 0) list.Add(Expression.NewArrayInit(typeof(object), stack.Take(stack.npub)));
@@ -199,7 +200,7 @@ namespace csg3mf
           if (eb.Type != typeof(string)) eb = Expression.Call(eb, eb.Type.GetMethod("ToString", Type.EmptyTypes));
           return Expression.Call(typeof(string).GetMethod("Concat", new Type[] { typeof(string), typeof(string) }), ea, eb);
         }
-        var sp = *(Script*)StackPtr; *(Script*)StackPtr = this; MethodInfo mo = null;
+        var sp = *(Script*)ptr; *(Script*)ptr = this; MethodInfo mo = null;
         switch (op)
         {
           case 0x20: case 0xd1: mo = refop("op_Multiply", ea, eb); break;
@@ -277,7 +278,7 @@ namespace csg3mf
           case 0xda: eb = Expression.Assign(ea, Expression.RightShift(ea, eb)); break; //return Expression.RightShiftAssign(ea, eb);
         }
         if (wt != null) eb = Expression.Convert(eb, wt);
-        *(Script*)StackPtr = sp; return eb;
+        *(Script*)ptr = sp; return eb;
       }
       b = this; a = b.next();
       if (a.n == 1)
@@ -370,12 +371,12 @@ namespace csg3mf
         }
         stack.list.RemoveRange(ab, stack.list.Count - ab); goto eval;
       }
-      for (int i = stack.Count - 1; i >= 0; i--) if (a.equals(stack[i].Name)) { left = stack[i]; goto eval; }
+      for (int i = stack.Count - 1; i >= 0; i--) if (a.equals(stack[i].Name)) { left = stack[i]; if (map != null) __map(a, /*isparam ? 0x05 :*/ 0x04, left.Type); goto eval; }
       var sa = a.ToString();
       for (int i = stack.nstats; --i >= 0;)
       {
         var fi = ((Type)stack.usings[i]).GetMember(sa, MemberTypes.Property | MemberTypes.Field, BindingFlags.Static | BindingFlags.Public);
-        if (fi.Length != 0) { left = Expression.MakeMemberAccess(left, fi[0]); goto eval; }
+        if (fi.Length != 0) { left = Expression.MakeMemberAccess(left, fi[0]); if (map != null) __map(a, 0x03, fi[0]); goto eval; }
       }
       for (d = a, c = b; c.n != 0 && (c.s[0] == '.' || c.s[0] == '·');)
       {
@@ -418,23 +419,23 @@ namespace csg3mf
           }
           if (me == null && left != null)
           {
-            stack.list.Insert(ab, left); left = null; if (extensions == null) GetExtensions();
+            stack.list.Insert(ab, left); left = null; GetExtensions();
             for (int i = 0; i < extensions.Length; i++) if ((me = GetMember(extensions[i], s, BindingFlags.Static | BindingFlags.Public, stack, ab, ng)) != null) break; ;
           }
           if (me == null) { a.n = (int)(b.s - a.s); a.trim(); a.error("unknown method" + " " + a.ToString()); }
+          if (map != null) __map(a, 0, me);
           left = Expression.Call(left, (MethodInfo)me, stack.list.Skip(ab)); stack.list.RemoveRange(ab, stack.list.Count - ab); stack.usings.RemoveRange(ng, stack.usings.Count - ng);
           if (type == typeof(Debug) && !Debugger.IsAttached && (me.GetCustomAttribute(typeof(ConditionalAttribute)) as ConditionalAttribute)?.ConditionString == "DEBUG") left = Expression.Empty();
           continue;
         }
         var x = t1.GetMember(s, MemberTypes.Property | MemberTypes.Field, bf);
-        if (x.Length != 0) { left = Expression.MakeMemberAccess(left, x[0]); continue; }
+        if (x.Length != 0) { left = Expression.MakeMemberAccess(left, x[0]); if (map != null) __map(a, 0x03, x[0]); continue; }
         if ((bf & BindingFlags.Static) != 0) { type = t1.GetNestedType(s, bf); if (type != null) goto eval; }
         left = null; break;
       }
       if (left == null || checkthis) a.error();
       return left;
     }
-
     MethodInfo refop(string op, Expression a)
     {
       Type t1 = a.Type; if (t1.IsPrimitive) return null;
@@ -458,19 +459,20 @@ namespace csg3mf
         }
       }
       return match;
-      //var tt = new Type[2];
-      //for (int i = 0; i < 6; i++) // < 8 for native
-      //{
-      //  if ((i & 1) == 0) { tt[0] = (i & 2) == 0 ? t1.MakeByRefType() : t1; tt[1] = (i & 4) == 0 ? t2.MakeByRefType() : t2; }
-      //  else if (t1 == t2) continue;
-      //  var me = ((i & 1) != 0 ? t1 : t2).GetMethod(op, BindingFlags.Static | BindingFlags.Public, null, tt, null);
-      //  if (me != null) return me;
-      //}
-      //return null;
     }
-
     static Type GetType(Stack stack, Script a, bool ex = true)
     {
+      if (map != null)
+      {
+        var t1 = map; map = null; Type t2;
+        try { t2 = GetType(stack, a, ex); } /*catch { map = t1; a.Parse(stack, null); throw; }*/ finally { map = t1; }
+        for (var e = a; e.n != 0;)
+        {
+          var c = e.next('.'); if (e.n == 0) { __map(c, 0, t2); break; }
+          for (var t3 = t2; t3.IsNested;) { t3 = t3.DeclaringType; if (c.equals(t3.Name)) { __map(c, 0, t3); break; } }
+        }
+        return t2;
+      }
       if (a.s[a.n - 1] == ']')
       {
         var p = a; for (; ; ) { var x = p; x.next(); if (x.n == 0) break; p = x; }
@@ -512,7 +514,7 @@ namespace csg3mf
     static Type GetType(Stack stack, string s)
     {
       var ss = stack.usings; var nu = stack.nusings; Type t;
-      for (int i = stack.nstats; i < nu; i++) { var u = (string)ss[i]; if (u.StartsWith(s) && (u.Length == s.Length || s[u.Length] == '.')) return null; }
+      for (int i = stack.nstats; i < nu; i++) { var u = (string)ss[i]; if (u.StartsWith(s) && (u.Length == s.Length || (u.Length < s.Length && s[u.Length] == '.'))) return null; }
       var a = assemblys ?? (assemblys = AppDomain.CurrentDomain.GetAssemblies());
       for (; ; )
       {
@@ -613,10 +615,12 @@ namespace csg3mf
       }
       return me;
     }
-    static void GetExtensions()
+    internal static Type[] GetExtensions()
     {
-      extensions = new Type[] { typeof(CSG), typeof(CDX), typeof(Enumerable), typeof(ParallelEnumerable) };
+      if (extensions == null)
+        extensions = new Type[] { typeof(CSG), typeof(CDX), typeof(Enumerable), typeof(ParallelEnumerable) };
       //extensions = assemblys.SelectMany(p => p.GetExportedTypes()).Where(p => p.GetCustomAttribute(typeof(System.Runtime.CompilerServices.ExtensionAttribute)) != null).ToArray();
+      return extensions;
     }
     static Assembly[] assemblys; static Type[] extensions;
     static object Convertible(Type ta, Type tb, bool imp = true)
@@ -653,7 +657,6 @@ namespace csg3mf
       }
       return (m & (1 << b)) != 0 ? tb : null;
     }
-
     static Expression Convert(Expression a, Type t)
     {
       if (a.Type == t) return a;
@@ -676,7 +679,7 @@ namespace csg3mf
       for (int i = stackab; i < stack.Count; i++) if (equals(stack[i].Name)) error("duplicate name");
     }
     class Exception : System.Exception { public Exception(string s) : base(s) { } }
-    void error(string s = null) { if (n <= 0) n = 1; *(Script*)StackPtr = this; throw new Exception(s ?? "syntax"); }
+    void error(string s = null) { if (n <= 0) n = 1; *(Script*)ptr = this; throw new Exception(s ?? "syntax"); }
     Script next() { var a = this; a.n = token(); s += a.n; n -= a.n; trim(); return a; }
     Script next(char c) { var p = this; for (; n != 0;) { var t = next(); if (t.n == 1 && t.s[0] == c) { p.n = (int)(t.s - p.s); p.trim(); break; } } return p; }
     Script block()
@@ -698,6 +701,7 @@ namespace csg3mf
         var a = next(); if (n != 1 && s[0] == '.') { next(); continue; }
         if (a.isname() && (isname() || (n != 1 && (s[0] == '<' || s[0] == '['))))
         {
+          if (map != null && a.s != t.s) { for (int i = 0; i < Compiler.keywords.Length; i++) if (a.equals(Compiler.keywords[i])) goto r; }
           if (s[0] == '<') next();
           while (n != 0 && s[0] == '[') { var i = next(); i.trim(1, 1); if (i.n != 0) goto r; }
           t.n = (int)(s - t.s); t.trim(); return t;
@@ -780,6 +784,358 @@ namespace csg3mf
       return n != 0 && (char.IsLetter(s[0]) || s[0] == '_');
     }
     bool take(string v) { var l = v.Length; if (l > n) return false; for (int i = 0; i < l; i++) if (s[i] != v[i]) return false; s += l; n -= l; trim(); return true; }
+  }
+
+  class ScriptEditor : UserControl, UIForm.ICommandTarget
+  {
+    public override string Text { get => $"Script {((XNode)Tag).Name}"; set { } }
+    Editor edit; UIForm.ToolStrip tb;
+    protected override void OnPaintBackground(PaintEventArgs e) { }
+    protected override void OnLoad(EventArgs e)
+    {
+      tb = new UIForm.ToolStrip() { Margin = new Padding(15), ImageScalingSize = new Size(24, 24), GripStyle = ToolStripGripStyle.Hidden };
+      tb.Items.Add(new UIForm.Button(5011, "Run", Properties.Resources.run) { Tag = this });
+      //tb.Items.Add(new ToolStripSeparator());
+      //tb.Items.Add(new Button(5010, "Run Debug", Resources.rund) { Tag = edit });
+      //tb.Items.Add(new Button(5016, "Step", Resources.stepover) { Tag = edit });
+      //tb.Items.Add(new Button(5015, "Step Into", Resources.stepin) { Tag = edit });
+      //tb.Items.Add(new Button(5017, "Step Out", Resources.stepout) { Tag = edit });
+      //tb.Items.Add(new ToolStripSeparator());
+      tb.Items.Add(new UIForm.Button(5013, "Stop", Properties.Resources.stop) { Tag = this });
+      edit = new Editor { Dock = DockStyle.Fill };
+      edit.EditText = ((XNode)Tag).code ?? string.Empty;
+      Visible = false;
+      Controls.Add(edit);
+      Controls.Add(tb);
+      Visible = true;
+    }
+    int UIForm.ICommandTarget.OnCommand(int id, object test)
+    {
+      switch (id)
+      {
+        case 5011: return OnRun(test);
+      }
+      return edit.OnCommand(id, test);
+    }
+    int OnRun(object test)
+    {
+      if (test != null) return 1;
+      try
+      {
+        var node = (XNode)Tag;
+        var code = edit.EditText; if (node.Code == code) return 1;
+        var view = ((MainFrame)FindForm()).view;
+        view.Execute(() => { var t = node.Code; node.Code = code; code = t; });
+        node.Code = edit.EditText;
+      }
+      catch (Exception e)
+      {
+        var p = Script.LastError; edit.Select(p.i, p.i + p.n);
+        MessageBox.Show(e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+      }
+      return 1;
+    }
+    class Editor : CodeEditor
+    {
+      protected override void UpdateSyntaxColors()
+      {
+        if (colormap == null) colormap = new int[] { 0, 0x00007000, 0x00000088, 0x00ff0000, 0x11463a96, 0x2200ddff, 0x00af912b, 0x000000ff };
+        int n = text.Length; Array.Resize(ref charcolor, n + 1);
+        for (int i = 0; i < n; i++)
+        {
+          var c = text[i];
+          if (c <= ' ') { charcolor[i] = 0; continue; }
+          if (c == '/' && i + 1 < n)
+          {
+            if (text[i + 1] == '/') { for (; i < n && text[i] != 10; i++) charcolor[i] = 1; continue; }
+            if (text[i + 1] == '*') { var t = text.IndexOf("*/", i + 2); t = t >= 0 ? t + 2 : n; for (; i < t; i++) charcolor[i] = 1; i = t - 1; continue; }
+          }
+          if (c == '"' || c == '\'')
+          {
+            var x = i; for (++i; i < n; i++) { var t = text[i]; if (t == '\\') { i++; continue; } if (t == c) break; }
+            for (; x <= i; x++) charcolor[x] = 2; continue;
+          }
+          var l = i; for (; l < n && IsLetter(text[l]); l++) ;
+          var r = l - i; if (r == 0) { if (charcolor[i] != 6) charcolor[i] = 0; continue; }
+          byte color = 0;
+          if (r > 1 && !(l < text.Length && char.IsDigit(text[l])))
+            for (int t = 0; t < Compiler.keywords.Length; t++)
+            {
+              var kw = Compiler.keywords[t];
+              if (kw.Length == r && kw[0] == text[i] && string.Compare(text, i, kw, 0, kw.Length, true) == 0) { color = 3; break; }
+            }
+
+          for (; i < l; i++) if (charcolor[i] != 6) charcolor[i] = color; i--;
+        }
+        //if (typemap == null) return;
+        //for (int i = 0; i < typemap.Length; i++)
+        //{
+        //  var p = typemap[i]; if ((p.v & 0xf) == 0 && charcolor[p.i] != 3) color(p.i, p.n, 6);
+        //  if (overid != 0 && (overid & 0x0f) < 8 && overid == (p.v & ~0xf0)) color2(p.i, p.n, 0x80);
+        //}
+        //for (int i = 0; i < spots.Length; i++) { var p = spots[i]; if ((p.v & 1) != 0) color(p.i, p.n, 4); }
+        //for (int i = 0; i < spots.Length; i++) { var p = spots[i]; if ((p.v & 2) != 0) color(p.i, p.n, 5); }
+        //for (int i = 0; i < errors.Length; i++) { var p = errors[i]; color2(p.i, p.n, (errors[i].v & 4) != 0 ? 0x70 : 0x10); }
+      }
+      protected override int GetRange(int x)
+      {
+        for (int i = x, n = text.Length; i < n; i++)
+        {
+          if (text[i] == 10 || text[i] == ';') break;
+          if (text[i] == '/' && i + 1 < n)
+          {
+            if (text[i + 1] == '*') { for (i += 2; i < n - 1; i++) if (text[i] == '*' && text[i + 1] == '/') break; return -i; }
+            if (text[i + 1] == '/') { for (int t; (t = nextls(i)) < n - 1 && text[t] == '/' && text[t + 1] == '/'; i = t) ; return -i; }
+          }
+          if (text[i] == '[') { for (int t; (t = nextls(i)) < n && text[t] == '['; i = t) ; return -i; }
+          if (IsLetter(text[i]))
+          {
+            if (startsw(i, "using")) { for (int t; (t = nextls(i)) < n && startsw(t, "using"); i = t) ; return -i; }
+            for (; i < n; i++)
+            {
+              if (text[i] == ';') break;
+              if (text[i] == '{')
+              {
+                for (int k = 0; i < n; i++)
+                {
+                  if (text[i] == '{') { k++; continue; }
+                  if (text[i] == '}') { if (--k == 0) return i; }
+                }
+                break;
+              }
+            }
+            break;
+          }
+          if (text[i] == '<') //inline xml
+          {
+            if (i + 1 == n || text[i + 1] == '/') break;
+            for (int z = 0, k; i < n; i++)
+            {
+              if (text[i] == '<')
+              {
+                for (k = i + 1; k < n && text[k] != '>'; k++) ; if (k == n) break;
+                if (text[i + 1] == '!') { i = k; continue; }
+                if (text[i + 1] == '/') z--; else if (text[k - 1] != '/') z++;
+                i = k; continue;
+              }
+              if (z == 0) return i;
+            }
+          }
+        }
+        return 0;
+      }
+      int nextls(int i)
+      {
+        for (; i < text.Length && text[i] != 10; i++) ;
+        for (; i < text.Length && text[i] <= 32; i++) ;
+        return i;
+      }
+      bool startsw(int i, string s)
+      {
+        return i + s.Length <= text.Length && string.CompareOrdinal(s, 0, text, i, s.Length) == 0;
+      }
+      int rebuild = 5; (int i, int n) epos; string error;
+      protected override void Replace(int i, int n, string s)
+      {
+        var nt = text.Length - n + s.Length;
+        var nc = charcolor.Length; if (nc < nt + 1) Array.Resize(ref charcolor, nt + 1);
+        Array.Copy(charcolor, i + n, charcolor, i + s.Length, nc - (i + n));
+        EndToolTip(); base.Replace(i, n, s);
+        rebuild = s.Length == 1 && (s[0] == '.' || s[0] == '(') ? 2 : 5;
+      }
+      protected override void WndProc(ref Message m)
+      {
+        base.WndProc(ref m);
+        if (m.Msg == 0x0113)//WM_TIMER
+        {
+          if (rebuild != 0 && --rebuild == 0) { build(); postbuild(); }
+        }
+      }
+      List<(int i, int n, int v, object p)> map = new List<(int i, int n, int v, object p)>();
+      void build()
+      {
+        try { error = null; (Script.map = map).Clear(); var expr = Script.Compile(typeof(XNode), EditText); }
+        catch (Exception e)
+        {
+          epos = Script.LastError; Script.map = null;
+          for (int i = 0; i < epos.n; i++) { charcolor[epos.i + i] |= 0x70; }
+          error = e.Message;
+        }
+        for (int i = 0, n = error != null ? epos.i : charcolor.Length; i < n; i++) if (charcolor[i] == 6) charcolor[i] = 0;
+        for (int i = 0; i < map.Count; i++)
+        {
+          var m = map[i]; if (m.v != 0 || !(m.p is Type)) continue;
+          if (charcolor[m.i] != 3) color(m.i, m.n, 6);
+        }
+        Invalidate();
+      }
+      void color(int i, int n, byte c) { for (int t = 0; t < n; t++) { charcolor[i + t] = c; } }
+      protected override void OnMouseMove(MouseEventArgs e)
+      {
+        base.OnMouseMove(e); if (flyer != null) return;
+        var x = PosFromPoint(e.Location);
+        if (error != null && x >= epos.i && x <= epos.i + epos.n)
+        {
+          var s = error; SetToolTip(TextBox(epos.i, epos.n), t => t == 0 ? $"{"Error"} {s}" : null);
+          return;
+        }
+        for (int i = 0; i < map.Count; i++)
+        {
+          var m = map[i]; if (m.i > x || m.i + m.n < x) continue;
+          SetToolTip(TextBox(m.i, m.n), t =>
+          {
+            if (t != 0) return null;
+            var s = TypeHelper.tooltip(new Compiler.map { i = m.i, n = m.n, p = m.p, v = m.v }, text);
+            //if (epos.n != 0) s = string.Format("{0}{1}:\n  {2}", s != null ? string.Format("{0}\n\n", s.Trim()) : null, (epos.v & 4) != 0 ? "Error" : "Warning", _error(epos));
+            return s;
+          });
+          return;
+        }
+      }
+      void postbuild()
+      {
+        if (SelectionLength != 0) return;
+        var s = text; var i1 = SelectionStart; var i2 = i1; var cv = i1 != 0 ? s[i1 - 1] : '\0';
+
+        if (cv == '(')
+        {
+          var px = map.Where(p => p.i + p.n <= i1 - 1).OrderBy(p => p.i + p.n).LastOrDefault();
+          if (px.n != 0 && px.v == 0 && text.Substring(px.i + px.n, i1 - 1 - (px.i + px.n)).Trim().Length == 0)
+          {
+            if (px.p is Type)
+            {
+              var cc = ((Type)px.p).GetConstructors(); if (cc.Length == 0) return; int l = 0;
+              SetToolTip(Caret, t =>
+              {
+                if (t == 0) return TypeHelper.tooltip(cc[l]);
+                if (t == 1) return string.Format("{0} of {1}", l + 1, cc.Length);
+                if (t == 40) { if (++l == cc.Length) l = 0; }
+                if (t == 38) { if (l-- == 0) l = cc.Length - 1; }
+                return null;
+              }, 2);
+            }
+            if (px.p is MethodInfo mi)
+            {
+              var type = mi.DeclaringType;
+              var items = type.GetMethods((!mi.IsStatic ? BindingFlags.Instance : BindingFlags.Static) | BindingFlags.Public).Where(p => p.Name == mi.Name);
+              if (px.v != 0) items = items.Concat(Extensions(type, mi.Name));
+              var mm = items.ToArray(); if (mm.Length == 0) return; int x = Array.IndexOf(mm, mi); if (x < 0) x = 0;
+              SetToolTip(Caret, t =>
+              {
+                if (t == 0) return TypeHelper.tooltip(mm[x]);
+                if (t == 1) return string.Format("{0} of {1}", x + 1, mm.Length);
+                if (t == 40) { if (++x == mm.Length) x = 0; }
+                if (t == 38) { if (x-- == 0) x = mm.Length - 1; }
+                return null;
+              }, 2);
+              return;
+            }
+          }
+          return;
+        }
+        if (flyer != null) return;
+        if (cv == '.')
+        {
+          var tp = map.FirstOrDefault(p => p.i + p.n + 1 == i1);
+          if (tp.n != 0)
+          {
+            var type = tp.p as Type ?? (tp.p is PropertyInfo pi ? pi.PropertyType : tp.p is FieldInfo fi ? fi.FieldType : null); if (type == null) return;
+            var items = type.GetMembers((tp.v != 0 ? BindingFlags.Instance : BindingFlags.Static | BindingFlags.FlattenHierarchy) |
+              (/*type==typeof(XNode) ? BindingFlags.Public | BindingFlags.NonPublic :*/ BindingFlags.Public)).
+              Where(p => Compiler.__filter(p, cv == '#')).GroupBy(p => p.Name).Select(p => p.ToArray()).
+              Select(p => new TypeExplorer.Item { icon = TypeHelper.image(p[0]), text = p[0].Name, info = p });
+            if (tp.v != 0) items = items.Concat(Extensions(type).GroupBy(p => p.Name).Select(p => p.ToArray()).
+              Select(p => new TypeExplorer.Item { icon = 24, text = p[0].IsGenericMethod ? p[0].Name + "<>" : p[0].Name, info = p }));
+            EditFlyer(i1, i2, items.OrderBy(p => p.text).ToArray()); return;
+          }
+        }
+      }
+      IEnumerable<MethodInfo> Extensions(Type type, string name = null)
+      {
+        return Script.GetExtensions().SelectMany(t => t.GetMembers(BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod)).OfType<MethodInfo>().
+          Where(m =>
+          {
+            if (name != null && m.Name != name) return false;
+            if (!m.IsDefined(typeof(ExtensionAttribute), false)) return false;
+            var t = m.GetParameters()[0].ParameterType;
+            if (!m.IsGenericMethod) { if (t.IsAssignableFrom(type)) return true; return false; }
+            if (t.IsAssignableFrom(type)) return true;
+            if (type.GetInterface(t.Name) != null) return true;
+            if (t.IsGenericType && type.IsGenericType && type.GetGenericTypeDefinition() == t.GetGenericTypeDefinition()) return true;
+            return false;
+          });
+      }
+
+      TypeExplorer flyer;
+      void EditFlyer(int i1, int i2, TypeExplorer.Item[] items)
+      {
+        if (items.Length == 0) return; var t2 = i2; //ontimer = null; 
+        EndFlyer(); EndToolTip();
+        flyer = new TypeExplorer(); var ri = RectangleToScreen(Caret);
+        flyer.Location = new Point(ri.X, ri.Bottom);
+        flyer.items = items; flyer.noeval = true;
+        flyer.Show();
+        flyer.onclick = e => { EndFlyer(); Select(i1, i2); Paste(e.text.Split('<')[0]); return true; };
+        flyer.onpostkeydown = e => { var x = SelectionStart; if (x < i1 || x > i2 || SelectionLength != 0) EndFlyer(); };
+        flyer.onpostkeypress = a =>
+        {
+          i2 = SelectionStart; if (i2 < t2) { EndFlyer(); return; }
+          var ss = text.Substring(i1, i2 - i1);
+          var xx = items.Where(x => x.text.StartsWith(ss, true, null)).ToArray();
+          if (xx.Length == 0) { EndFlyer(); return; }
+          if (flyer.items.SequenceEqual(xx)) return;
+          flyer.items = xx; flyer.Format(); flyer.select(xx[0]); flyer.Invalidate();
+        };
+        flyer.ontooltip = (r, item) => SetToolTip(RectangleToClient(r), t => t == 0 ? TypeHelper.tooltip(item.info) : null, 1);
+      }
+      void EndFlyer()
+      {
+        if (flyer != null) { flyer.Dispose(); flyer = null; }
+      }
+      protected override void OnHandleDestroyed(EventArgs e) { EndFlyer(); base.OnHandleDestroyed(e); }
+      protected override void OnScroll(ScrollEventArgs se) { EndFlyer(); base.OnScroll(se); }
+      protected override void OnMouseLeave(EventArgs e)
+      {
+        base.OnMouseLeave(e); if (ClientRectangle.Contains(PointToClient(Cursor.Position))) return;
+        EndToolTip(); EndFlyer();
+      }
+      protected override void OnLostFocus(EventArgs e)
+      {
+        EndToolTip(); EndFlyer(); base.OnLostFocus(e);
+      }
+      protected override void OnMouseWheel(MouseEventArgs e)
+      {
+        if (flyer != null)
+        {
+          var p = Native.WindowFromPoint(PointToScreen(e.Location));
+          if (p != IntPtr.Zero) { var t = Control.FromHandle(p) as TypeExplorer; if (t != null) { t.OnMouseWheel(e); return; } }
+          EndFlyer();
+        }
+        base.OnMouseWheel(e);
+      }
+      protected override void OnMouseDown(MouseEventArgs e)
+      {
+        EndToolTip(); EndFlyer(); base.OnMouseDown(e);
+      }
+      protected override void OnKeyDown(KeyEventArgs e)
+      {
+        if (flyer != null) { flyer.OnKeyDown(e); if (e.Handled) return; } //if (e.KeyCode == Keys.Delete) askstop();
+        base.OnKeyDown(e);
+        if (flyer != null && flyer.onpostkeydown != null) flyer.onpostkeydown(e);
+      }
+      protected override void OnKeyPress(KeyPressEventArgs e)
+      {
+        if (flyer != null) { flyer.OnKeyPress(e); if (e.Handled) return; }
+        if (ReadOnly)
+        {
+          if ((ModifierKeys & (Keys.Control | Keys.Alt)) != 0) return;
+          //askstop(); 
+          return;
+        }
+        base.OnKeyPress(e);
+        if (flyer != null && flyer.onpostkeypress != null) flyer.onpostkeypress(e);
+      }
+    }
   }
 
 }

@@ -136,6 +136,8 @@ namespace csg3mf
         {
           obj.SetAttributeValue("script", Convert.ToBase64String(Encoding.UTF8.GetBytes(xn.code)));
           var props = xn.getprops(); if (props != null) obj.SetAttributeValue("props", Convert.ToBase64String(Encoding.UTF8.GetBytes(props.ToString())));
+          //obj.SetAttributeValue("script", xn.code);
+          //var props = xn.getprops(); if (props != null) obj.SetAttributeValue("props", props.ToString());
         }
       };
       if (path == null) return doc;//doc.Save("C:\\Users\\cohle\\Desktop\\test2.xml");

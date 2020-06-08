@@ -10,6 +10,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Xml;
@@ -359,7 +360,7 @@ namespace csg3mf
       var a = view.view.Scene.Selection();
       if (a.Take(2).Count() != 1) return 0;
       if (test != null) return 1;
-      ShowView(typeof(ScriptView2), XNode.From(a.First()), DockStyle.Left);
+      ShowView(typeof(ScriptEditor), XNode.From(a.First()), DockStyle.Left);
       return 1;
     }
 
@@ -550,6 +551,7 @@ namespace csg3mf
         case 4:
           {
             if (fmt != null && fmt.Contains("r;")) return false;
+            var tc = TypeDescriptor.GetConverter(typeof(T)); if (!tc.CanConvertFrom(typeof(string))) return false;
             var s = getval((XElement)param, name); if (s == null) return false;
             var p = TypeDescriptor.GetConverter(typeof(T)).ConvertFrom(null, CultureInfo.InvariantCulture, s);
             if (p != null) value = (T)p; return false;
@@ -568,9 +570,9 @@ namespace csg3mf
       public PD(int id, string name, Type t, string c, string fmt) : base(name, null) { this.id = id; type = t; category = c; this.fmt = fmt; }
       int id; Type type; string category, fmt;
       public override string Category => category ?? base.Category;
-      public override string Description => fmt != null ? fmt.Substring(fmt.LastIndexOf(';')+1) : base.Description;
+      public override string Description => fmt != null ? fmt.Substring(fmt.LastIndexOf(';') + 1) : base.Description;
       public override Type ComponentType => typeof(XNode);
-      public override bool IsReadOnly => fmt != null && fmt.Contains("r;");// false;
+      public override bool IsReadOnly => fmt != null && fmt.Contains("r;");
       public override Type PropertyType => type;
       public override bool CanResetValue(object component) => false;
       public override void ResetValue(object component) { }
@@ -655,238 +657,4 @@ namespace csg3mf
     }
   }
 
-  class ScriptView2 : UserControl, UIForm.ICommandTarget
-  {
-    public override string Text { get => $"Script {((XNode)Tag).Name}"; set { } }
-    MyCodeEditor edit; UIForm.ToolStrip tb;
-    protected override void OnPaintBackground(PaintEventArgs e) { }
-    protected override void OnLoad(EventArgs e)
-    {
-      tb = new UIForm.ToolStrip() { Margin = new Padding(15), ImageScalingSize = new Size(24, 24), GripStyle = ToolStripGripStyle.Hidden };
-      tb.Items.Add(new UIForm.Button(5011, "Run", Resources.run) { Tag = this });
-      //tb.Items.Add(new ToolStripSeparator());
-      //tb.Items.Add(new Button(5010, "Run Debug", Resources.rund) { Tag = edit });
-      //tb.Items.Add(new Button(5016, "Step", Resources.stepover) { Tag = edit });
-      //tb.Items.Add(new Button(5015, "Step Into", Resources.stepin) { Tag = edit });
-      //tb.Items.Add(new Button(5017, "Step Out", Resources.stepout) { Tag = edit });
-      //tb.Items.Add(new ToolStripSeparator());
-      tb.Items.Add(new UIForm.Button(5013, "Stop", Resources.stop) { Tag = this });
-      edit = new MyCodeEditor { Dock = DockStyle.Fill };
-      edit.EditText = ((XNode)Tag).code ?? string.Empty;
-      Visible = false;
-      Controls.Add(edit);
-      Controls.Add(tb);
-      Visible = true;
-    }
-    int UIForm.ICommandTarget.OnCommand(int id, object test)
-    {
-      switch (id)
-      {
-        case 5011: return OnRun(test);
-      }
-      return edit.OnCommand(id, test);
-    }
-    int OnRun(object test)
-    {
-      if (test != null) return 1;
-      try
-      {
-        //var expr = Script.Compile(typeof(XNode), edit.EditText);
-        //var ctor = expr.Compile(); //data = ctor(this);
-        var node = (XNode)Tag;
-        var code = edit.EditText; if (node.Code == code) return 1;
-        var view = ((MainFrame)FindForm()).view;
-        view.Execute(() => { var t = node.Code; node.Code = code; code = t; });
-        node.Code = edit.EditText;
-      }
-      catch (Exception e)
-      {
-        var p = Script.GetErrorPos(); edit.Select(p.i, p.i + p.n);
-        MessageBox.Show(e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-      }
-      return 1;
-    }
-
-    class MyCodeEditor : CodeEditor
-    {
-      protected override void UpdateSyntaxColors()
-      {
-        if (colormap == null) colormap = new int[] { 0, 0x00007000, 0x00000088, 0x00ff0000, 0x11463a96, 0x2200ddff, 0x00af912b, 0x000000ff };
-        int n = text.Length; Array.Resize(ref charcolor, n + 1);
-        for (int i = 0; i < n; i++)
-        {
-          var c = text[i];
-          if (c <= ' ') { charcolor[i] = 0; continue; }
-          if (c == '/' && i + 1 < n)
-          {
-            if (text[i + 1] == '/') { for (; i < n && text[i] != 10; i++) charcolor[i] = 1; continue; }
-            if (text[i + 1] == '*') { var t = text.IndexOf("*/", i + 2); t = t >= 0 ? t + 2 : n; for (; i < t; i++) charcolor[i] = 1; i = t - 1; continue; }
-          }
-          if (c == '"' || c == '\'')
-          {
-            var x = i; for (++i; i < n; i++) { var t = text[i]; if (t == '\\') { i++; continue; } if (t == c) break; }
-            for (; x <= i; x++) charcolor[x] = 2; continue;
-          }
-          if (c == '<') //inline xml
-          {
-            int k = i - 1; for (; k >= 0 && (text[k] <= ' ' || charcolor[k] == 1); k--) ;
-            if (k < 0 || "=+(,;}?".Contains(text[k]))
-            {
-              for (int z = 0, g, d = 0; i < n; i++)
-              {
-                if ((c = text[i]) == '<')
-                {
-                  for (k = i + 1; k < n && text[k] != '>'; k++) ; if (k == n) break;
-                  charcolor[i++] = charcolor[g = k--] = 3;
-                  if (text[i] == '!')
-                  {
-                    for (k = g; k < n && (text[k] != '>' || text[k - 1] != '-' || text[k - 2] != '-'); k++) ; charcolor[g = k--] = 3;
-                    charcolor[i++] = 3;
-                    for (int f = 0; f < 2; f++) { if (text[i] == '-') charcolor[i++] = 3; if (text[k] == '-') charcolor[k--] = 3; }
-                    for (; i <= k; i++) charcolor[i] = 1;
-                    i = g; continue;
-                  }
-                  if (text[i] == '/') { z--; charcolor[i++] = 3; }
-                  else if (text[k] != '/') z++; else charcolor[k--] = 3;
-                  for (; i <= k && text[i] > ' '; i++) charcolor[i] = 2;
-                  for (; i <= k; i++)
-                  {
-                    if ((c = text[i]) == '"')
-                    {
-                      charcolor[i++] = 0; d = 3;
-                      for (; i < k && text[i] != '"'; i++)
-                      {
-                        if (text[i] == '&') d = 7;
-                        charcolor[i] = (byte)d; if (d == 7 && (text[i] == ';' || text[i] <= ' ')) d = 3;
-                      }
-                      if (i <= k) charcolor[i] = 0; continue;
-                    }
-                    charcolor[i] = (byte)(c == '=' ? 0 : 7);
-                  }
-                  i = g; d = 0; continue;
-                }
-                if (z == 0 && c > ' ') { i--; break; }
-                if (c == '&') d = 7; charcolor[i] = (byte)d; if (d == 7 && (c == ';' || c <= ' ')) d = 0;
-              }
-              continue;
-            }
-          }
-
-          var l = i; for (; l < n && IsLetter(text[l]); l++) ;
-          var r = l - i; if (r == 0) { charcolor[i] = 0; continue; }
-          byte color = 0;
-          if (r > 1 && !(l < text.Length && char.IsDigit(text[l])))
-            for (int t = 0; t < Compiler.keywords.Length; t++)
-            {
-              var kw = Compiler.keywords[t];
-              if (kw.Length == r && kw[0] == text[i] && string.Compare(text, i, kw, 0, kw.Length, true) == 0) { color = 3; break; }
-            }
-          for (; i < l; i++) charcolor[i] = color; i--;
-        }
-        //if (typemap == null) return;
-        //
-        //for (int i = 0; i < typemap.Length; i++)
-        //{
-        //  var p = typemap[i]; if ((p.v & 0xf) == 0 && charcolor[p.i] != 3) color(p.i, p.n, 6);
-        //  if (overid != 0 && (overid & 0x0f) < 8 && overid == (p.v & ~0xf0)) color2(p.i, p.n, 0x80);
-        //}
-        //for (int i = 0; i < spots.Length; i++) { var p = spots[i]; if ((p.v & 1) != 0) color(p.i, p.n, 4); }
-        //for (int i = 0; i < spots.Length; i++) { var p = spots[i]; if ((p.v & 2) != 0) color(p.i, p.n, 5); }
-        //for (int i = 0; i < errors.Length; i++) { var p = errors[i]; color2(p.i, p.n, (errors[i].v & 4) != 0 ? 0x70 : 0x10); }
-      }
-      protected override int GetRange(int x)
-      {
-        for (int i = x, n = text.Length; i < n; i++)
-        {
-          if (text[i] == 10 || text[i] == ';') break;
-          if (text[i] == '/' && i + 1 < n)
-          {
-            if (text[i + 1] == '*') { for (i += 2; i < n - 1; i++) if (text[i] == '*' && text[i + 1] == '/') break; return -i; }
-            if (text[i + 1] == '/') { for (int t; (t = nextls(i)) < n - 1 && text[t] == '/' && text[t + 1] == '/'; i = t) ; return -i; }
-          }
-          if (text[i] == '[') { for (int t; (t = nextls(i)) < n && text[t] == '['; i = t) ; return -i; }
-          if (IsLetter(text[i]))
-          {
-            if (startsw(i, "using")) { for (int t; (t = nextls(i)) < n && startsw(t, "using"); i = t) ; return -i; }
-            for (; i < n; i++)
-            {
-              if (text[i] == ';') break;
-              if (text[i] == '{')
-              {
-                for (int k = 0; i < n; i++)
-                {
-                  if (text[i] == '{') { k++; continue; }
-                  if (text[i] == '}') { if (--k == 0) return i; }
-                }
-                break;
-              }
-            }
-            break;
-          }
-          if (text[i] == '<') //inline xml
-          {
-            if (i + 1 == n || text[i + 1] == '/') break;
-            for (int z = 0, k; i < n; i++)
-            {
-              if (text[i] == '<')
-              {
-                for (k = i + 1; k < n && text[k] != '>'; k++) ; if (k == n) break;
-                if (text[i + 1] == '!') { i = k; continue; }
-                if (text[i + 1] == '/') z--; else if (text[k - 1] != '/') z++;
-                i = k; continue;
-              }
-              if (z == 0) return i;
-            }
-          }
-        }
-        return 0;
-      }
-      int nextls(int i)
-      {
-        for (; i < text.Length && text[i] != 10; i++) ;
-        for (; i < text.Length && text[i] <= 32; i++) ;
-        return i;
-      }
-      bool startsw(int i, string s)
-      {
-        return i + s.Length <= text.Length && string.CompareOrdinal(s, 0, text, i, s.Length) == 0;
-      }
-
-      int rebuild = 5; (int i, int n) epos; string error;
-      protected override void Replace(int i, int n, string s)
-      {
-        base.Replace(i, n, s);
-        rebuild = s.Length == 1 && (s[0] == '.' || s[0] == '(') ? 2 : 5;
-      }
-      protected override void WndProc(ref Message m)
-      {
-        base.WndProc(ref m);
-        if (m.Msg == 0x0113)//WM_TIMER
-        {
-          if (rebuild != 0 && --rebuild == 0) build();
-        }
-      }
-      void build()
-      {
-        try { error = null; var expr = Script.Compile(typeof(XNode), EditText); }
-        catch (Exception e)
-        {
-          epos = Script.GetErrorPos();
-          for (int i = 0; i < epos.n; i++) { charcolor[epos.i + i] |= 0x70; }
-          Invalidate(); error = e.Message;
-        }
-      }
-      protected override void OnMouseMove(MouseEventArgs e)
-      {
-        base.OnMouseMove(e);
-        var i = PosFromPoint(e.Location);
-        if (error != null && i >= epos.i && i <= epos.i + epos.n)
-        {
-          var s = error; SetToolTip(TextBox(epos.i, epos.n), t => t == 1 ? "Error" : t == 0 ? s : null);
-          return;
-        }
-        EndToolTip();
-      }
-    }
-  }
 }
