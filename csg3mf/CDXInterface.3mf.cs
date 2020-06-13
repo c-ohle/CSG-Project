@@ -3,10 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Security;
 using System.Text;
-using System.Windows.Forms;
-using System.Xml;
 using System.Xml.Linq;
 using static csg3mf.CSG;
 
@@ -14,7 +11,7 @@ namespace csg3mf
 {
   public static unsafe partial class CDX
   {
-    public static XElement Export3MF(this IScene scene, string path, COM.IStream prev, string script, float3? dragpt)
+    public static XElement Export3MF(this IScene scene, string path, COM.IStream prev, float3? dragpt)
     {
       var ns = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/core/2015/02";
       var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
@@ -28,6 +25,12 @@ namespace csg3mf
       var uid = 1; var textures = new List<(COM.IStream str, int id, XElement e)>();
       var basematerials = new XElement(ns + "basematerials"); resources.Add(basematerials);
       var bmid = uid++; basematerials.SetAttributeValue("id", bmid);
+      var ex = new XElement("ex"); var xs = scene.Tag as XScene;
+      if (xs != null && !string.IsNullOrEmpty(xs.code))
+      {
+        var p = new XElement("object"); var props = xs.getprops(); if (props != null) p.Add(props);
+        p.Add(new XElement("script", xs.code)); ex.Add(p);
+      }
       var buffer = Marshal.AllocHGlobal(65536);
       try { foreach (var group in scene.Nodes()) add(group, build); }
       finally { Marshal.FreeHGlobal(buffer); }
@@ -129,23 +132,20 @@ namespace csg3mf
         group.GetTransform(new Variant(ss, 12));
         item.SetAttributeValue("transform", new string(ss));
         dest.Add(item);
-        //
         if (group.IsStatic) obj.SetAttributeValue("static", true);
         var xn = group.Tag as XNode;
         if (xn != null && xn.code != null)
         {
-          obj.SetAttributeValue("script", Convert.ToBase64String(Encoding.UTF8.GetBytes(xn.code)));
-          var props = xn.getprops(); if (props != null) obj.SetAttributeValue("props", Convert.ToBase64String(Encoding.UTF8.GetBytes(props.ToString())));
-          //obj.SetAttributeValue("script", xn.code);
-          //var props = xn.getprops(); if (props != null) obj.SetAttributeValue("props", props.ToString());
+          var p = new XElement("object", new XAttribute("id", objectid));
+          var props = xn.getprops(); if (props != null) p.Add(props);
+          p.Add(new XElement("script", xn.code)); ex.Add(p);
         }
       };
       if (path == null) return doc;//doc.Save("C:\\Users\\cohle\\Desktop\\test2.xml");
       var memstr = new MemoryStream();
       using (var package = System.IO.Packaging.Package.Open(memstr, FileMode.Create))
       {
-        var packdoc = package.CreatePart(new Uri("/3D/3dmodel.model", UriKind.Relative), "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
-          System.IO.Packaging.CompressionOption.Normal);
+        var packdoc = package.CreatePart(new Uri("/3D/3dmodel.model", UriKind.Relative), "application/vnd.ms-package.3dmanufacturing-3dmodel+xml", System.IO.Packaging.CompressionOption.Normal);
         using (var str = packdoc.GetStream()) doc.Save(str);
         package.CreateRelationship(packdoc.Uri, System.IO.Packaging.TargetMode.Internal, "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel", "rel0");
         var buff = new byte[4096];
@@ -169,15 +169,15 @@ namespace csg3mf
           }
           package.CreateRelationship(packpng.Uri, System.IO.Packaging.TargetMode.Internal, "http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail", "rel1");
         }
-        if (!string.IsNullOrEmpty(script))
+        if (ex.HasElements)
         {
-          var packpng = package.CreatePart(new Uri("/Metadata/csg.cs", UriKind.Relative), System.Net.Mime.MediaTypeNames.Text.Plain, System.IO.Packaging.CompressionOption.Normal);
-          using (var str = packpng.GetStream()) using (var sw = new StreamWriter(str)) sw.Write(script);
+          var pack = package.CreatePart(new Uri("/Metadata/csg", UriKind.Relative), System.Net.Mime.MediaTypeNames.Text.Xml, System.IO.Packaging.CompressionOption.Normal);
+          using (var str = pack.GetStream()) ex.Save(str);
         }
       }
       File.WriteAllBytes(path, memstr.ToArray()); return null;
     }
-    public static IScene Import3MF(string path, out string script, out float3 dragpt)
+    public static IScene Import3MF(string path, out float3 dragpt)
     {
       using (var package = System.IO.Packaging.Package.Open(path))
       {
@@ -203,22 +203,32 @@ namespace csg3mf
         if (scene.Count != 0 && scene[0].GetTransform().mx.LengthSq > 10) //curiosity bug fix
           foreach (var p in scene.Descendants()) p.Transform *= Rational.Matrix.Scaling(1 / (decimal)Math.Sqrt((double)p.Transform.mx.LengthSq));
         /////////////
-        var uri = new Uri("/Metadata/csg.cs", UriKind.Relative);
-        if (!package.PartExists(uri)) { script = null; return scene; }
-        using (var str = package.GetPart(uri).GetStream())
-        using (var sr = new StreamReader(str)) script = sr.ReadToEnd();
+        var uri = new Uri("/Metadata/csg", UriKind.Relative);
+        if (package.PartExists(uri))
+        {
+          XElement ex; using (var str = package.GetPart(uri).GetStream()) ex = XElement.Load(str);
+          foreach (var p in ex.Elements())
+          {
+            var id = (string)p.Attribute("id"); var script = p.Element("script").Value;
+            if (id == null) { XScene.From(scene).code = script; continue; }
+            var e = res.Elements(ns + "object").First(t => (string)t.Attribute("id") == id);
+            var pn = e.Annotation<INode>();
+            var xn = XNode.From(pn); xn.code = script;
+            var pr = p.Element("props"); if (pr != null) xn.props = pr.ToString();
+          }
+        }
         return scene;
         void convert(INode node, XElement e)
         {
           var oid = (string)e.Attribute("objectid");
           var obj = res.Elements(ns + "object").First(p => (string)p.Attribute("id") == oid);
           var sss = (string)obj.Attribute("script");
-          if (sss != null) 
-          { 
+          if (sss != null)
+          {
             var xn = XNode.From(node); xn.code = Encoding.UTF8.GetString(Convert.FromBase64String(sss));
             sss = (string)obj.Attribute("props"); if (sss != null) { xn.props = Encoding.UTF8.GetString(Convert.FromBase64String(sss)); }
           }
-          var mesh = obj.Element(ns + "mesh");
+          var mesh = obj.Element(ns + "mesh"); obj.AddAnnotation(node);
           node.Name = (string)obj.Attribute("name"); var st = obj.Attribute("static"); if (st != null) { node.IsStatic = (bool)st; }
           var tra = (string)e.Attribute("transform");
           if (tra != null) fixed (char* p = tra) node.SetTransform(new Variant(p, 12)); //{ var m = node.Transform; m.SetValues(new Variant(p, 12)); node.Transform = m; }

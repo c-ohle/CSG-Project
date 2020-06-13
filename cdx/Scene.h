@@ -106,8 +106,8 @@ struct CTexCoords : sarray<XMFLOAT2>
 #define NODE_FL_STATIC    4
 
 struct CNode : public ICDXNode
-{
-  //~CNode() { auto s = SysAllocStringLen(name.p, name.n); TRACE(L"~CNode %ws\n", s); SysFreeString(s); }
+{ 
+  ~CNode() { auto s = SysAllocStringLen(name.p, name.n); TRACE(L"~CNode %ws\n", s); SysFreeString(s); }
   sarray<WCHAR> name; UINT flags = 0;
   CComPtr<ICSGVector> transform;
   CComPtr<ICSGMesh> mesh;
@@ -299,7 +299,6 @@ struct CScene : public ICDXScene
     if (!count) delete this;
     return count;
   }
-
   HRESULT __stdcall get_Unit(CDX_UNIT* p) { *p = unit; return 0; }
   HRESULT __stdcall put_Unit(CDX_UNIT p) { unit = p; return 0; }
   HRESULT __stdcall get_Count(UINT* p) { *p = count; return 0; }
@@ -327,5 +326,14 @@ struct CScene : public ICDXScene
   HRESULT __stdcall AddNode(BSTR name, ICDXNode** p);
   HRESULT __stdcall SaveToStream(IStream* str);
   HRESULT __stdcall LoadFromStream(IStream* str);
+  CComPtr<IUnknown> tag;
+  HRESULT __stdcall get_Tag(IUnknown** p)
+  {
+    return tag.CopyTo(p);
+  }
+  HRESULT __stdcall put_Tag(IUnknown* p)
+  {
+    tag = p; return 0;
+  }
 };
 

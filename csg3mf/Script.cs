@@ -15,9 +15,6 @@ namespace csg3mf
 {
   unsafe struct Script
   {
-    internal static List<(int i, int n, int v, object p)> map;
-    static void __map(Script p, int v, object o) => map.Add(((int)(p.s - (char*)(ptr + 32)), p.n, v, o));
-
     public static Expression<Func<object, object[]>> Compile(Type @this, string code)
     {
       var n = code.Length; var mem = Marshal.AllocCoTaskMem(34 + (n << 1));
@@ -35,31 +32,33 @@ namespace csg3mf
         }
         #endregion
         Script a; a.s = s; a.n = n; a.trim(); *(Script*)ptr = a;
-        var stack = new Stack { Expression.Parameter(typeof(object), "this") }; stack.@this = Expression.Parameter(@this, "this");
-        stack.npub = 1; a.Parse(stack, null, null, null, 0x08 | 0x04);
-        var t1 = a.Parse(stack, null, null, null, 0x01);
+        stack = new Stack { Expression.Parameter(typeof(object), "this") }; stack.@this = Expression.Parameter(@this, "this");
+        if (map != null) stack.dict = new Dictionary<ParameterExpression, int>();
+        stack.npub = 1; a.Parse(null, null, null, 0x08 | 0x04);
+        var t1 = a.Parse(/*Expression.Label(typeof(void), "return")*/null, null, null, 0x01);
         var t2 = Expression.Lambda<Func<object, object[]>>(t1, ".ctor", stack.Take(1)); return t2;
       }
       catch { var e = (Script*)ptr; LastError = ((int)(e->s - (char*)(ptr + 32)), e->n); throw; }
-      finally { Marshal.FreeCoTaskMem(mem); }
+      finally { Marshal.FreeCoTaskMem(mem); stack = null; dbg = null; map = null; bps = null; }
     }
     public static (int i, int n) LastError { get; private set; }
     public override string ToString() => new string(s, 0, n);
-    char* s; int n; static byte* ptr;
-    class Stack : List<ParameterExpression> { internal ParameterExpression @this; internal List<object> usings = new List<object>(); internal int nstats, nusings, npub; internal List<Expression> list = new List<Expression>(); }
-    Expression Parse(Stack stack, LabelTarget @return, LabelTarget @break, LabelTarget @continue, int flags)
+    char* s; int n; static byte* ptr; static Stack stack;
+    class Stack : List<ParameterExpression> { internal ParameterExpression @this; internal List<object> usings = new List<object>(); internal int nstats, nusings, npub; internal List<Expression> list = new List<Expression>(); internal Dictionary<ParameterExpression, int> dict; }
+    Expression Parse(LabelTarget @return, LabelTarget @break, LabelTarget @continue, int flags)
     {
       var list = stack.list; int stackab = (flags & 1) != 0 ? 1 : stack.Count, listab = list.Count; var ep = *(Script*)ptr;
       if ((flags & 0x01) != 0) { stack.Add(stack.@this); list.Add(Expression.Assign(stack.@this, Expression.Convert(stack[0], stack.@this.Type))); }
+      if (map != null && (flags & 0x02) != 0) { var s = this; for (s.n = 1; *s.s != '{'; s.s--) ; __map(s); }
       for (var c = this; c.n != 0;)
       {
         var a = c.block(); if (a.n == 0) continue;
-        if (a.s[0] == '{') { if ((flags & 0x08) != 0) continue; a.trim(1, 1); list.Add(a.Parse(stack, @return, @break, @continue, 0)); continue; }
+        if (a.s[0] == '{') { if ((flags & 0x08) != 0) continue; a.trim(1, 1); list.Add(a.Parse(@return, @break, @continue, 0)); continue; }
         var t = a; var n = t.next(); *(Script*)ptr = a;
         if (n.equals("using"))
         {
           if ((flags & 0x08) == 0) continue;
-          if (t.take("static")) { var u = GetType(stack, t); stack.usings.Insert(stack.nstats++, u); }
+          if (t.take("static")) { var u = GetType(t); stack.usings.Insert(stack.nstats++, u); }
           else stack.usings.Add(t.ToString().Replace(" ", string.Empty));
           stack.nusings = stack.usings.Count; continue;
         }
@@ -68,19 +67,19 @@ namespace csg3mf
           if ((flags & 0x08) != 0) continue;
           n = t.next(); n.trim(1, 1);
           a = c; var l = c; for (; a.n != 0;) { var e = a.next(); if (!e.equals("else")) break; a.block(); l = a; }
-          if (l.s != c.s) { a = c; c = l; a.next(); a.n = (int)(l.s - a.s); a.trim(); } else a.n = 0;
-          list.Add(Expression.IfThenElse(n.Parse(stack, typeof(bool)), t.Parse(stack, @return, @break, @continue, 0), a.n != 0 ? a.Parse(stack, @return, @break, @continue, 0) : Expression.Empty())); continue;
+          if (l.s != c.s) { a = c; c = l; a.next(); a.n = (int)(l.s - a.s); a.trim(); } else a.n = 0; __map(n);
+          list.Add(Expression.IfThenElse(n.Parse(typeof(bool)), t.Parse(@return, @break, @continue, 0), a.n != 0 ? a.Parse(@return, @break, @continue, 0) : Expression.Empty())); continue;
         }
         if (n.equals("for"))
         {
           if ((flags & 0x08) != 0) continue;
           n = t.next(); n.trim(1, 1); var br = Expression.Label("break"); var co = Expression.Label("continue");
-          a = n.next(';'); var t1 = stack.Count; var t2 = list.Count; a.Parse(stack, null, null, null, 0x04);
-          a = n.next(';'); var t3 = a.n != 0 ? a.Parse(stack, typeof(bool)) : null;
+          a = n.next(';'); var t1 = stack.Count; var t2 = list.Count; a.Parse(null, null, null, 0x04);
+          a = n.next(';'); var t3 = a.n != 0 ? a.Parse(typeof(bool)) : null;
           var t4 = list.Count; var t5 = stack.Count;
-          t.Parse(stack, @return, br, co, 0x04); list.Add(Expression.Label(co)); n.Parse(stack, null, null, null, 0x04);
+          t.Parse(@return, br, co, 0x04); list.Add(Expression.Label(co)); n.Parse(null, null, null, 0x04);
           var t6 = (Expression)Expression.Block(stack.Skip(t5), list.Skip(t4)); stack.RemoveRange(t5, stack.Count - t5); list.RemoveRange(t4, list.Count - t4);
-          if (t3 != null) t6 = Expression.IfThenElse(t3, t6, Expression.Break(br));
+          if (t3 != null) { var t7 = __dbg(a); if (t7 != null) t3 = Expression.Block(t7, t3); t6 = Expression.IfThenElse(t3, t6, Expression.Break(br)); }
           list.Add(Expression.Loop(t6, br)); t6 = Expression.Block(stack.Skip(t1), list.Skip(t2));
           stack.RemoveRange(t1, stack.Count - t1); list.RemoveRange(t2, list.Count - t2);
           list.Add(t6); continue;
@@ -88,21 +87,21 @@ namespace csg3mf
         if (n.equals("switch"))
         {
           if ((flags & 0x08) != 0) continue;
-          n = t.next(); n.trim(1, 1); var t1 = n.Parse(stack, null);
+          n = t.next(); n.trim(1, 1); var t1 = n.Parse(null);
           n = t.next(); n.trim(1, 1); var t2 = stack.usings.Count; var t5 = (Expression)null;
           for (var ab = list.Count; n.n != 0;)
           {
             for (; n.n != 0;)
             {
               t = n; a = t.next(); if (a.equals("default")) { n = t; n.next(); break; }
-              if (!a.equals("case")) break; n = t; list.Add(Convert(n.next(':').Parse(stack, t1.Type), t1.Type));
+              if (!a.equals("case")) break; n = t; list.Add(Convert(n.next(':').Parse(t1.Type), t1.Type));
             }
             for (t = n; n.n != 0;)
             {
               a = n.block(); if (a.equals("break")) { t.n = (int)(a.s - t.s); t.trim(); break; }
               var s = a; s = s.next(); if (s.equals("return") || s.equals("continue")) { t.n = (int)(a.s - t.s) + a.n; t.trim(); break; }
             }
-            var br = Expression.Label(); var t4 = t.Parse(stack, @return, br, @continue, 0x10);
+            var br = Expression.Label(); var t4 = t.Parse(@return, br, @continue, 0x10);
             if (list.Count != ab) stack.usings.Add(Expression.SwitchCase(t4, list.Skip(ab))); else t5 = t4;
             list.RemoveRange(ab, list.Count - ab);
           }
@@ -112,45 +111,56 @@ namespace csg3mf
         if (n.equals("return"))
         {
           if ((flags & 0x08) != 0) continue;
+          if (@return == null) n.error("syntax");
           if (@return.Type != typeof(void))
           {
             var t0 = @return.Type != typeof(Script) ? @return.Type : null;
-            var t1 = t.Parse(stack, t0); if (t0 == null) @return.GetType().GetField("_type", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(@return, t0 = t1.Type);
+            var t1 = t.Parse(t0); if (t0 == null) @return.GetType().GetField("_type", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(@return, t0 = t1.Type);
             list.Add(Expression.Return(@return, Convert(t1, t0))); continue;
           }
           if (t.n != 0) n.error("invalid type"); list.Add(Expression.Return(@return)); continue;
         }
         if (n.equals("break")) { if ((flags & 0x08) != 0) continue; list.Add(Expression.Break(@break)); continue; }
         if (n.equals("continue")) { if ((flags & 0x08) != 0) continue; list.Add(Expression.Break(@continue)); continue; }
-        if (n.equals("new")) { if ((flags & 0x08) != 0) continue; list.Add(a.Parse(stack, null)); continue; }
+        if (n.equals("new")) { if ((flags & 0x08) != 0) continue; list.Add(a.Parse(null)); continue; }
         var @public = false; if (n.equals("public")) { a = t; @public = true; }
-        n = a; t = n.gettype(); if (t.n == 0) { if ((flags & 0x08) != 0) continue; list.Add(a.Parse(stack, null)); continue; }
+        n = a; t = n.gettype(); if (t.n == 0) { if ((flags & 0x08) != 0) continue; __map(a); list.Add(a.Parse(null)); continue; }
         a = n; n = a.next();
-        var type = !t.equals("var") ? GetType(stack, t) : null;
+        var type = !t.equals("var") ? GetType(t) : null;
         if (a.n != 0 && a.s[0] == '(')
         {
           int i = 0; if ((flags & 0x01) != 0) for (i = 1; !n.equals(stack[i].Name); i++) ;
           var s = n.ToString(); var istack = i; if (i == 0) { istack = @public ? stack.npub++ : stack.Count; stack.Insert(istack, null); }
           t = a.next(); t.trim(1, 1); a.trim(1, 1); var ab = stack.Count;
-          for (; t.n != 0;) { n = t.next(','); var v = n.gettype(); n.check(stack, ab); stack.Add(Expression.Parameter(GetType(stack, v), n.ToString())); if (map != null) __map(n, 0x05, stack[stack.Count - 1].Type); }
+          for (; t.n != 0;) { n = t.next(','); var v = n.gettype(); n.check(ab); stack.Add(Expression.Parameter(GetType(v), n.ToString())); if (map != null && (flags & 0x08) == 0) __map(n, stack[stack.Count - 1]); }
           var t0 = i != 0 ? stack[istack].Type : type != typeof(void) ? Expression.GetFuncType(stack.Skip(ab).Select(p => p.Type).Concat(Enumerable.Repeat(type, 1)).ToArray()) : Expression.GetActionType(stack.Skip(ab).Select(p => p.Type).ToArray());
           var t1 = i != 0 ? stack[istack] : Expression.Variable(t0, s); stack[istack] = t1;
           if ((flags & 0x08) != 0) { stack.RemoveRange(ab, stack.Count - ab); continue; }
-          var t2 = Expression.Lambda(t0, a.Parse(stack, Expression.Label(type, "return"), null, null, 0x02), s, stack.Skip(ab));
-          stack.RemoveRange(ab, stack.Count - ab); list.Add(Expression.Assign(t1, t2)); continue;
+          var t2 = Expression.Lambda(t0, a.Parse(Expression.Label(type, "return"), null, null, 0x02), s, stack.Skip(ab));
+          stack.RemoveRange(ab, stack.Count - ab); list.Insert(0, Expression.Assign(t1, t2)); continue;
         }
         for (; n.n != 0; n = a.next())
         {
-          var v = a.next(','); var b = v.next('='); if (!((flags & 0x01) != 0 && type != null)) n.check(stack, stackab);
-          if ((flags & 0x08) != 0) { if (type != null) { stack.Add(Expression.Parameter(type, n.ToString())); if (map != null) __map(n, 0x04, type); } continue; }
-          var r = type == null || v.n != 0 ? v.Parse(stack, type) : null;
+          var v = a.next(','); var b = v.next('='); if (!((flags & 0x01) != 0 && type != null)) n.check(stackab);
+          if ((flags & 0x08) != 0) { if (type != null) { stack.Add(Expression.Parameter(type, n.ToString())); if (map != null) __map(n, stack[stack.Count - 1]); } continue; }
+          var r = type == null || v.n != 0 ? v.Parse(type) : null;
           int i = 0; if ((flags & 0x01) != 0 && type != null) for (i = 1; !n.equals(stack[i].Name); i++) ;
-          var e = i != 0 ? stack[i] : Expression.Parameter(type ?? r.Type, n.ToString()); if (map != null) __map(n, 0x04, e.Type);
-          if (r != null) list.Add(Expression.Assign(e, Convert(r, e.Type))); if (i == 0) stack.Add(e);
+          var e = i != 0 ? stack[i] : Expression.Parameter(type ?? r.Type, n.ToString()); //if (map != null) __map(n, 0x04, e.Type);
+          if (r != null)
+          {
+            if (map != null) { var u = n; u.n = (int)(v.s - n.s) + v.n; __map(u); }
+            list.Add(Expression.Assign(e, Convert(r, e.Type)));
+          }
+          if (i == 0) { stack.Add(e); if (map != null) __map(n, e); }
         }
       }
       *(Script*)ptr = ep;
       if ((flags & 0x04) != 0) return null;
+      if (map != null && (flags & 0x02) != 0)
+      {
+        var s = this; for (s = this, s.s += s.n, s.n = 1; *s.s != '}'; s.s++) ; __map(s);
+        //if (IntPtr.Size == 8) list.Add(__dbg(int.MaxValue)); //bypass RyuJIT SF bug
+      }
       if ((flags & 0x02) != 0) list.Add(@return.Type != typeof(void) ? Expression.Label(@return, Expression.Default(@return.Type)) : Expression.Label(@return));
       if ((flags & 0x01) != 0) list.Add(Expression.NewArrayInit(typeof(object), stack.Take(stack.npub)));
       if ((flags & 0x10) != 0) list.Add(Expression.Label(@break));
@@ -158,7 +168,7 @@ namespace csg3mf
       list.RemoveRange(listab, list.Count - listab); stack.RemoveRange(stackab, stack.Count - stackab);
       return block;
     }
-    Expression Parse(Stack stack, Type wt)
+    Expression Parse(Type wt)
     {
       if (n == 0) error("syntax");
       Script a = this, b = a, c, d; int op = 0, i1 = 0, i2 = 0;
@@ -181,19 +191,19 @@ namespace csg3mf
           int i = 0; for (; a.n != 0 && i < pp.Length; i++) { var n = a.next(','); stack.Add(Expression.Parameter(pp[i].ParameterType, n.ToString())); }
           if (a.n != 0 || i != pp.Length) error("invalid param count");
           var g = me.ReturnType.ContainsGenericParameters; Expression r;
-          if (b.s[0] == '{') { b.trim(1, 1); r = b.Parse(stack, Expression.Label(g ? typeof(Script) : me.ReturnType, "return"), null, null, 0x02); }
-          else r = b.Parse(stack, g ? null : wt);
+          if (b.s[0] == '{') { b.trim(1, 1); r = b.Parse(Expression.Label(g ? typeof(Script) : me.ReturnType, "return"), null, null, 0x02); }
+          else r = b.Parse(g ? null : wt);
           if (g) { if (r.Type == typeof(Script)) b.error("missing return"); var gg = wt.GetGenericArguments(); gg[gg.Length - 1] = r.Type; wt = wt.GetGenericTypeDefinition().MakeGenericType(gg); }
           r = Expression.Lambda(wt, r, stack.Skip(ab)); stack.RemoveRange(ab, stack.Count - ab); return r;
         }
-        var ea = a.Parse(stack, null);
+        var ea = a.Parse(null);
         switch (op)
         {
-          case 0x54: return Expression.TypeIs(ea, GetType(stack, b));
-          case 0x55: return Expression.TypeAs(ea, GetType(stack, b));
-          case 0xc0: a = b.next(':'); return Expression.Condition(ea, a.Parse(stack, wt), b.Parse(stack, wt));
+          case 0x54: return Expression.TypeIs(ea, GetType(b));
+          case 0x55: return Expression.TypeAs(ea, GetType(b));
+          case 0xc0: a = b.next(':'); return Expression.Condition(ea, a.Parse(wt), b.Parse(wt));
         }
-        var eb = b.Parse(stack, ea.Type);
+        var eb = b.Parse(ea.Type);
         if (op == 0x30 && (ea.Type == typeof(string) || eb.Type == typeof(string)))
         {
           if (ea.Type != typeof(string)) ea = Expression.Call(ea, ea.Type.GetMethod("ToString", Type.EmptyTypes));
@@ -283,21 +293,21 @@ namespace csg3mf
       b = this; a = b.next();
       if (a.n == 1)
       {
-        if (a.s[0] == '+') { var t = b.Parse(stack, wt); return t; } //"op_UnaryPlus"
-        if (a.s[0] == '-') { var t = b.Parse(stack, wt); return Expression.Negate(t, refop("op_UnaryNegation", t)); }
-        if (a.s[0] == '!') { var t = b.Parse(stack, wt); return Expression.Not(t, refop("op_LogicalNot", t)); }
-        if (a.s[0] == '~') { var t = b.Parse(stack, wt); return Expression.OnesComplement(t, refop("op_OnesComplement", t)); }
+        if (a.s[0] == '+') { var t = b.Parse(wt); return t; } //"op_UnaryPlus"
+        if (a.s[0] == '-') { var t = b.Parse(wt); return Expression.Negate(t, refop("op_UnaryNegation", t)); }
+        if (a.s[0] == '!') { var t = b.Parse(wt); return Expression.Not(t, refop("op_LogicalNot", t)); }
+        if (a.s[0] == '~') { var t = b.Parse(wt); return Expression.OnesComplement(t, refop("op_OnesComplement", t)); }
       }
-      if (a.n == 2 && a.s[0] == '+' & a.s[1] == '+') return Expression.PreIncrementAssign(b.Parse(stack, wt));
-      if (a.n == 2 && a.s[0] == '-' & a.s[1] == '-') return Expression.PreDecrementAssign(b.Parse(stack, wt));
-      if (b.n == 2 && b.s[0] == '+' & b.s[1] == '+') return Expression.PostIncrementAssign(a.Parse(stack, wt));
-      if (b.n == 2 && b.s[0] == '-' & b.s[1] == '-') return Expression.PostDecrementAssign(a.Parse(stack, wt));
+      if (a.n == 2 && a.s[0] == '+' & a.s[1] == '+') return Expression.PreIncrementAssign(b.Parse(wt));
+      if (a.n == 2 && a.s[0] == '-' & a.s[1] == '-') return Expression.PreDecrementAssign(b.Parse(wt));
+      if (b.n == 2 && b.s[0] == '+' & b.s[1] == '+') return Expression.PostIncrementAssign(a.Parse(wt));
+      if (b.n == 2 && b.s[0] == '-' & b.s[1] == '-') return Expression.PostDecrementAssign(a.Parse(wt));
 
       Expression left = null; Type type = null; bool checkthis = false, priv = false;
       if (a.s[0] == '(')
       {
-        a.trim(1, 1); if (b.n != 0 && b.s[0] != '.' && b.s[0] != '[') { var t = b.Parse(stack, wt = GetType(stack, a)); return t.Type != wt ? Expression.Convert(t, wt) : t; }
-        left = a.Parse(stack, wt); goto eval;
+        a.trim(1, 1); if (b.n != 0 && b.s[0] != '.' && b.s[0] != '[') { var t = b.Parse(wt = GetType(a)); return t.Type != wt ? Expression.Convert(t, wt) : t; }
+        left = a.Parse(wt); goto eval;
       }
       if (char.IsNumber(a.s[0]) || a.s[0] == '.')
       {
@@ -326,20 +336,20 @@ namespace csg3mf
       if (a.equals("true")) { left = Expression.Constant(true); goto eval; }
       if (a.equals("false")) { left = Expression.Constant(false); goto eval; }
       if (a.equals("null")) { left = Expression.Constant(null, wt ?? typeof(object)); goto eval; }
-      if (a.equals("typeof")) { a = b.next(); a.trim(1, 1); left = Expression.Constant(GetType(stack, a)); goto eval; }
+      if (a.equals("typeof")) { a = b.next(); a.trim(1, 1); left = Expression.Constant(GetType(a)); goto eval; }
       if (a.equals("new"))
       {
         for (a = b; b.n != 0 && b.s[0] != '(' && b.s[0] != '[' && b.s[0] != '{'; b.next()) ;
-        a.n = (int)(b.s - a.s); a.trim(); var t = GetType(stack, a); a = b.next(); var tc = a.s[0]; a.trim(1, 1);
+        a.n = (int)(b.s - a.s); a.trim(); var t = GetType(a); a = b.next(); var tc = a.s[0]; a.trim(1, 1);
         if (tc == '[') while (a.n == 0 && b.s[0] == '[') { t = t.MakeArrayType(); a = b.next(); a.trim(1, 1); }
-        var ab = stack.list.Count; if (tc != '{') for (; a.n != 0;) stack.list.Add(a.next(',').Parse(stack, null));
+        var ab = stack.list.Count; if (tc != '{') for (; a.n != 0;) stack.list.Add(a.next(',').Parse(null));
         if (tc == '[')
         {
           if (ab != stack.list.Count) left = Expression.NewArrayBounds(t, stack.list.Skip(ab));
           else
           {
             a = b.next(); if (a.n == 0 || a.s[0] != '{') a.error("syntax");
-            for (a.trim(1, 1); a.n != 0;) stack.list.Add(Convert(a.next(',').Parse(stack, null), t));
+            for (a.trim(1, 1); a.n != 0;) stack.list.Add(Convert(a.next(',').Parse(null), t));
             left = Expression.NewArrayInit(t, stack.list.Skip(ab));
           }
         }
@@ -348,7 +358,7 @@ namespace csg3mf
           if (ab == stack.list.Count) left = Expression.New(t);
           else
           {
-            var ct = GetMember(t, null, BindingFlags.Instance | BindingFlags.Public, stack, ab, stack.usings.Count) as ConstructorInfo;
+            var ct = GetMember(t, null, BindingFlags.Instance | BindingFlags.Public, ab, stack.usings.Count) as ConstructorInfo;
             if (ct == null) error("invalid ctor");
             left = Expression.New(ct, stack.list.Skip(ab));
           }
@@ -358,20 +368,20 @@ namespace csg3mf
             var ic = left.Type.GetInterface("ICollection`1"); var ns = stack.list.Count;
             if (ic != null)
             {
-              for (t = ic.GetGenericArguments()[0]; a.n != 0;) stack.list.Add(Convert(a.next(',').Parse(stack, t), t));
+              for (t = ic.GetGenericArguments()[0]; a.n != 0;) stack.list.Add(Convert(a.next(',').Parse(t), t));
               left = Expression.ListInit((NewExpression)left, stack.list.Skip(ns));
             }
             else
             {
               var pp = stack.usings; var np = pp.Count;//var list = new List<MemberAssignment>();
-              for (; a.n != 0;) { var p = a.next(','); var e = Expression.PropertyOrField(left, p.next('=').ToString()); pp.Add(Expression.Bind(e.Member, Convert(p.Parse(stack, e.Type), e.Type))); }
+              for (; a.n != 0;) { var p = a.next(','); var e = Expression.PropertyOrField(left, p.next('=').ToString()); pp.Add(Expression.Bind(e.Member, Convert(p.Parse(e.Type), e.Type))); }
               left = Expression.MemberInit((NewExpression)left, pp.Skip(np).Cast<MemberAssignment>()); pp.RemoveRange(np, pp.Count - np);
             }
           }
         }
         stack.list.RemoveRange(ab, stack.list.Count - ab); goto eval;
       }
-      for (int i = stack.Count - 1; i >= 0; i--) if (a.equals(stack[i].Name)) { left = stack[i]; if (map != null) __map(a, /*isparam ? 0x05 :*/ 0x04, left.Type); goto eval; }
+      for (int i = stack.Count - 1; i >= 0; i--) if (a.equals(stack[i].Name)) { left = stack[i]; if (map != null) __map(a, stack[i]); goto eval; }
       var sa = a.ToString();
       for (int i = stack.nstats; --i >= 0;)
       {
@@ -380,7 +390,7 @@ namespace csg3mf
       }
       for (d = a, c = b; c.n != 0 && (c.s[0] == '.' || c.s[0] == '·');)
       {
-        if ((type = GetType(stack, d, false)) != null) { b = c; goto eval; }
+        if ((type = GetType(d, false)) != null) { b = c; goto eval; }
         c.next(); c.next(); d = a; d.n = (int)(c.s - d.s); d.trim();
       }
       left = stack.@this; checkthis = true; eval:
@@ -389,13 +399,13 @@ namespace csg3mf
         if (checkthis) goto call; a = b.next();
         if (a.s[0] == '[')
         {
-          a.trim(1, 1); var ab = stack.list.Count; for (; a.n != 0;) stack.list.Add(a.next(',').Parse(stack, null));
+          a.trim(1, 1); var ab = stack.list.Count; for (; a.n != 0;) stack.list.Add(a.next(',').Parse(null));
           left = left.Type.IsArray ? Expression.ArrayAccess(left, stack.list.Skip(ab)) : Expression.Property(left, left.Type == typeof(string) ? "Chars" : "Item", stack.list.Skip(ab).ToArray());
           stack.list.RemoveRange(ab, stack.list.Count - ab); continue;
         }
         if (a.s[0] == '(')
         {
-          a.trim(1, 1); var ab = stack.list.Count; for (; a.n != 0;) stack.list.Add(a.next(',').Parse(stack, null));
+          a.trim(1, 1); var ab = stack.list.Count; for (; a.n != 0;) stack.list.Add(a.next(',').Parse(null));
           var pb = left.Type.GetMethod("Invoke").GetParameters(); if (pb.Length != stack.list.Count - ab) a.error("invalid param count");
           for (int i = 0; i < pb.Length; i++) stack.list[ab + i] = Convert(stack.list[ab + i], pb[i].ParameterType);
           left = Expression.Invoke(left, stack.list.Skip(ab)); stack.list.RemoveRange(ab, stack.list.Count - ab); continue;
@@ -408,19 +418,19 @@ namespace csg3mf
         if (b.n > 1 && (b.s[0] == '(' || b.s[0] == '<'))
         {
           var ng = stack.usings.Count;
-          if (b.s[0] == '<') { c = b.next(); c.trim(1, 1); for (; c.n != 0;) stack.usings.Add(GetType(stack, c.next(','))); }
+          if (b.s[0] == '<') { c = b.next(); c.trim(1, 1); for (; c.n != 0;) stack.usings.Add(GetType(c.next(','))); }
           c = b.next(); c.trim(1, 1); var ab = stack.list.Count;
-          for (; c.n != 0;) { var t = c.next(','); if (t.take("ref") || t.take("out")) { } stack.list.Add(t.Parse(stack, null)); }
-          var me = GetMember(t1, s, bf, stack, ab, ng);
+          for (; c.n != 0;) { var t = c.next(','); if (t.take("ref") || t.take("out")) { } stack.list.Add(t.Parse(null)); }
+          var me = GetMember(t1, s, bf, ab, ng);
           if (me == null && checkthis)
           {
             left = null;
-            for (int i = stack.nstats; --i >= 0;) if ((me = GetMember((Type)stack.usings[i], s, BindingFlags.Static | BindingFlags.Public, stack, ab, ng)) != null) break;
+            for (int i = stack.nstats; --i >= 0;) if ((me = GetMember((Type)stack.usings[i], s, BindingFlags.Static | BindingFlags.Public, ab, ng)) != null) break;
           }
           if (me == null && left != null)
           {
             stack.list.Insert(ab, left); left = null; GetExtensions();
-            for (int i = 0; i < extensions.Length; i++) if ((me = GetMember(extensions[i], s, BindingFlags.Static | BindingFlags.Public, stack, ab, ng)) != null) break; ;
+            for (int i = 0; i < extensions.Length; i++) if ((me = GetMember(extensions[i], s, BindingFlags.Static | BindingFlags.Public, ab, ng)) != null) break; ;
           }
           if (me == null) { a.n = (int)(b.s - a.s); a.trim(); a.error("unknown method" + " " + a.ToString()); }
           if (map != null) __map(a, 0, me);
@@ -436,13 +446,13 @@ namespace csg3mf
       if (left == null || checkthis) a.error();
       return left;
     }
-    MethodInfo refop(string op, Expression a)
+    static MethodInfo refop(string op, Expression a)
     {
       Type t1 = a.Type; if (t1.IsPrimitive) return null;
       var me = t1.GetMethod(op, BindingFlags.Static | BindingFlags.Public, null, new Type[] { t1.MakeByRefType() }, null); if (me != null) return me;
       return null;
     }
-    MethodInfo refop(string op, Expression a, Expression b)
+    static MethodInfo refop(string op, Expression a, Expression b)
     {
       Type t1 = a.Type, t2 = b.Type; if (t1 == t2 && t1.IsPrimitive) return null;
       MethodInfo match = null;
@@ -460,12 +470,13 @@ namespace csg3mf
       }
       return match;
     }
-    static Type GetType(Stack stack, Script a, bool ex = true)
+    static Type GetType(Script a, bool ex = true)
     {
       if (map != null)
       {
-        var t1 = map; map = null; Type t2;
-        try { t2 = GetType(stack, a, ex); } /*catch { map = t1; a.Parse(stack, null); throw; }*/ finally { map = t1; }
+        var t1 = map; map = null; Type t2; try { t2 = GetType(a, ex); } finally { map = t1; }
+        if (t2 == null) return t2;
+        for (int j = 0, x = (int)(a.s - (char*)(ptr + 32)) + a.n; j < map.Count; j++) { var m = map[j]; if (m.i + m.n == x && m.v == 0) return t2; }
         for (var e = a; e.n != 0;)
         {
           var c = e.next('.'); if (e.n == 0) { __map(c, 0, t2); break; }
@@ -476,14 +487,14 @@ namespace csg3mf
       if (a.s[a.n - 1] == ']')
       {
         var p = a; for (; ; ) { var x = p; x.next(); if (x.n == 0) break; p = x; }
-        a.n = (int)(p.s - a.s); a.trim(); return GetType(stack, a, ex).MakeArrayType();
+        a.n = (int)(p.s - a.s); a.trim(); return GetType(a, ex).MakeArrayType();
       }
       if (a.s[a.n - 1] == '>')
       {
         var p = a; for (; p.n != 0 && p.s[0] != '<'; p.next()) ; a.n = (int)(p.s - a.s); a.trim(); p.trim(1, 1);
         int n = 0; for (var z = p; z.n != 0; z.next(','), n++) ;
-        var u = GetType(stack, $"{a}`{n}"); if (u == null && ex) a.error("unknown type");
-        var w = new Type[n]; for (int i = 0; p.n != 0; i++) w[i] = GetType(stack, p.next(',')); return u.MakeGenericType(w);
+        var u = GetType($"{a}`{n}"); if (u == null && ex) a.error("unknown type");
+        var w = new Type[n]; for (int i = 0; p.n != 0; i++) w[i] = GetType(p.next(',')); return u.MakeGenericType(w);
       }
       if (a.equals("void")) return typeof(void);
       if (a.equals("bool")) return typeof(bool);
@@ -507,11 +518,11 @@ namespace csg3mf
         var st = ((Type)stack.usings[i]).GetNestedType(s); if (st == null) continue;
         while (b.n != 0) if ((st = st.GetNestedType(b.next('.').ToString())) == null) break; return st;
       }
-      var t = GetType(stack, a.ToString().Replace(" ", string.Empty));
+      var t = GetType(a.ToString().Replace(" ", string.Empty));
       if (t == null && ex) a.error("unknown type");
       return t;
     }
-    static Type GetType(Stack stack, string s)
+    static Type GetType(string s)
     {
       var ss = stack.usings; var nu = stack.nusings; Type t;
       for (int i = stack.nstats; i < nu; i++) { var u = (string)ss[i]; if (u.StartsWith(s) && (u.Length == s.Length || (u.Length < s.Length && s[u.Length] == '.'))) return null; }
@@ -524,7 +535,7 @@ namespace csg3mf
         if (x == -1) return null; s = s.Substring(0, x) + '+' + s.Substring(x + 1);
       }
     }
-    static MethodBase GetMember(Type type, string name, BindingFlags bf, Stack stack, int xt, int xg)
+    static MethodBase GetMember(Type type, string name, BindingFlags bf, int xt, int xg)
     {
       var mm = type.GetMember(name ?? ".ctor", name != null ? MemberTypes.Method : MemberTypes.Constructor, bf); if (mm.Length == 0) return null;
       var me = (MethodBase)null; var pp = (ParameterInfo[])null; var vt = (Type)null; var tt = stack.list; int nt = tt.Count - xt, best = int.MaxValue;
@@ -585,7 +596,7 @@ namespace csg3mf
               for (j = 0; j < aa.Length && !(aa[j].Name == a[a.Length - 1].Name && aa[j].ContainsGenericParameters); j++) ;
               if (j == aa.Length) continue; var bb = me.GetGenericArguments();
               for (int x = 0, y; x < a.Length; x++) for (y = 0; y < bb.Length; y++) if (bb[y].Name == a[x].Name && a[x].ContainsGenericParameters) { a[x] = aa[y]; break; }
-              var r = ((Script)((ConstantExpression)tt[xt + i]).Value).Parse(stack, t.GetGenericTypeDefinition().MakeGenericType(a));
+              var r = ((Script)((ConstantExpression)tt[xt + i]).Value).Parse(t.GetGenericTypeDefinition().MakeGenericType(a));
               tt[xt + i] = r; aa[j] = ((LambdaExpression)r).ReturnType; f++; continue;
             }
             //if (!s.IsGenericType) { s = s.GetInterface(t.Name); if (s == null) continue; }
@@ -605,7 +616,7 @@ namespace csg3mf
           tt.Add(Expression.Constant(p.DefaultValue, t)); continue;
         }
         var pa = tt[xt + i];
-        if (pa.Type == typeof(Script)) { pa = tt[xt + i] = ((Script)((ConstantExpression)pa).Value).Parse(stack, t); continue; }
+        if (pa.Type == typeof(Script)) { pa = tt[xt + i] = ((Script)((ConstantExpression)pa).Value).Parse(t); continue; }
         tt[xt + i] = Convert(pa, t);
       }
       if (vt != null)
@@ -673,7 +684,7 @@ namespace csg3mf
       if (x is MethodInfo me) return Expression.Convert(Convert(a, me.GetParameters()[0].ParameterType), t, me);
       return Expression.Convert(a, t);
     }
-    void check(List<ParameterExpression> stack, int stackab)
+    void check(int stackab)
     {
       if (!isname()) error();
       for (int i = stackab; i < stack.Count; i++) if (equals(stack[i].Name)) error("duplicate name");
@@ -701,7 +712,7 @@ namespace csg3mf
         var a = next(); if (n != 1 && s[0] == '.') { next(); continue; }
         if (a.isname() && (isname() || (n != 1 && (s[0] == '<' || s[0] == '['))))
         {
-          if (map != null && a.s != t.s) { for (int i = 0; i < Compiler.keywords.Length; i++) if (a.equals(Compiler.keywords[i])) goto r; }
+          if (map != null && a.s != t.s) { for (int i = 0; i < keywords.Length; i++) if (a.equals(keywords[i])) goto r; }
           if (s[0] == '<') next();
           while (n != 0 && s[0] == '[') { var i = next(); i.trim(1, 1); if (i.n != 0) goto r; }
           t.n = (int)(s - t.s); t.trim(); return t;
@@ -784,59 +795,81 @@ namespace csg3mf
       return n != 0 && (char.IsLetter(s[0]) || s[0] == '_');
     }
     bool take(string v) { var l = v.Length; if (l > n) return false; for (int i = 0; i < l; i++) if (s[i] != v[i]) return false; s += l; n -= l; trim(); return true; }
+    internal static readonly string[] keywords = {
+      "void","bool","char","sbyte","byte","int","uint","short","ushort","long","ulong","decimal","float","double","string","object","dynamic", //17
+      "var","this","base","public","protected","private","internal","readonly", "static",
+      "if", "for","while","foreach","switch","return","using","checked","unchecked",
+      "true","false","null","as","is","in","new","typeof","try","throw","catch","else","case","break","default",
+      "continue","finally","get","set","value","ref","out","sizeof","stackalloc","class","struct","lock","goto","fixed","const"};
+    #region debug extension
+    int index => (int)(s - (char*)(ptr + 32));
+    internal static List<(int i, int n, int v, object p)> map; internal static int[] bps;
+    internal static Func<int, (int id, object p)[], bool> dbg;
+    static void __map(Script s, int v, object p)
+    {
+      //var t = ((int)(s.s - (char*)(ptr + 32)), s.n, v, p); if (map.Contains(t)) { }
+      map.Add((s.index, s.n, v, p));
+    }
+    static void __map(Script s, ParameterExpression p)
+    {
+      if (!stack.dict.TryGetValue(p, out var i)) stack.dict[p] = i = stack.dict.Count + 1;
+      __map(s, 0x04 | (i << 8), p.Type);
+    }
+    static void __map(Script p)
+    {
+      if (map != null) { var t = __dbg(p); if (t != null) stack.list.Add(t); }
+    }
+    static Expression __dbg(Script s)
+    {
+      if (map == null) return null; var e = __dbg(map.Count);
+      __map(s, bps != null && Array.IndexOf(bps, s.index) != -1 ? 0x1A : 0x0A, null); return e;
+    }
+    static Expression __dbg(int i)
+    {
+      if (dbg == null) return null;
+      var t1 = Expression.Constant(dbg.Target); var t2 = Expression.Constant(i);
+      return Expression.IfThen(
+        Expression.Call(t1, dbg.Method, t2, Expression.Default(typeof((int, object)[]))),
+        Expression.Call(t1, dbg.Method, t2,
+          Expression.NewArrayInit(typeof((int, object)),
+            stack.Intersect(stack.dict.Keys).Where(p => !p.Type.IsSubclassOf(typeof(Delegate))).
+            Select(p => Expression.New(__ctor ?? (__ctor = typeof((int, object)).GetConstructors()[0]),
+              Expression.Constant(stack.dict[p]), Expression.Convert(p, typeof(object)))))
+          ));
+    }
+    static ConstructorInfo __ctor;
+    #endregion
   }
 
-  class ScriptEditor : UserControl, UIForm.ICommandTarget
+  unsafe class ScriptEditor : UserControl, UIForm.ICommandTarget
   {
-    public override string Text { get => $"Script {((XNode)Tag).Name}"; set { } }
+    public override string Text { get => $"Script {edit.xobject.Title}"; set { } }
     Editor edit; UIForm.ToolStrip tb;
     protected override void OnPaintBackground(PaintEventArgs e) { }
     protected override void OnLoad(EventArgs e)
     {
       tb = new UIForm.ToolStrip() { Margin = new Padding(15), ImageScalingSize = new Size(24, 24), GripStyle = ToolStripGripStyle.Hidden };
       tb.Items.Add(new UIForm.Button(5011, "Run", Properties.Resources.run) { Tag = this });
-      //tb.Items.Add(new ToolStripSeparator());
-      //tb.Items.Add(new Button(5010, "Run Debug", Resources.rund) { Tag = edit });
-      //tb.Items.Add(new Button(5016, "Step", Resources.stepover) { Tag = edit });
-      //tb.Items.Add(new Button(5015, "Step Into", Resources.stepin) { Tag = edit });
-      //tb.Items.Add(new Button(5017, "Step Out", Resources.stepout) { Tag = edit });
-      //tb.Items.Add(new ToolStripSeparator());
+      tb.Items.Add(new ToolStripSeparator());
+      tb.Items.Add(new UIForm.Button(5010, "Run Debug", Properties.Resources.rund) { Tag = this });
+      tb.Items.Add(new UIForm.Button(5016, "Step", Properties.Resources.stepover) { Tag = this });
+      tb.Items.Add(new UIForm.Button(5015, "Step Into", Properties.Resources.stepin) { Tag = this });
+      tb.Items.Add(new UIForm.Button(5017, "Step Out", Properties.Resources.stepout) { Tag = this });
+      tb.Items.Add(new ToolStripSeparator());
       tb.Items.Add(new UIForm.Button(5013, "Stop", Properties.Resources.stop) { Tag = this });
+
       edit = new Editor { Dock = DockStyle.Fill };
-      edit.EditText = ((XNode)Tag).code ?? string.Empty;
+      edit.xobject = Tag is CDX.INode t ? (XObject)XNode.From(t) : XScene.From((CDX.IScene)Tag);
+      edit.EditText = edit.xobject.code ?? string.Empty;
       Visible = false;
       Controls.Add(edit);
       Controls.Add(tb);
       Visible = true;
     }
-    int UIForm.ICommandTarget.OnCommand(int id, object test)
-    {
-      switch (id)
-      {
-        case 5011: return OnRun(test);
-      }
-      return edit.OnCommand(id, test);
-    }
-    int OnRun(object test)
-    {
-      if (test != null) return 1;
-      try
-      {
-        var node = (XNode)Tag;
-        var code = edit.EditText; if (node.Code == code) return 1;
-        var view = ((MainFrame)FindForm()).view;
-        view.Execute(() => { var t = node.Code; node.Code = code; code = t; });
-        node.Code = edit.EditText;
-      }
-      catch (Exception e)
-      {
-        var p = Script.LastError; edit.Select(p.i, p.i + p.n);
-        MessageBox.Show(e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-      }
-      return 1;
-    }
+    int UIForm.ICommandTarget.OnCommand(int id, object test) => edit.OnCommand(id, test);
     class Editor : CodeEditor
     {
+      internal XObject xobject;
       protected override void UpdateSyntaxColors()
       {
         if (colormap == null) colormap = new int[] { 0, 0x00007000, 0x00000088, 0x00ff0000, 0x11463a96, 0x2200ddff, 0x00af912b, 0x000000ff };
@@ -859,23 +892,17 @@ namespace csg3mf
           var r = l - i; if (r == 0) { if (charcolor[i] != 6) charcolor[i] = 0; continue; }
           byte color = 0;
           if (r > 1 && !(l < text.Length && char.IsDigit(text[l])))
-            for (int t = 0; t < Compiler.keywords.Length; t++)
+            for (int t = 0; t < Script.keywords.Length; t++)
             {
-              var kw = Compiler.keywords[t];
+              var kw = Script.keywords[t];
               if (kw.Length == r && kw[0] == text[i] && string.Compare(text, i, kw, 0, kw.Length, true) == 0) { color = 3; break; }
             }
 
           for (; i < l; i++) if (charcolor[i] != 6) charcolor[i] = color; i--;
         }
-        //if (typemap == null) return;
-        //for (int i = 0; i < typemap.Length; i++)
-        //{
-        //  var p = typemap[i]; if ((p.v & 0xf) == 0 && charcolor[p.i] != 3) color(p.i, p.n, 6);
-        //  if (overid != 0 && (overid & 0x0f) < 8 && overid == (p.v & ~0xf0)) color2(p.i, p.n, 0x80);
-        //}
-        //for (int i = 0; i < spots.Length; i++) { var p = spots[i]; if ((p.v & 1) != 0) color(p.i, p.n, 4); }
-        //for (int i = 0; i < spots.Length; i++) { var p = spots[i]; if ((p.v & 2) != 0) color(p.i, p.n, 5); }
-        //for (int i = 0; i < errors.Length; i++) { var p = errors[i]; color2(p.i, p.n, (errors[i].v & 4) != 0 ? 0x70 : 0x10); }
+        for (int i = 0; i < map.Count; i++) { var m = map[i]; if (m.v == 0 && m.p is Type && charcolor[m.i] != 3) color(m.i, m.n, 6); }
+        for (int i = 0; i < map.Count; i++) { var m = map[i]; if ((m.v & 0xf) == 0x0A && (m.v & 0x30) != 0) color(m.i, m.n, (byte)((m.v & 0x20) != 0 ? 5 : 4)); }
+        //if (error != null) for (int i = 0; i < epos.n; i++) { charcolor[epos.i + i] |= 0x70; }
       }
       protected override int GetRange(int x)
       {
@@ -940,6 +967,12 @@ namespace csg3mf
         var nt = text.Length - n + s.Length;
         var nc = charcolor.Length; if (nc < nt + 1) Array.Resize(ref charcolor, nt + 1);
         Array.Copy(charcolor, i + n, charcolor, i + s.Length, nc - (i + n));
+        for (int t = 0; t < map.Count; t++)
+        {
+          var m = map[t]; if (m.i + m.n <= i) continue;
+          if (m.i >= i + n) { m.i += s.Length - n; map[t] = m; continue; }
+          m.n += s.Length - n; if (m.n > 0) map[t] = m; else map.RemoveAt(t--);
+        }
         EndToolTip(); base.Replace(i, n, s);
         rebuild = s.Length == 1 && (s[0] == '.' || s[0] == '(') ? 2 : 5;
       }
@@ -949,48 +982,193 @@ namespace csg3mf
         if (m.Msg == 0x0113)//WM_TIMER
         {
           if (rebuild != 0 && --rebuild == 0) { build(); postbuild(); }
+          ontimer?.Invoke();
         }
       }
-      List<(int i, int n, int v, object p)> map = new List<(int i, int n, int v, object p)>();
-      void build()
+      protected override unsafe void OnPaint(PaintEventArgs e)
       {
-        try { error = null; (Script.map = map).Clear(); var expr = Script.Compile(typeof(XNode), EditText); }
-        catch (Exception e)
-        {
-          epos = Script.LastError; Script.map = null;
-          for (int i = 0; i < epos.n; i++) { charcolor[epos.i + i] |= 0x70; }
-          error = e.Message;
-        }
-        for (int i = 0, n = error != null ? epos.i : charcolor.Length; i < n; i++) if (charcolor[i] == 6) charcolor[i] = 0;
+        base.OnPaint(e); int k = -1;
         for (int i = 0; i < map.Count; i++)
         {
-          var m = map[i]; if (m.v != 0 || !(m.p is Type)) continue;
-          if (charcolor[m.i] != 3) color(m.i, m.n, 6);
+          var p = map[i]; if ((p.v & 0x0F) != 0x0A) continue;
+          if ((p.v & 0x20) != 0) k = i; if ((p.v & 0x10) == 0) continue;
+          var y = LineOffset(LineFromPos(p.i)); TypeHelper.drawicon(e.Graphics, -1, y, 11);
         }
-        Invalidate();
+        if (k != -1) TypeHelper.drawicon(e.Graphics, -2, LineOffset(LineFromPos(map[k].i)) + 1, 12);
       }
+
+      public override int OnCommand(int id, object test)
+      {
+        switch (id)
+        {
+          //case 5014: return onstep(9, test); // Compile
+          //case 5020: return onbreakpoint(test);
+          //case 5021: return onclearbreaks(test);
+          //case 5025: return onshowil(test);
+
+          case 5011: // Run Without Debugging Strg+F5
+            if (test != null) return 1;
+            if (state == 7) { EndFlyer(); ontimer = null; state = 0; return 1; }
+            start(8); return 1;
+          case 5010: // Run Debugging F5
+            if (test != null) return 1;
+            if (state == 7) { EndFlyer(); ontimer = null; state = 0; return 1; }
+            start(0); return 1;
+          case 5016: //Step Over F10
+            if (test != null) return 1;
+            if (state == 7) { EndFlyer(); ontimer = null; state = 1; return 1; }
+            start(1); return 1;
+          case 5015: //Step In F11
+            if (test != null) return 1;
+            if (state == 7) { EndFlyer(); ontimer = null; state = 2; return 1; }
+            start(2); return 1;
+          case 5017: // Step Out Shift F11 
+            if (state != 7) return 0;
+            if (test != null) return 1;
+            EndFlyer(); ontimer = null; state = 3; return 1;
+          case 5013: // Stop Debugging
+            if (state != 7) return 0;
+            if (test != null) return 1;
+            return 1;
+          case 5020: return breakpoint(test);
+        }
+        return base.OnCommand(id, test);
+      }
+      int breakpoint(object test)
+      {
+        int x = SelectionStart, l = LineFromPos(x), a = GetLineStart(l);
+        var spots = map.Where(p => (p.v & 0x0f) == 0x0A);
+        var sp = spots.Where(p => p.i <= x && p.i + p.n >= x && (p.v & 0x10) != 0).OrderBy(p => p.n).LastOrDefault();
+        if (sp.n == 0) sp = spots.Where(p => (x == a ? p.i < x : p.i <= x) && p.i + p.n >= x).OrderBy(p => p.n).FirstOrDefault();
+        if (sp.n == 0) sp = spots.Where(p => LineFromPos(p.i) == l && (p.v & 0x10) != 0).OrderBy(p => p.i).FirstOrDefault();
+        if (sp.n == 0) sp = spots.Where(p => LineFromPos(p.i) == l).OrderBy(p => p.i).FirstOrDefault();
+        if (sp.n == 0) return 0; if (test != null) return 1;
+        var i = map.IndexOf(sp); sp.v ^= 0x10; map[i] = sp; UpdateSyntaxColors(); Invalidate();
+        return 1;
+      }
+
+      void build()
+      {
+        Script.bps = map.Where(p => p.v == 0x1A).Select(p => p.i).ToArray();
+        (Script.map = map).Clear(); error = null;
+        try { var expr = Script.Compile(xobject.GetType(), EditText); }
+        catch (Exception e) { epos = Script.LastError; error = e.Message; }
+        UpdateSyntaxColors(); Invalidate();
+        if (error != null) for (int i = 0; i < epos.n; i++) { charcolor[epos.i + i] |= 0x70; }
+      }
+      void start(int st)
+      {
+        try
+        {
+          if (st == 8) { xobject.Code = EditText; return; }
+          //xobject.GetMethod<Action>();
+          Script.bps = map.Where(p => p.v == 0x1A).Select(p => p.i).ToArray();
+          Script.dbg = DebugStep; (Script.map = map).Clear(); sp = null;
+          state = st; xobject.Code = EditText; 
+        }
+        catch (Exception e)
+        {
+          state = 0;
+          var p = Script.LastError; Select(p.i, p.i + p.n); ScrollVisible();
+          MessageBox.Show(e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+      }
+
+      //int OnRun(object test)
+      //{
+      //  if (test != null) return 1;
+      //  if (state != 0) { state = 0; return 0; }
+      //  try
+      //  {
+      //    var node = (CDX.INode)Parent.Tag; var xnode = XNode.From(node); var code = EditText;
+      //    xnode.GetMethod<Action>();
+      //    Script.dbg = DebugStep; (Script.map = map).Clear(); state = 1;
+      //    xnode.Code = code;
+      //    Script.dbg = null; Script.map = null; state = 0;
+      //    
+      //    //if (xnode.Code == code) return 1;
+      //    //xnode.GetMethod<Action>();
+      //    //Script.dbg = DebugStep; (Script.map = map).Clear(); state = 0;
+      //    //var view = ((MainFrame)FindForm()).view;
+      //    //view.Execute(() => { var p = XNode.From(node); var t = p.Code; p.Code = code; code = t; });
+      //    //Script.dbg = null; Script.map = null;
+      //  }
+      //  catch (Exception e)
+      //  {
+      //    Script.dbg = null; Script.map = null; state = 0;
+      //    var p = Script.LastError; Select(p.i, p.i + p.n);
+      //    MessageBox.Show(e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+      //  }
+      //  return 1;
+      //}
+
+      List<(int i, int n, int v, object p)> map = new List<(int i, int n, int v, object p)>();
+      int state; int* sp; (int id, object p)[] stack; Action ontimer; int lastpos = -1;
+      bool DebugStep(int i, (int id, object p)[] stack)
+      {
+        if (i >= map.Count) return false;
+        var m = map[i];
+        if (stack == null)
+        {
+          if ((m.v & 0x10) == 0)
+          {
+            if (state == 0) return false;
+            if (state == 1 && sp > &i) return false; // + 1
+            if (state == 3 && sp >= &i) return false;
+          }
+          return true;
+        }
+        ReadOnly = true; if (!Focused) { UIForm.ShowView(typeof(ScriptEditor), Parent.Tag, DockStyle.Left); }
+        m.v |= 0x20; map[i] = m; Select(m.i); UpdateSyntaxColors(); ScrollVisible(); this.stack = stack;//var ff = new StackTrace().GetFrames();
+        sp = &i; for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); Application.RaiseIdle(null); }
+        ReadOnly = false; this.stack = null; m = map[i]; m.v &= ~0x20; map[i] = m; UpdateSyntaxColors(); Invalidate(); Update();
+        MainFrame.Inval(); return true;
+      }
+
       void color(int i, int n, byte c) { for (int t = 0; t < n; t++) { charcolor[i + t] = c; } }
       protected override void OnMouseMove(MouseEventArgs e)
       {
-        base.OnMouseMove(e); if (flyer != null) return;
+        base.OnMouseMove(e); //if (flyer != null) return;
         var x = PosFromPoint(e.Location);
         if (error != null && x >= epos.i && x <= epos.i + epos.n)
         {
+          if (lastpos == epos.i) return; lastpos = epos.i;
           var s = error; SetToolTip(TextBox(epos.i, epos.n), t => t == 0 ? $"{"Error"} {s}" : null);
           return;
         }
         for (int i = 0; i < map.Count; i++)
         {
-          var m = map[i]; if (m.i > x || m.i + m.n < x) continue;
+          var m = map[i]; if ((m.v & 0xf) == 0x0A || m.i > x || m.i + m.n < x) continue;
+          if (lastpos == m.i) return; lastpos = m.i;
+          if (state == 7 && (m.v >> 8) != 0)
+          {
+            var v = stack.FirstOrDefault(p => p.id == m.v >> 8);
+            if (v.id != 0)
+            {
+              EndToolTip(); EndFlyer(); //ToolTip(text.Substring(tpos.i, tpos.n) + " = " + p.ToString());
+              var ri = RectangleToScreen(TextBox(m.i, m.n)); int ticks = 0;
+              ontimer = () =>
+              {
+                if (ticks++ < 5) return;
+                ontimer = null; EndToolTip(); EndFlyer();
+                flyer = new TypeExplorer { Location = new Point(ri.X, ri.Bottom) }; var mi = m.p as MemberInfo;
+                flyer.items = new TypeExplorer.Item[] { new TypeExplorer.Item { icon = mi != null ? TypeHelper.image(mi) : 8 /*18*/, text = text.Substring(m.i, m.n), obj = v.p, info = m.p } };
+                flyer.Show(); flyer.ontooltip = (r, item) => SetToolTip(RectangleToClient(r), xx => xx == 0 ? item.pv as string ?? item.sv : null);
+              };
+              return;
+            }
+          }
+          EndFlyer(); ontimer = null;
           SetToolTip(TextBox(m.i, m.n), t =>
           {
             if (t != 0) return null;
-            var s = TypeHelper.tooltip(new Compiler.map { i = m.i, n = m.n, p = m.p, v = m.v }, text);
+            var s = TypeHelper.tooltip(m, text);
             //if (epos.n != 0) s = string.Format("{0}{1}:\n  {2}", s != null ? string.Format("{0}\n\n", s.Trim()) : null, (epos.v & 4) != 0 ? "Error" : "Warning", _error(epos));
-            return s;
+            return s;// + $" ({m.v >> 8})";
           });
           return;
         }
+        lastpos = -1;
       }
       void postbuild()
       {
@@ -1042,7 +1220,7 @@ namespace csg3mf
             var type = tp.p as Type ?? (tp.p is PropertyInfo pi ? pi.PropertyType : tp.p is FieldInfo fi ? fi.FieldType : null); if (type == null) return;
             var items = type.GetMembers((tp.v != 0 ? BindingFlags.Instance : BindingFlags.Static | BindingFlags.FlattenHierarchy) |
               (/*type==typeof(XNode) ? BindingFlags.Public | BindingFlags.NonPublic :*/ BindingFlags.Public)).
-              Where(p => Compiler.__filter(p, cv == '#')).GroupBy(p => p.Name).Select(p => p.ToArray()).
+              Where(p => TypeHelper.__filter(p, cv == '#')).GroupBy(p => p.Name).Select(p => p.ToArray()).
               Select(p => new TypeExplorer.Item { icon = TypeHelper.image(p[0]), text = p[0].Name, info = p });
             if (tp.v != 0) items = items.Concat(Extensions(type).GroupBy(p => p.Name).Select(p => p.ToArray()).
               Select(p => new TypeExplorer.Item { icon = 24, text = p[0].IsGenericMethod ? p[0].Name + "<>" : p[0].Name, info = p }));
@@ -1069,7 +1247,7 @@ namespace csg3mf
       TypeExplorer flyer;
       void EditFlyer(int i1, int i2, TypeExplorer.Item[] items)
       {
-        if (items.Length == 0) return; var t2 = i2; //ontimer = null; 
+        if (items.Length == 0) return; var t2 = i2; ontimer = null;
         EndFlyer(); EndToolTip();
         flyer = new TypeExplorer(); var ri = RectangleToScreen(Caret);
         flyer.Location = new Point(ri.X, ri.Bottom);
@@ -1092,7 +1270,7 @@ namespace csg3mf
       {
         if (flyer != null) { flyer.Dispose(); flyer = null; }
       }
-      protected override void OnHandleDestroyed(EventArgs e) { EndFlyer(); base.OnHandleDestroyed(e); }
+      protected override void OnHandleDestroyed(EventArgs e) { map.Clear(); EndFlyer(); base.OnHandleDestroyed(e); }
       protected override void OnScroll(ScrollEventArgs se) { EndFlyer(); base.OnScroll(se); }
       protected override void OnMouseLeave(EventArgs e)
       {

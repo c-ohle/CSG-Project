@@ -96,6 +96,7 @@ namespace csg3mf
       void Clear();
       void SaveToStream(COM.IStream str);
       void LoadFromStream(COM.IStream str);
+      object Tag { [return: MarshalAs(UnmanagedType.IUnknown)] get; [param: MarshalAs(UnmanagedType.IUnknown)] set; }
     }
 
     [ComImport, Guid("2BB87169-81D3-405E-9C16-E4C22177BBAA"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]

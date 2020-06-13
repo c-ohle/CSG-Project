@@ -104,6 +104,8 @@ interface ICDXScene : IUnknown
   HRESULT Clear();
   HRESULT SaveToStream([in] IStream* s);
   HRESULT LoadFromStream([in] IStream* s);
+  [propget] HRESULT Tag([out, retval] IUnknown** p);
+  [propput] HRESULT Tag([in] IUnknown* p);
 };
 
 [object, uuid(C0667169-81D3-405E-9C16-E4C22177BBAA), pointer_default(unique)]

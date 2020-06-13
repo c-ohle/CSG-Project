@@ -111,7 +111,6 @@ namespace csg3mf
 #if(DEBUG)
           new ToolStripMenuItem("GC.Collect", null, (p,e) => {
             Debug.WriteLine("GC.Collect()");
-            Marshal.CleanupUnusedObjectsInCurrentContext();
             GC.Collect(2, GCCollectionMode.Forced, true, true);
             GC.WaitForPendingFinalizers(); }) { ShortcutKeys = Keys.Control|Keys.Shift|Keys.Alt|Keys.F12 },
           new ToolStripSeparator(),
@@ -142,7 +141,7 @@ namespace csg3mf
        });
       Controls.Add(MainMenuStrip);
       //Controls.Add(new StatusBar());// BackColor = Color.FromArgb(80, 85, 130) });
-      Neuron.Debugger = (p, v) => ((ScriptView)ShowView(typeof(ScriptView), p, DockStyle.Fill)).edit.Show(v);
+      //Neuron.Debugger = (p, v) => ((ScriptView)ShowView(typeof(ScriptView), p, DockStyle.Fill)).edit.Show(v);
     }
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -162,29 +161,22 @@ namespace csg3mf
       if (path == null) OnNew(null);
       base.OnHandleCreated(e);
     }
-    string path; Container cont; internal CDXView view; NeuronEditor edit;
+    string path; IScene scene; internal CDXView view; //NeuronEditor edit;
     void UpdateTitle()
     {
       Text = string.Format("{0} - {1} {2} Bit {3}", path ?? string.Format("({0})", "Untitled"), Application.ProductName, Environment.Is64BitProcess ? "64" : "32", COM.DEBUG ? "Debug" : "Release");
     }
     void Open(string path)
     {
-      string script = null;
-      if (path == null) { cont = new Container(null); script = "using static csg3mf.CSG;\n"; }
-      else cont = new Container(Import3MF(path, out script, out _));
+      if (path == null) XScene.From(scene = Factory.CreateScene());
+      else scene = Import3MF(path, out _);
       DoubleBuffered = true;
-      while (Controls[0] is Frame f) f.Dispose(); edit = null;
+      while (Controls[0] is Frame f) f.Dispose();
       this.path = path; UpdateTitle();
-      if (script != null)
-      {
-        NeuronEditor.NeuronInit(cont, script);
-        edit = ((ScriptView)ShowView(typeof(ScriptView), cont, DockStyle.Left, ClientSize.Width / 2)).edit;
-      }
-      view = (CDXView)ShowView(typeof(CDXView), cont.Nodes, DockStyle.Fill);
-      cont.OnUpdate = () => { view.IsModified = false; view.Invalidate(); }; view.infos = cont.Infos;
+      if (scene.Tag is XScene) ShowView(typeof(ScriptEditor), scene, DockStyle.Left, ClientSize.Width / 2);
+      view = (CDXView)ShowView(typeof(CDXView), scene, DockStyle.Fill);
       Update(); DoubleBuffered = false;
       if (path != null) mru(path, path);
-
     }
     protected override int OnCommand(int id, object test)
     {
@@ -218,17 +210,17 @@ namespace csg3mf
     int OnNew(object test)
     {
       if (test != null) return 1;
-      if (edit != null && edit.askstop()) return 1;
+      //if (edit != null && edit.askstop()) return 1;
       if (!AskSave()) return 1;
       Open(null); return 1;
     }
     int OnOpen(object test)
     {
-      if (test != null) return 1; if (edit != null && edit.askstop()) return 1;
+      if (test != null) return 1; //if (edit != null && edit.askstop()) return 1;
       var dlg = new OpenFileDialog() { Filter = "3MF files|*.3mf|All files|*.*" };
       if (path != null) dlg.InitialDirectory = Path.GetDirectoryName(path);
       if (dlg.ShowDialog(this) != DialogResult.OK) return 1;
-      if (edit != null && edit.askstop()) return 1;
+      //if (edit != null && edit.askstop()) return 1;
       if (!AskSave()) return 1;
       Cursor.Current = Cursors.WaitCursor; Open(dlg.FileName);
       return 1;
@@ -246,7 +238,7 @@ namespace csg3mf
       Cursor.Current = Cursors.WaitCursor;
       var str = COM.SHCreateMemStream();
       view.view.Thumbnail(256, 256, 4, 0x00ffffff, str);
-      cont.Nodes.Export3MF(s, str, edit != null ? edit.EditText : null, null);
+      scene.Export3MF(s, str, null);
       if (path != s) { path = s; UpdateTitle(); mru(path, path); }
       IsModified = false; Cursor.Current = Cursors.Default;
       return 1;
@@ -255,7 +247,7 @@ namespace csg3mf
     {
       if (test is string path)
       {
-        if (edit != null && edit.askstop()) return 1;
+        //if (edit != null && edit.askstop()) return 1;
         if (!AskSave()) return 1;
         mru(null, path); Cursor.Current = Cursors.WaitCursor; Open(path);
         return 1;
@@ -265,32 +257,32 @@ namespace csg3mf
     }
     bool AskSave()
     {
-      if (cont == null) return true;
-      if (IsModified) return true;
+      if (scene == null) return true;
+      if (!IsModified) return true;
       switch (MessageBox.Show(this, path == null ? "Save changings?" : $"Save changings in {path}?", Application.ProductName, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Exclamation))
       {
         case DialogResult.No: return true;
-        case DialogResult.Yes: OnCommand(1020, null); return IsModified;
+        case DialogResult.Yes: OnCommand(1020, null); return !IsModified;
       }
       return false;
     }
     bool IsModified
     {
-      get => (edit == null || !edit.IsModified) && !view.IsModified;
-      set { view.IsModified = false; if (edit != null) edit.IsModified = false; }
+      get => view.IsModified;
+      set { view.IsModified = false; }
     }
     int OnShow3MF(object test)
     {
       if (test != null) return 1;
       Cursor.Current = Cursors.WaitCursor;
-      var el = cont.Nodes.Export3MF(null, null, null, null);
-      var view = (XmlEditor)ShowView(typeof(XmlEditor), cont, DockStyle.Fill);
+      var el = scene.Export3MF(null, null, null);
+      var view = (XmlEditor)ShowView(typeof(XmlEditor), scene, DockStyle.Fill);
       view.Text = "3MF Content"; view.EditText = el.ToString();
       return 1;
     }
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-      if (e.Cancel = !AskSave()) return; IsModified = false; edit?.OnFormClosing(this);
+      if (e.Cancel = !AskSave()) return; IsModified = false; //edit?.OnFormClosing(this);
       var reg = Application.UserAppDataRegistry;
       reg.SetValue("lwp", getrestore(), Microsoft.Win32.RegistryValueKind.QWord);
       if (path != null) reg.SetValue("lod", path); else reg.DeleteValue("lod", false);
@@ -323,87 +315,65 @@ namespace csg3mf
       if (m.Msg == 0x112 && m.WParam == (IntPtr)0xf060) { Native.PostMessage(m.HWnd, 0x0010, null, null); return; }
       base.WndProc(ref m);
     }
-    class ScriptView : UserControl, ICommandTarget
-    {
-      int ICommandTarget.OnCommand(int id, object test)
-      {
-        if (id == 0) { MenuItem.Update(tb.Items); tb.Update(); } //ui
-        return edit.OnCommand(id, test);
-      }
-      internal NeuronEditor edit = new NeuronEditor { Dock = DockStyle.Fill }; ToolStrip tb;
-      protected override void OnPaintBackground(PaintEventArgs e)
-      {
-        //base.OnPaintBackground(e);
-      }
-      protected override void OnLoad(EventArgs e)
-      {
-        tb = new ToolStrip() { Margin = new Padding(15), ImageScalingSize = new Size(24, 24), GripStyle = ToolStripGripStyle.Hidden };
-        tb.Items.Add(new Button(5011, "Run", Resources.run) { Tag = edit });
-        tb.Items.Add(new ToolStripSeparator());
-        tb.Items.Add(new Button(5010, "Run Debug", Resources.rund) { Tag = edit });
-        tb.Items.Add(new Button(5016, "Step", Resources.stepover) { Tag = edit });
-        tb.Items.Add(new Button(5015, "Step Into", Resources.stepin) { Tag = edit });
-        tb.Items.Add(new Button(5017, "Step Out", Resources.stepout) { Tag = edit });
-        tb.Items.Add(new ToolStripSeparator());
-        tb.Items.Add(new Button(5013, "Stop", Resources.stop) { Tag = edit });
-        edit.Tag = Tag;
-        Visible = false;
-        Controls.Add(edit);
-        Controls.Add(tb);
-        Visible = true;
-      }
-      public override string Text { get => (string)((Neuron)edit.Tag).Invoke(2, null); set { } }
-    }
-
     int OnScript(object test)
     {
       var a = view.view.Scene.Selection();
       if (a.Take(2).Count() != 1) return 0;
       if (test != null) return 1;
-      ShowView(typeof(ScriptEditor), XNode.From(a.First()), DockStyle.Left);
+      ShowView(typeof(ScriptEditor), a.First(), DockStyle.Left);
       return 1;
     }
-
     internal static int inval;
-
-  }
-
-  class XScene
-  {
-    internal CDXView p;
-    [Category("General")]
-    public Unit BaseUnit { get => p.view.Scene.Unit; set => p.view.Scene.Unit = value; }
-    [Category("Internal")]
-    public int Nodes { get => p.view.Scene.Count; }
-  }
-
-  class XNode : ICustomTypeDescriptor, IExchange
-  {
-    internal static XNode From(INode p) => p.Tag is XNode node ? node : new XNode(p);
-    XNode(INode p) { p.Tag = this; unk = Marshal.GetIUnknownForObject(p); Marshal.Release(unk); }
-    protected INode Node => (INode)Marshal.GetObjectForIUnknown(unk);
-
-    IntPtr unk; PropertyDescriptorCollection pdc;
-    internal string code, props; object[] data;
-    T GetMethod<T>() where T : Delegate
+    internal static void Inval()
     {
-      if (data == null)
+      //inval |= 1;
+      ((MainFrame)MainFrame).view.Invalidate();
+    }
+  }
+
+  public interface IExchange
+  {
+    bool Group(string name);
+    bool Exchange<T>(string name, ref T value, string fmt = null);
+  }
+
+  abstract class XObject : IExchange, ICustomTypeDescriptor
+  {
+    internal abstract string Title { get; }
+    internal string code, props; object[] funcs;
+    internal string Code
+    {
+      get => code;
+      set
+      {
+        var e = getprops();
+        if (string.IsNullOrEmpty(value)) { code = null; pdc = null; funcs = null; MainFrame.Inval(); return; }
+        var expr = Script.Compile(GetType(), value);
+        var ctor = expr.Compile(); funcs = ctor(this);
+        if (e != null) { props = null; setprops(e); }
+        code = value; pdc = null; MainFrame.Inval();
+      }
+    }
+    internal T GetMethod<T>() where T : Delegate
+    {
+      if (funcs == null)
       {
         if (code == null) return null;
         try
         {
-          var expr = Script.Compile(typeof(XNode), code);
-          var ctor = expr.Compile(); data = ctor(this);
+          var expr = Script.Compile(GetType(), code);
+          var ctor = expr.Compile(); funcs = ctor(this);
           if (props != null) { var e = XElement.Parse(props); props = null; setprops(e); }
         }
-        catch (Exception e) { data = new object[] { e }; }
+        catch (Exception e) { funcs = new object[] { e }; }
       }
-      for (int i = 1; i < data.Length; i++) if (data[i] is T f) return f;
+      for (int i = 1; i < funcs.Length; i++) if (funcs[i] is T f) return f;
       return null;
     }
 
     internal XElement getprops()
     {
+      if (funcs == null) return props != null ? XElement.Parse(props) : null;
       var m = GetMethod<Action<IExchange>>(); if (m == null) return null;
       todo = 3; exid = 0; param = new XElement("props"); m(this); return (XElement)param;
     }
@@ -424,20 +394,120 @@ namespace csg3mf
       todo = 2; exid = 0; setid = id; param = value; m(this);
     }
 
-    //[Editor(typeof(MultilineStringEditor), typeof(UITypeEditor))]
-    internal string Code
+    static int todo, exid, setid; static string group; static object param;
+    bool IExchange.Group(string name) { exid = ((exid >> 16) + 1) << 16; group = name; return true; }
+    bool IExchange.Exchange<T>(string name, ref T value, string fmt)
     {
-      get => code;
-      set
+      exid++;
+      switch (todo)
       {
-        if (code == value) return;
-        var props = getprops();
-        if (value == null || value.Trim().Length == 0) { code = null; pdc = null; data = null; MainFrame.inval |= 1; return; }
-        var expr = Script.Compile(typeof(XNode), value);
-        var ctor = expr.Compile(); data = ctor(this); code = value; pdc = null; MainFrame.inval |= 1;
-        if (props != null) setprops(props);
+        case 0: ((List<PD>)param).Add(new PD(exid, name, typeof(T), group, fmt)); return false;
+        case 1: if (setid == exid) { param = value; } return false;
+        case 2: if (setid == exid) { value = (T)param; return true; } return false;
+        case 3:
+          {
+            if (fmt != null && fmt.Contains("r;")) return false;
+            var s = TypeDescriptor.GetConverter(typeof(T)).ConvertTo(null, CultureInfo.InvariantCulture, value, typeof(string));
+            ((XElement)param).Add(new XElement("prop", new XAttribute("name", name), new XAttribute("value", s))); return false;
+          }
+        case 4:
+          {
+            if (fmt != null && fmt.Contains("r;")) return false;
+            var tc = TypeDescriptor.GetConverter(typeof(T)); if (!tc.CanConvertFrom(typeof(string))) return false;
+            var s = getval((XElement)param, name); if (s == null) return false;
+            var p = TypeDescriptor.GetConverter(typeof(T)).ConvertFrom(null, CultureInfo.InvariantCulture, s);
+            if (p != null) value = (T)p; return false;
+          }
+      }
+      return false;
+    }
+    static string getval(XElement e, string name)
+    {
+      var c = e.Elements().FirstOrDefault(p => (string)p.Attribute("name") == name);
+      return c != null ? (string)c.Attribute("value") : null;
+    }
+
+    AttributeCollection ICustomTypeDescriptor.GetAttributes() => TypeDescriptor.GetAttributes(this, true);
+    string ICustomTypeDescriptor.GetClassName() => TypeDescriptor.GetClassName(this, true);
+    string ICustomTypeDescriptor.GetComponentName() => TypeDescriptor.GetComponentName(this, true);
+    TypeConverter ICustomTypeDescriptor.GetConverter() => TypeDescriptor.GetConverter(this, true);
+    EventDescriptor ICustomTypeDescriptor.GetDefaultEvent() => TypeDescriptor.GetDefaultEvent(this, true);
+    PropertyDescriptor ICustomTypeDescriptor.GetDefaultProperty() => TypeDescriptor.GetDefaultProperty(this, true);
+    object ICustomTypeDescriptor.GetEditor(Type editorBaseType) => editorBaseType == typeof(ComponentEditor) ? new edit() : TypeDescriptor.GetEditor(this, editorBaseType, true);
+    public class edit : ComponentEditor
+    {
+      public override bool EditComponent(ITypeDescriptorContext context, object component)
+      {
+        ((UIForm)Application.OpenForms[0]).TryCommand(null, 4021, null); return true;
       }
     }
+    EventDescriptorCollection ICustomTypeDescriptor.GetEvents() => TypeDescriptor.GetEvents(this, true);
+    EventDescriptorCollection ICustomTypeDescriptor.GetEvents(Attribute[] attributes) => TypeDescriptor.GetEvents(this, attributes, true);
+    PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties() => TypeDescriptor.GetProperties(this, true);
+    object ICustomTypeDescriptor.GetPropertyOwner(PropertyDescriptor pd) => this;
+    PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties(Attribute[] attributes)
+    {
+      if (pdc != null) return pdc;
+      pdc = TypeDescriptor.GetProperties(this, attributes, true);
+      var m = GetMethod<Action<IExchange>>(); if (m == null) return pdc;
+      var pds = new List<PD>(); todo = exid = setid = 0; param = pds; m(this);
+      if (pds.Count != 0) pdc = new PropertyDescriptorCollection(pdc.Cast<PropertyDescriptor>().Concat(pds).ToArray());
+      return pdc;
+    }
+    PropertyDescriptorCollection pdc;
+    class PD : PropertyDescriptor
+    {
+      public PD(int id, string name, Type t, string c, string fmt) : base(name, null) { this.id = id; type = t; category = c; this.fmt = fmt; }
+      internal int id; Type type; string category, fmt;
+      public override string Category => category ?? base.Category;
+      public override string Description => fmt != null ? fmt.Substring(fmt.LastIndexOf(';') + 1) : base.Description;
+      public override Type ComponentType => typeof(XNode);
+      public override bool IsReadOnly => fmt != null && fmt.Contains("r;");
+      public override Type PropertyType => type;
+      public override bool CanResetValue(object component) => false;
+      public override void ResetValue(object component) { }
+      public override bool ShouldSerializeValue(object component) => fmt != null && fmt.Contains("b;");
+      public override object GetValue(object component) => ((XNode)component).getprop(id);
+      public override void SetValue(object component, object value) => ((XNode)component).setprop(id, value);
+    }
+    internal static Action undo(PropertyDescriptor pd, object p, object v)
+    {
+      var x = pd is PD sd ? (object)sd.id : pd.Name;
+      return () =>
+      {
+        if (x is string s)
+        {
+          var pi = p.GetType().GetProperty(s);
+          var t = pi.GetValue(p); pi.SetValue(p, v); v = t;
+        }
+        else
+        {
+          var id = (int)x; var n = (XNode)p;
+          var t = n.getprop(id); n.setprop(id, v); v = t;
+        }
+      };
+    }
+  }
+
+  class XScene : XObject
+  {
+    internal override string Title => "Scene";
+    internal static XScene From(IScene p) => p.Tag as XScene ?? new XScene(p);
+    XScene(IScene p) { p.Tag = this; Marshal.Release(unk = Marshal.GetIUnknownForObject(p)); }
+    public IScene Nodes => (IScene)Marshal.GetObjectForIUnknown(unk); IntPtr unk;
+    public readonly List<string> Infos = new List<string>();
+    [Category("General")]
+    public Unit BaseUnit { get => Nodes.Unit; set => Nodes.Unit = value; }
+    [Category("Internal")]
+    public int NodeCount { get => Nodes.Count; }
+  }
+
+  class XNode : XObject
+  {
+    internal override string Title => Name;
+    internal static XNode From(INode p) => p.Tag as XNode ?? new XNode(p);
+    XNode(INode p) { p.Tag = this; Marshal.Release(unk = Marshal.GetIUnknownForObject(p)); }
+    protected INode Node => (INode)Marshal.GetObjectForIUnknown(unk); IntPtr unk;
 
     [Category("General")]
     public string Name { get => Node.Name; set => Node.Name = value; }
@@ -503,89 +573,6 @@ namespace csg3mf
     public string rat_matrix3 => $"{Node.GetTransval(6)} {Node.GetTransval(7)} {Node.GetTransval(8)}";
     public string rat_matrix4 => $"{Node.GetTransval(9)} {Node.GetTransval(10)} {Node.GetTransval(11)}";
 #endif
-
-    AttributeCollection ICustomTypeDescriptor.GetAttributes() => TypeDescriptor.GetAttributes(this, true);
-    string ICustomTypeDescriptor.GetClassName() => TypeDescriptor.GetClassName(this, true);
-    string ICustomTypeDescriptor.GetComponentName() => TypeDescriptor.GetComponentName(this, true);
-    TypeConverter ICustomTypeDescriptor.GetConverter() => TypeDescriptor.GetConverter(this, true);
-    EventDescriptor ICustomTypeDescriptor.GetDefaultEvent() => TypeDescriptor.GetDefaultEvent(this, true);
-    PropertyDescriptor ICustomTypeDescriptor.GetDefaultProperty() => TypeDescriptor.GetDefaultProperty(this, true);
-    object ICustomTypeDescriptor.GetEditor(Type editorBaseType) => editorBaseType == typeof(ComponentEditor) ? new edit() : TypeDescriptor.GetEditor(this, editorBaseType, true);
-    public class edit : ComponentEditor
-    {
-      public override bool EditComponent(ITypeDescriptorContext context, object component)
-      {
-        ((UIForm)Application.OpenForms[0]).TryCommand(null, 4021, null); return true;
-      }
-    }
-    EventDescriptorCollection ICustomTypeDescriptor.GetEvents() => TypeDescriptor.GetEvents(this, true);
-    EventDescriptorCollection ICustomTypeDescriptor.GetEvents(Attribute[] attributes) => TypeDescriptor.GetEvents(this, attributes, true);
-    PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties() => TypeDescriptor.GetProperties(this, true);
-    object ICustomTypeDescriptor.GetPropertyOwner(PropertyDescriptor pd) => this;
-    PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties(Attribute[] attributes)
-    {
-      if (pdc != null) return pdc;
-      pdc = TypeDescriptor.GetProperties(this, attributes, true);
-      var m = GetMethod<Action<IExchange>>(); if (m == null) return pdc;
-      var pds = new List<PD>(); todo = exid = setid = 0; param = pds; m(this);
-      if (pds.Count != 0) pdc = new PropertyDescriptorCollection(pdc.Cast<PropertyDescriptor>().Concat(pds).ToArray());
-      return pdc;
-    }
-
-    static int todo, exid, setid; static string group; static object param;
-    bool IExchange.Group(string name) { exid = ((exid >> 16) + 1) << 16; group = name; return true; }
-    bool IExchange.Exchange<T>(string name, ref T value, string fmt)
-    {
-      exid++;
-      switch (todo)
-      {
-        case 0: ((List<PD>)param).Add(new PD(exid, name, typeof(T), group, fmt)); return false;
-        case 1: if (setid == exid) { param = value; } return false;
-        case 2: if (setid == exid) { value = (T)param; return true; } return false;
-        case 3:
-          {
-            if (fmt != null && fmt.Contains("r;")) return false;
-            var s = TypeDescriptor.GetConverter(typeof(T)).ConvertTo(null, CultureInfo.InvariantCulture, value, typeof(string));
-            ((XElement)param).Add(new XElement("prop", new XAttribute("name", name), new XAttribute("value", s))); return false;
-          }
-        case 4:
-          {
-            if (fmt != null && fmt.Contains("r;")) return false;
-            var tc = TypeDescriptor.GetConverter(typeof(T)); if (!tc.CanConvertFrom(typeof(string))) return false;
-            var s = getval((XElement)param, name); if (s == null) return false;
-            var p = TypeDescriptor.GetConverter(typeof(T)).ConvertFrom(null, CultureInfo.InvariantCulture, s);
-            if (p != null) value = (T)p; return false;
-          }
-      }
-      return false;
-    }
-    static string getval(XElement e, string name)
-    {
-      var c = e.Elements().FirstOrDefault(p => (string)p.Attribute("name") == name);
-      return c != null ? (string)c.Attribute("value") : null;
-    }
-
-    class PD : PropertyDescriptor
-    {
-      public PD(int id, string name, Type t, string c, string fmt) : base(name, null) { this.id = id; type = t; category = c; this.fmt = fmt; }
-      int id; Type type; string category, fmt;
-      public override string Category => category ?? base.Category;
-      public override string Description => fmt != null ? fmt.Substring(fmt.LastIndexOf(';') + 1) : base.Description;
-      public override Type ComponentType => typeof(XNode);
-      public override bool IsReadOnly => fmt != null && fmt.Contains("r;");
-      public override Type PropertyType => type;
-      public override bool CanResetValue(object component) => false;
-      public override void ResetValue(object component) { }
-      public override bool ShouldSerializeValue(object component) => fmt != null && fmt.Contains("b;");
-      public override object GetValue(object component) => ((XNode)component).getprop(id);
-      public override void SetValue(object component, object value) => ((XNode)component).setprop(id, value);
-    }
-  }
-
-  public interface IExchange
-  {
-    bool Group(string name);
-    bool Exchange<T>(string name, ref T value, string fmt = null);
   }
 
   class PropertyView : PropertyGrid, UIForm.ICommandTarget
@@ -613,7 +600,7 @@ namespace csg3mf
         if (nodes == null)
         {
           nodes = scene.Selection().ToArray();
-          if (nodes.Length == 0) SelectedObject = new XScene { p = view };
+          if (nodes.Length == 0) SelectedObject = XScene.From(scene);
           else SelectedObjects = nodes.Select(p => (object)XNode.From(p)).ToArray();
         }
         else Refresh();
@@ -631,29 +618,21 @@ namespace csg3mf
       if (g.GridItemType != GridItemType.Property || g.Value != null) return;
       var t = g.GetType().GetProperty("Instance"); if (t == null) return;
       var a = t.GetValue(g) as object[]; if (a == null) return;
-      var d = g.PropertyDescriptor; t = d.ComponentType.GetProperty(d.Name);
-      oldvals = a.Select(p => t.GetValue(p)).ToArray();
+      var d = g.PropertyDescriptor;
+      var f = d.GetType().GetField("descriptors", BindingFlags.Instance | BindingFlags.NonPublic);
+      var b = (PropertyDescriptor[])f.GetValue(d);
+      oldvals = new object[a.Length]; for (int i = 0; i < a.Length; i++) oldvals[i] = b[i].GetValue(a[i]);
     }
     protected override void OnPropertyValueChanged(PropertyValueChangedEventArgs e)
     {
-      var g = e.ChangedItem;
+      var g = e.ChangedItem; view.Invalidate();
       var h = g.GetType().GetProperty("Instance");
       var p = h.GetValue(g);
-      var d = g.PropertyDescriptor; //var t = d.ComponentType.GetProperty(d.Name);
+      var d = g.PropertyDescriptor;
       var f = d.GetType().GetField("descriptors", BindingFlags.Instance | BindingFlags.NonPublic);
-      if (f != null) d = ((PropertyDescriptor[])f.GetValue(d))[0];
-      var o = e.OldValue ?? oldvals; //if (!(p is object[]) && t.GetValue(p).Equals(o)) return;
-      view.AddUndo(() =>
-      {
-        if (p is object[] a)
-        {
-          var v = new object[a.Length];
-          for (int i = 0; i < a.Length; i++) { v[i] = d.GetValue(a[i]); d.SetValue(a[i], o is object[] oo ? oo[i] : o); }
-          o = v;
-        }
-        else { var v = d.GetValue(p); d.SetValue(p, o); o = v; }
-      });
-      view.Invalidate();
+      if (f == null) { view.AddUndo(XNode.undo(d, p, e.OldValue)); return; }
+      var pp = (object[])p; var dd = (PropertyDescriptor[])f.GetValue(d);
+      view.AddUndo(CDXView.undo(pp.Select((a, i) => XNode.undo(dd[i], a, e.OldValue ?? oldvals[i]))));
     }
   }
 

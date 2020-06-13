@@ -16,6 +16,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Xml.Linq;
 
 namespace csg3mf
 {
@@ -1123,1033 +1124,6 @@ namespace csg3mf
     }
   }
 
-  class NeuronEditor : CodeEditor
-  {
-    Neuron neuron; Compiler compiler;
-    object[] data, dbgdata; Compiler.map[] spots; Compiler.map[] typemap; Compiler.map[] errors; String[] usings, usingsuse;
-    int overid, recolor, rebuild, maxerror, state, ibreak; IntPtr threadstack;
-    static NeuronEditor first; NeuronEditor next; bool ignorexceptions;
-    internal static NeuronEditor GetEditor(Neuron neuron)
-    {
-      var p = first; for (; p != null && p.neuron != neuron; p = p.next) ; return p;
-    }
-    //object[] getdata() { return (object[])neuron.Invoke(0, null); }
-    //void setdata(object[] a) { neuron.Invoke(1, a); }
-    static void setdata(Neuron neuron, object[] b)
-    {
-      var a = (object[])neuron.Invoke(0, null); //getdata
-      if (isrunning(a)) neuron.Invoke(4, null); //onstop Invoke("Dispose");
-      neuron.Invoke(1, b); //setdata
-      var runs = isrunning(b);
-      var editor = GetEditor(neuron);
-      if (editor != null) { editor.data = b; editor.ReadOnly = runs; }
-      if (!runs) return;
-      try { neuron.Invoke(3, null); }
-      catch (DebugStop) { editor?.stop(); return; }
-      catch (Exception e) { MessageBox.Show(e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-      if (neuron.Invoke(5, null) != null) { neuron.Invoke(6, 0); editor?.onstop(null); }
-    }
-    protected override void UpdateSyntaxColors()
-    {
-      if (colormap == null) colormap = new int[] { 0, 0x00007000, 0x00000088, 0x00ff0000, 0x11463a96, 0x2200ddff, 0x00af912b, 0x000000ff };
-      int n = text.Length; Array.Resize(ref charcolor, n + 1);
-      for (int i = 0; i < n; i++)
-      {
-        var c = text[i];
-        if (c <= ' ') { charcolor[i] = 0; continue; }
-        if (c == '/' && i + 1 < n)
-        {
-          if (text[i + 1] == '/') { for (; i < n && text[i] != 10; i++) charcolor[i] = 1; continue; }
-          if (text[i + 1] == '*') { var t = text.IndexOf("*/", i + 2); t = t >= 0 ? t + 2 : n; for (; i < t; i++) charcolor[i] = 1; i = t - 1; continue; }
-        }
-        if (c == '"' || c == '\'')
-        {
-          var x = i; for (++i; i < n; i++) { var t = text[i]; if (t == '\\') { i++; continue; } if (t == c) break; }
-          for (; x <= i; x++) charcolor[x] = 2; continue;
-        }
-        if (c == '<') //inline xml
-        {
-          int k = i - 1; for (; k >= 0 && (text[k] <= ' ' || charcolor[k] == 1); k--) ;
-          if (k < 0 || "=+(,;}?".Contains(text[k]))
-          {
-            for (int z = 0, g, d = 0; i < n; i++)
-            {
-              if ((c = text[i]) == '<')
-              {
-                for (k = i + 1; k < n && text[k] != '>'; k++) ; if (k == n) break;
-                charcolor[i++] = charcolor[g = k--] = 3;
-                if (text[i] == '!')
-                {
-                  for (k = g; k < n && (text[k] != '>' || text[k - 1] != '-' || text[k - 2] != '-'); k++) ; charcolor[g = k--] = 3;
-                  charcolor[i++] = 3;
-                  for (int f = 0; f < 2; f++) { if (text[i] == '-') charcolor[i++] = 3; if (text[k] == '-') charcolor[k--] = 3; }
-                  for (; i <= k; i++) charcolor[i] = 1;
-                  i = g; continue;
-                }
-                if (text[i] == '/') { z--; charcolor[i++] = 3; }
-                else if (text[k] != '/') z++; else charcolor[k--] = 3;
-                for (; i <= k && text[i] > ' '; i++) charcolor[i] = 2;
-                for (; i <= k; i++)
-                {
-                  if ((c = text[i]) == '"')
-                  {
-                    charcolor[i++] = 0; d = 3;
-                    for (; i < k && text[i] != '"'; i++)
-                    {
-                      if (text[i] == '&') d = 7;
-                      charcolor[i] = (byte)d; if (d == 7 && (text[i] == ';' || text[i] <= ' ')) d = 3;
-                    }
-                    if (i <= k) charcolor[i] = 0; continue;
-                  }
-                  charcolor[i] = (byte)(c == '=' ? 0 : 7);
-                }
-                i = g; d = 0; continue;
-              }
-              if (z == 0 && c > ' ') { i--; break; }
-              if (c == '&') d = 7; charcolor[i] = (byte)d; if (d == 7 && (c == ';' || c <= ' ')) d = 0;
-            }
-            continue;
-          }
-        }
-
-        var l = i; for (; l < n && IsLetter(text[l]); l++) ;
-        var r = l - i; if (r == 0) { charcolor[i] = 0; continue; }
-        byte color = 0;
-        if (r > 1 && !(l < text.Length && char.IsDigit(text[l])))
-          for (int t = 0; t < Compiler.keywords.Length; t++)
-          {
-            var kw = Compiler.keywords[t];
-            if (kw.Length == r && kw[0] == text[i] && string.Compare(text, i, kw, 0, kw.Length, true) == 0) { color = 3; break; }
-          }
-        for (; i < l; i++) charcolor[i] = color; i--;
-      }
-      if (typemap == null) return;
-
-      for (int i = 0; i < typemap.Length; i++)
-      {
-        var p = typemap[i]; if ((p.v & 0xf) == 0 && charcolor[p.i] != 3) color(p.i, p.n, 6);
-        if (overid != 0 && (overid & 0x0f) < 8 && overid == (p.v & ~0xf0)) color2(p.i, p.n, 0x80);
-      }
-      for (int i = 0; i < spots.Length; i++) { var p = spots[i]; if ((p.v & 1) != 0) color(p.i, p.n, 4); }
-      for (int i = 0; i < spots.Length; i++) { var p = spots[i]; if ((p.v & 2) != 0) color(p.i, p.n, 5); }
-      for (int i = 0; i < errors.Length; i++) { var p = errors[i]; color2(p.i, p.n, (errors[i].v & 4) != 0 ? 0x70 : 0x10); }
-    }
-    void color(int i, int n, int c)
-    {
-      for (int b = i + n; i < b; i++) charcolor[i] = (byte)c;
-    }
-    void color2(int i, int n, int c)
-    {
-      for (int b = i + n; i < b; i++) charcolor[i] |= (byte)c;
-    }
-    int nextls(int i)
-    {
-      for (; i < text.Length && text[i] != 10; i++) ;
-      for (; i < text.Length && text[i] <= 32; i++) ;
-      return i;
-    }
-    bool startsw(int i, string s)
-    {
-      return i + s.Length <= text.Length && string.CompareOrdinal(s, 0, text, i, s.Length) == 0;
-    }
-    protected override int GetRange(int x)
-    {
-      for (int i = x, n = text.Length; i < n; i++)
-      {
-        if (text[i] == 10 || text[i] == ';') break;
-        if (text[i] == '/' && i + 1 < n)
-        {
-          if (text[i + 1] == '*') { for (i += 2; i < n - 1; i++) if (text[i] == '*' && text[i + 1] == '/') break; return -i; }
-          if (text[i + 1] == '/') { for (int t; (t = nextls(i)) < n - 1 && text[t] == '/' && text[t + 1] == '/'; i = t) ; return -i; }
-        }
-        if (text[i] == '[') { for (int t; (t = nextls(i)) < n && text[t] == '['; i = t) ; return -i; }
-        if (IsLetter(text[i]))
-        {
-          if (startsw(i, "using")) { for (int t; (t = nextls(i)) < n && startsw(t, "using"); i = t) ; return -i; }
-          for (; i < n; i++)
-          {
-            if (text[i] == ';') break;
-            if (text[i] == '{')
-            {
-              for (int k = 0; i < n; i++)
-              {
-                if (text[i] == '{') { k++; continue; }
-                if (text[i] == '}') { if (--k == 0) return i; }
-              }
-              break;
-            }
-          }
-          break;
-        }
-        if (text[i] == '<') //inline xml
-        {
-          if (i + 1 == n || text[i + 1] == '/') break;
-          for (int z = 0, k; i < n; i++)
-          {
-            if (text[i] == '<')
-            {
-              for (k = i + 1; k < n && text[k] != '>'; k++) ; if (k == n) break;
-              if (text[i + 1] == '!') { i = k; continue; }
-              if (text[i + 1] == '/') z--; else if (text[k - 1] != '/') z++;
-              i = k; continue;
-            }
-            if (z == 0) return i;
-          }
-        }
-      }
-      return 0;
-    }
-    public override void Refresh() { UpdateSyntaxColors(); Invalidate(); }
-    protected override unsafe void OnPaint(PaintEventArgs e)
-    {
-      base.OnPaint(e); if (spots == null) return; int k = -1;
-      for (int i = 0; i < spots.Length; i++)
-      {
-        var p = spots[i]; if ((p.v & 2) != 0) k = i; if ((p.v & 1) == 0) continue;
-        var y = LineOffset(LineFromPos(p.i));
-        TypeHelper.drawicon(e.Graphics, -1, y, 11);
-      }
-      if (k != -1) TypeHelper.drawicon(e.Graphics, -2, LineOffset(LineFromPos(spots[k].i)) + 1, 12);
-    }
-    public override int OnCommand(int id, object test)
-    {
-      switch (id)
-      {
-        case 5010: return onstep(0, test); // Run Debugging F5
-        case 5011: return onstep(8, test); // Run Without Debugging Strg+F5
-        case 5014: return onstep(9, test); // Compile
-        case 5015: return onstep(2, test); // Step Into F11
-        case 5016: return onstep(1, test); // Step Over F10
-        case 5017: return onstep(3, test); // Step Out Shift F11 
-        case 5013: return onstop(test);    // Stop Debugging
-        case 5020: return onbreakpoint(test);
-        case 5021: return onclearbreaks(test);
-        case 5025: return onshowil(test);
-        case 5027: return ongotodef(test);
-        case 5040: { if (test == null) ignorexceptions ^= true; return 1 | (ignorexceptions ? 0 : 2); }
-        case 5050: return onhelp(test);
-        case 5100: return onformat(test);
-        //case 5105: return onprotect(test);
-        case 5110: return onremusings(test);
-        case 5111: return onsortusings(test);
-        //case 5201: return onstopexcept(test);
-        case 2088: return onrename(test);
-        case 2020: // OnCut
-        case 2040: // OnPaste 
-          if (test == null && ReadOnly) askstop(); break;
-      }
-      return base.OnCommand(id, test);
-    }
-    protected override void OnHandleCreated(EventArgs e)
-    {
-      neuron = (Neuron)Tag;
-      data = (object[])neuron.Invoke(0, null); //getdata();
-      text = data != null ? decompress((byte[])((object[])data[0])[0]) : string.Empty;
-      //if (text.Contains("\r\n") || text.Contains("\t")) text = adjust(text);
-      ReadOnly = isrunning();
-      compiler = new Compiler();
-      dbgdata = compiler.Compile(neuron.GetType(), text, 1);
-      spots = compiler.spots.ToArray();
-      typemap = compiler.typemap();
-      usings = compiler.usings.ToArray();
-      usingsuse = compiler.usingsuse.ToArray();
-      errors = compiler.errors.Select(er => _converr(er)).ToArray(); maxerror = compiler.maxerror;
-      compiler.Reset();
-      if (isdebug()) updspots();
-      base.OnHandleCreated(e);
-      next = first; first = this;
-    }
-    protected override void OnHandleDestroyed(EventArgs e)
-    {
-      if (first == this) first = next;
-      else for (var p = first; ; p = p.next) if (p.next == this) { p.next = next; break; }
-      next = null;
-      EndFlyer(); base.OnHandleDestroyed(e);
-    }
-    void __save()
-    {
-      if (text.Length == 0) { setdata(neuron, null); return; }
-      data[0] = new object[] { compress(text) };
-      if (isdebug()) setspots(); setdata(neuron, data);
-    }
-    int onrename(object test)
-    {
-      if (base.ReadOnly || overid == 0 || (overid & 0xf) == 8) return 0;
-      if (test != null) return 1;
-      var a = typemap.Where(p => (p.v & ~0xf0) == overid);
-      var f = a.FirstOrDefault(); if (f.n == 0) return 1;
-      var s = text.Substring(f.i, f.n); var r = Caret;
-      var tb = new TextBox { Text = s, Location = new Point(r.X, r.Bottom) };
-      Controls.Add(tb); tb.Focus();
-      tb.LostFocus += (_, e) => tb.Dispose();
-      tb.KeyDown += (_, e) =>
-      {
-        if (e.KeyCode == Keys.Escape) { tb.Dispose(); return; }
-        if (e.KeyCode != Keys.Return) return;
-        var ss = tb.Text; tb.Dispose(); e.Handled = true; if (ss == s) return;
-        Replace(a.Select(p => new Point(p.i, p.n)), ss);
-      };
-      return 1;
-    }
-    protected override void OnKeyPress(KeyPressEventArgs e)
-    {
-      if (flyer != null) { flyer.OnKeyPress(e); if (e.Handled) return; }
-      if (ReadOnly)
-      {
-        if ((ModifierKeys & (Keys.Control | Keys.Alt)) != 0) return;
-        askstop(); return;
-      }
-      base.OnKeyPress(e);
-      if (flyer != null && flyer.onpostkeypress != null) flyer.onpostkeypress(e);
-    }
-    internal bool askstop()
-    {
-      if (!ReadOnly) return false;
-      if (state == 7 && !(neuron.Invoke(5, null) != null)) return true;
-      if (MessageBox.Show(this, "Stop debugging?", Parent.Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return true;
-      onstop(null); return false;
-    }
-    internal unsafe void OnFormClosing(Form f)
-    {
-      if (state != 7) return;
-      Native.PostMessage(f.Handle, 0x0010, null, null); //WM_CLOSE 
-      IsModified = false; throw new DebugStop();
-    }
-    
-    internal static void NeuronInit(Neuron p, string code)
-    {
-      p.Invoke(1, new object[] { new object[] { compress(code) } });
-    }
-    internal static string NeuronCode(Neuron neuron)
-    {
-      var data = (object[])neuron.Invoke(0, null);
-      return data != null ? decompress((byte[])((object[])data[0])[0]) : string.Empty;
-    }
-    internal static void NeuronRun(Neuron neuron)
-    {
-      var data = (object[])neuron.Invoke(0, null);
-      if (data == null || isrunning(data)) return;
-      var bin = (byte[])((object[])data[0])[0]; if (bin.Length == 0) return;
-      var text = data != null ? decompress(bin) : string.Empty;
-      var compiler = new Compiler();
-      data = compiler.Compile(neuron.GetType(), text, 0); compiler.Reset();
-      ((object[])data[0])[0] = bin;
-      setdata(neuron, data);
-    }
-
-    internal static byte[] compress(string s)
-    {
-      var a = Encoding.UTF8.GetBytes(s);
-      var m = new MemoryStream(); //m.WriteByte(0);
-      using (var z = new GZipStream(m, CompressionMode.Compress, true)) z.Write(a, 0, a.Length);
-      return m.ToArray();
-    }
-    internal static string decompress(byte[] a)
-    {
-      if (a == null) return string.Empty;
-      var b = new byte[((a.Length >> 11) + 1) << 12]; int n = 0;
-      var m = new MemoryStream(a); //m.ReadByte();
-      using (var z = new GZipStream(m, CompressionMode.Decompress))
-        while ((n = n + z.Read(b, n, b.Length - n)) == b.Length) Array.Resize(ref b, b.Length << 1);
-      return Encoding.UTF8.GetString(b, 0, n);
-    }
-    int onstep(int id, object test)
-    {
-      if (state == 7)
-      {
-        if (id == 8) return 0;
-        if (id == 9) return 0;
-        if (test != null) return 1;
-        EndFlyer(); ontimer = null;
-        //it works for now, when it starts with internal optimizations using internal Localloc, then it needs a system 
-        if (id == 1 && text.IndexOf("stackalloc", spots[ibreak].i, spots[ibreak].n) != -1) id = 2; //stepin as stack correct
-        state = id; //Application.RaiseIdle(null);
-        return 1;
-      }
-      if (isrunning())
-      {
-        if (id == 0 && isdebug()) return 2;
-        if (id == 8 && !isdebug()) return 2;
-        return 0;
-      }
-      if (test != null)
-      {
-        if (id == 3) return 0;
-        return 1;
-      }
-      if (text == string.Empty) { IsModified = false; setdata(neuron, null); return 1; }
-      if (rebuild != 0) build();
-      if (id != 9) data = dbgdata;
-      if ((maxerror & 4) != 0)
-      {
-        var e = errors.Where(p => (p.v & 4) != 0).First(); Select(e.i, e.i + e.n); ScrollVisible();
-        MessageBox.Show(this, _error(e), Parent.Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
-        return 1;
-      }
-      if (id == 9) return 1;
-      if (id == 8) { data = compiler.Compile(neuron.GetType(), text, 0); compiler.Reset(); }
-      ((object[])data[0])[0] = compress(text); if (id != 8) setspots();
-
-      ignorexceptions = false;
-      Neuron.state = state = id != 8 ? id : 0; setdata(neuron, data); //IsModified = false;
-      return 1;
-    }
-    void updspots()
-    {
-      var pp = (int[])data[1]; var np = pp.Length << 5;
-      if (np >= spots.Length) for (int i = 0; i < spots.Length; i++) if ((pp[(i >> 5)] & (1 << (i & 31))) != 0) spots[i].v |= 1;
-    }
-    void setspots()
-    {
-      var np = spots.Length;
-      var pp = new int[(np >> 5) + ((np & 31) != 0 ? 1 : 0)];
-      for (int i = 0; i < np; i++) if ((spots[i].v & 1) != 0) pp[(i >> 5)] |= (1 << (i & 31));
-      data[1] = pp;
-    }
-    internal bool skip(Exception e)
-    {
-      return e != null && ignorexceptions && Neuron.state == 0 && (spots[Neuron.dbgpos].v & 1) == 0;
-    }
-    internal unsafe void Show(Exception e)
-    {
-      if (Neuron.state != 7 && e == null) return; neuron.Invoke(6, e);
-      spots[ibreak = Neuron.dbgpos].v |= 2; threadstack = (IntPtr)Neuron.stack; Refresh();
-      Select(spots[ibreak].i); ScrollVisible(); //stacktrace();
-      if (e != null) MessageBox.Show(this, e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-      var cap = Native.SetCapture(IntPtr.Zero); DebugStop stop = null;
-      try { for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); Application.RaiseIdle(null); } }
-      catch (DebugStop p) { state = 0; stop = p; }
-      if (e != null && state == 1) state = 2; // F10 -> F11 step into exception blocks
-      Native.SetCapture(cap);
-      Neuron.state = state;
-      spots[ibreak].v &= ~2; threadstack = IntPtr.Zero; Refresh(); Update(); if (stop != null) throw stop;
-    }
-    void build()
-    {
-      //var sw = new Stopwatch(); sw.Start();
-      dbgdata = compiler.Compile(neuron.GetType(), text, 1);
-      //sw.Stop(); FindForm().Text = sw.ElapsedMilliseconds + " ms";
-      usings = compiler.usings.ToArray();
-      usingsuse = compiler.usingsuse.ToArray();
-      errors = compiler.errors.Select(er => _converr(er)).ToArray(); maxerror = compiler.maxerror;
-      if (maxerror < 4)
-      {
-        var oldspots = spots;
-        spots = compiler.spots.ToArray();
-        typemap = compiler.typemap();
-        for (int t = 0; t < oldspots.Length; t++)
-          if ((oldspots[t].v & 1) != 0)
-            for (int j = 0; j < spots.Length; j++)
-              if (spots[j].i == oldspots[t].i && spots[j].n == oldspots[t].n) { spots[j].v |= 1; break; }
-      }
-      else
-      {
-        typemap = compiler.typemap();
-        //typemap = typemap.Concat(compiler.typemap).Distinct().ToArray();
-        //typemap = typemap.Where(p => !errors.Any(e => e.i == p.i)).Concat(compiler.typemap).Distinct().ToArray();
-      }
-      compiler.Reset(); overid = 0; rebuild = 0; Refresh();
-    }
-    protected override void Replace(int i, int n, string s)
-    {
-      update(ref spots, i, n, s);
-      update(ref typemap, i, n, s);
-      update(ref errors, i, n, s);
-      base.Replace(i, n, s);
-      rebuild = s.Length == 1 && (s[0] == '.' || s[0] == '(') ? 2 : 5;
-    }
-    void update(ref Compiler.map[] a, int i, int n, string s)
-    {
-      var ok = true;
-      for (int t = 0; t < a.Length; t++)
-      {
-        if (a[t].i + a[t].n <= i) continue;
-        if (a[t].i >= i + n) { a[t].i += s.Length - n; continue; }
-        a[t].n += s.Length - n; if (a == typemap) a[t].n = 0; if (a[t].n <= 0) ok = false;
-      }
-      if (!ok) a = a.Where(p => p.n > 0).ToArray();
-    }
-    internal static bool isrunning(object[] data)
-    {
-      return data != null && ((object[])data[0]).Length > 2;
-    }
-    internal static bool isdebug(object[] data)
-    {
-      if (data == null) return false;
-      var s = (object[])data[0]; if (s.Length < 2) return false;
-      var b = (byte[])s[1]; //if (b.Length < 1) return false;
-      return (b[0] & 1) != 0;
-    }
-    bool isrunning() { return isrunning(data); }
-    bool isdebug() { return isdebug(data); }
-    int onstop(object test)
-    {
-      if (!isrunning() && !ReadOnly) return 0;
-      if (state == 7 && !(neuron.Invoke(5, null) != null)) return 0;
-      if (test != null) return 1;
-      if (state == 7) throw new DebugStop();
-      stop(); return 1;
-    }
-    class DebugStop : Exception { }
-    void stop()
-    {
-      var data = this.data;
-      setdata(neuron, new object[] { new object[] { ((object[])data[0])[0] } });
-    }
-    int onbreakpoint(object test)
-    {
-      int x = SelectionStart, l = LineFromPos(x), a = GetLineStart(l);
-      var sp = spots.Where(p => p.i <= x && p.i + p.n >= x && (p.v & 1) != 0).OrderBy(p => p.n).LastOrDefault();
-      if (sp.n == 0) sp = spots.Where(p => (x == a ? p.i < x : p.i <= x) && p.i + p.n >= x).OrderBy(p => p.n).FirstOrDefault();
-      if (sp.n == 0) sp = spots.Where(p => LineFromPos(p.i) == l && (p.v & 1) != 0).OrderBy(p => p.i).FirstOrDefault();
-      if (sp.n == 0) sp = spots.Where(p => LineFromPos(p.i) == l).OrderBy(p => p.i).FirstOrDefault();
-      if (sp.n == 0) return 0; if (test != null) return 1;
-      var askdebug = isrunning() && !isdebug() && !IsModified && spots.All(p => p.v == 0);
-      spots[Array.IndexOf(spots, sp)].v ^= 1;
-      if (isdebug()) setspots(); Refresh();
-      if (askdebug && MessageBox.Show("Start debug session?", ParentForm.Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes) { stop(); onstep(0, null); }
-      return 1;
-    }
-    int onclearbreaks(object test)
-    {
-      int count = 0;
-      for (int i = 0; i < spots.Length; i++)
-      {
-        if ((spots[i].v & 1) == 0) continue;
-        if (test != null) return 1; spots[i].v ^= 1; count++;
-      }
-      if (count == 0 || test != null) return 0;
-      if (isdebug()) setspots(); Refresh(); return 1;
-    }
-    int ongotodef(object test)
-    {
-      if (overid == 0 || (overid & 0xf) == 8) return 0;
-      if ((overid & 0x80000000) != 0) return 0;
-      if (test != null) return 1;
-      var t = typemap.FirstOrDefault(p => (p.v & ~0xf0) == overid && (p.v & 0x80) != 0);
-      if (t.n == 0) t = typemap.FirstOrDefault(p => (p.v & ~0xf0) == overid);
-      Select(t.i, t.i + t.n); ScrollVisible();
-      return 1;
-    }
-    int onhelp(object test)
-    {
-      var ep = errors.FirstOrDefault(p => SelMin >= p.i && SelMax <= p.i + p.n);
-      if ((ep.v >> 8) != 0) { if (test != null) return 1; TypeHelper.msdn("CS" + (ep.v >> 8).ToString("0000")); return 1; }
-      var tpos = typemap.FirstOrDefault(p => SelMin >= p.i && SelMax <= p.i + p.n);
-      var m = tpos.p as MemberInfo;
-      if (m == null)
-      {
-        var ps = WordFromPoint(SelMin); if (ps.X == ps.Y || SelMax > ps.Y) return 0;
-        var ss = text.Substring(ps.X, ps.Y - ps.X); if (!Compiler.keywords.Contains(ss)) return 0;
-        if (test != null) return 1; TypeHelper.msdn(ss + "_CSHARPKEYWORD"); return 1;
-      }
-      var t = m as Type ?? m.DeclaringType; if (t == null) return 1; //dm
-      if (t.DeclaringType == typeof(Compiler)) { if (test == null) TypeHelper.msdn(t.Name + "_CSHARPKEYWORD"); return 1; }
-      if (!t.Assembly.GlobalAssemblyCache) return 0; //todo: navigate to own documentation
-      if (test != null) return 1; TypeHelper.msdn(string.Format(m != t ? "{0}.{1}.{2}" : "{0}.{1}", t.Namespace, t.Name, m.Name)); return 1;
-    }
-    static unsafe object __m128(object p, Type type) //bad trick but startpoint c++ SSE interop
-    {
-      if (p == null) return p; //Nullable<>
-      if (p.GetType() == type) return p;
-      if (type.IsGenericType) return p; //Nullable<>
-      decimal m; Marshal.StructureToPtr(p, (IntPtr)(void*)&m, false);
-      p = Marshal.PtrToStructure((IntPtr)(void*)&m, type); return p;
-    }
-    unsafe Tuple<object, object> stackeval(Compiler.map tpos)
-    {
-      var v = tpos.v & 0x0f; var id = tpos.v >> 8;
-      if (v == 1) //dynamic
-      {
-        if (!(tpos.p is string)) return null;
-        var tp = prevmap(tpos); if ((tp.v & 0x0f) != 1) return null;
-        var la = stackeval(prevmap(tp)); if (la == null || la.Item1 == null) return null;
-        var va = Neuron.get(la.Item1, (string)tpos.p);
-        return Tuple.Create(va, (object)(va != null ? va.GetType() : typeof(object)));
-      }
-      if (v == 6)
-      {
-        var p = data[id >> 12]; id &= 0x0fff; if (id != 0x0fff) p = __m128(((Array)p).GetValue(id), (Type)tpos.p);
-        return Tuple.Create(p, tpos.p);
-      }
-      if (v == 3)
-      {
-        if (equals(tpos, "this") || equals(tpos, "base")) return Tuple.Create((object)neuron, tpos.p);
-        if (tpos.p is MethodInfo) return null;
-        var acc = tpos.p as DynamicMethod[];
-        if (acc != null)
-        {
-          if (acc[0] == null) return null;
-          Neuron.state = 7; return Tuple.Create(acc[0].Invoke(null, new object[] { neuron }), (object)acc[0].ReturnType);
-        }
-        var fi = tpos.p as FieldInfo;
-        if (fi != null && fi.IsStatic) return Tuple.Create(fi.GetValue(null), (object)fi.FieldType);
-        var pi = tpos.p as PropertyInfo;
-        if (pi != null) { if (!pi.CanRead) return null; if (pi.GetGetMethod(true).IsStatic) return Tuple.Create(pi.GetValue(null, null), (object)pi.PropertyType); }
-        if (pi == null && fi == null) return null; // EventInfo...
-        var rt = pi != null ? pi.ReflectedType : fi.ReflectedType;
-
-        object ta = null; tpos = prevmap(tpos);
-        if ((tpos.v & 0x0f) == 1) //'.'
-        {
-          tpos = prevmap(tpos);
-          var la = stackeval(tpos); if (la == null) return null; ta = la.Item1;
-          if (ta is int && !rt.IsAssignableFrom(ta.GetType()))
-          {
-            var ax = prevmap(tpos); var av = stackeval(ax); if (av == null) return null;
-            var a = av.Item1 as Array;
-            if (a != null) { var i = (int)ta; if (i < 0 || i >= a.Length) return null; ta = a.GetValue(i); } //todo: IList,...
-          }
-        }
-        else ta = this.neuron;
-        if (ta == null) return null;
-        if (pi != null) return rt.IsAssignableFrom(ta.GetType()) || ta.GetType().IsCOMObject ? Tuple.Create(pi.GetValue(ta, null), (object)pi.PropertyType) : null;
-        if (fi != null) return rt.IsAssignableFrom(ta.GetType()) ? Tuple.Create(fi.GetValue(ta), (object)fi.FieldType) : null;
-        //if (pi != null) return Tuple.Create(pi.GetValue(ta, null), (object)pi.PropertyType); 
-        //if (fi != null) return Tuple.Create(fi.GetValue(ta), (object)fi.FieldType);
-      }
-      if (v == 4 || v == 5)
-      {
-        if ((tpos.v & 0x40) != 0)
-        {
-          var ri = (Compiler.RepInfo)tpos.p;
-          for (var p = (int*)threadstack; p != null; p = p[1] != 0 ? p + p[1] : null)
-            if ((p[0] & 0xffff) == (ri.id & 0xffff))
-            {
-              TypedReference tr; var pp = (IntPtr*)&tr; var type = typeof(object[]);
-              pp[0] = (IntPtr)(p + (p[0] >> 16)); pp[1] = type.TypeHandle.Value;
-              var a = (object[])TypedReference.ToObject(tr); for (int j = 0; j < (ri.id >> 16); j++) a = (object[])a[0];
-              var o = a[ri.index & 0xffff]; return Tuple.Create(ri.type.IsValueType ? __m128(((Array)o).GetValue(ri.index >> 16), ri.type) : o, (object)ri.type);
-            }
-          return null;
-        }
-        for (var p = (int*)threadstack; p != null; p = p[1] != 0 ? p + p[1] : null)
-          if ((p[0] & 0xffff) == id)
-          {
-            TypedReference tr; var pp = (IntPtr*)&tr; var type = (Type)tpos.p;
-            pp[0] = (IntPtr)(p + (p[0] >> 16)); pp[1] = type.TypeHandle.Value;
-            if (type.IsByRef) { pp[0] = *(IntPtr*)pp[0]; pp[1] = (type = type.GetElementType()).TypeHandle.Value; }
-            return Tuple.Create(TypedReference.ToObject(tr), (object)type);
-          }
-      }
-      return null;
-    }
-    Compiler.map prevmap(Compiler.map tpos)
-    {
-      tpos = typemap.Where(t => t.i + t.n <= tpos.i).OrderBy(t => t.i + t.n).LastOrDefault();
-      return tpos;
-    }
-    bool equals(Compiler.map m, string s)
-    {
-      return m.n == s.Length && string.Compare(s, 0, text, m.i, m.n) == 0;
-    }
-    int lastt, laste; TypeExplorer flyer;
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-      base.OnMouseMove(e);
-      var i = PosFromPoint(e.Location);
-      var tpos = typemap.FirstOrDefault(t => i >= t.i && i <= t.i + t.n && ((t.v & 0xf) != 1 || this.text[t.i] != '.') && !(t.v == 0 && t.p is string));
-      var epos = errors.FirstOrDefault(t => i >= t.i && i <= t.i + t.n);
-      if (lastt == tpos.i && laste == epos.i) return;
-      lastt = tpos.i; laste = epos.i;
-      var text = this.text; if (equals(tpos, "{")) return;
-      if (state == 7 && (tpos.v & 0x0f) >= 1 && (tpos.v & 0x0f) < 8)
-      {
-        Tuple<object, object> p = null;
-        try { p = stackeval(tpos); }
-        catch { }
-        if (p != null)
-        {
-          EndToolTip(); EndFlyer(); //ToolTip(text.Substring(tpos.i, tpos.n) + " = " + p.ToString());
-          var ri = RectangleToScreen(TextBox(tpos.i, tpos.n)); int ticks = 0;
-          ontimer = () =>
-          {
-            if (ticks++ < 5) return;
-            ontimer = null; EndToolTip(); EndFlyer();
-            flyer = new TypeExplorer { Location = new Point(ri.X, ri.Bottom) }; var mi = tpos.p as MemberInfo;
-            flyer.items = new TypeExplorer.Item[] { new TypeExplorer.Item { icon = mi != null ? TypeHelper.image(mi) : 8 /*18*/, text = text.Substring(tpos.i, tpos.n), obj = p.Item1, info = p.Item2 } };
-            flyer.Show(); flyer.ontooltip = (r, item) => SetToolTip(RectangleToClient(r), x => x == 0 ? item.pv as string ?? item.sv : null);
-          };
-          return;
-        }
-      }
-
-      ontimer = null;
-      if (tpos.n == 0)
-      {
-        if (epos.n != 0)
-        {
-          SetToolTip(TextBox(epos.i, epos.n), t =>
-          {
-            if (t != 0) return null;
-            var em = _error(epos);
-            switch (epos.v >> 8)
-            {
-              case 1031: //Type expected
-              case 0103: //The name '{0}' does not exist in the current context
-              case 0246: //The type or namespace name '{0}' could not be found
-                var p = WordFromPoint(epos.i); if (p.X == p.Y) break;
-                var ss = text.Substring(p.X, p.Y - p.X); //if (!ss.EndsWith("Attribute") && text[p.X - 1] == '[' ) ss += "Attribute";
-                for (int j = 0; j < 2; j++)
-                {
-                  var ts = string.Join("\n", TypeHelper.Assemblys.SelectMany(a => a.GetTypes()).Where(a => !a.IsNested && a.Name == ss).Select(a => a.FullName));
-                  if (ts.Length == 0) { ss += "Attribute"; continue; }
-                  em = string.Format("{0}\n\nconsider using:\n{1}", em, ts); break;
-                }
-                break;
-            }
-            return string.Format("{0} {1}", (epos.v & 4) != 0 ? "Error" : "Warning", em);
-          }, 1);
-        }
-        return;
-      }
-      SetToolTip(TextBox(tpos.i, tpos.n), t =>
-      {
-        if (t != 0) return null;
-        var s = TypeHelper.tooltip(tpos, text);// +" " + tpos.v.ToString("X8");
-        if (epos.n != 0) s = string.Format("{0}{1}:\n  {2}", s != null ? string.Format("{0}\n\n", s.Trim()) : null, (epos.v & 4) != 0 ? "Error" : "Warning", _error(epos));
-        return s;
-      });
-
-    }
-    string _error(Compiler.map epos)
-    {
-      var pp = (object[])epos.p;
-      return string.Format((string)pp[0], text.Substring(epos.i, epos.n), TypeHelper.shortname(pp[1]), TypeHelper.shortname(pp[2]));
-    }
-    protected override void OnMouseDown(MouseEventArgs e)
-    {
-      EndToolTip(); EndFlyer(); base.OnMouseDown(e);
-    }
-    protected override void OnLostFocus(EventArgs e)
-    {
-      EndToolTip(); EndFlyer(); base.OnLostFocus(e);
-    }
-    protected override void OnMouseWheel(MouseEventArgs e)
-    {
-      if (flyer != null)
-      {
-        var p = Native.WindowFromPoint(PointToScreen(e.Location));
-        if (p != IntPtr.Zero) { var t = Control.FromHandle(p) as TypeExplorer; if (t != null) { t.OnMouseWheel(e); return; } }
-        EndFlyer();
-      }
-      base.OnMouseWheel(e);
-    }
-    private void EndFlyer()
-    {
-      if (flyer != null) { flyer.Dispose(); flyer = null; }
-    }
-    Action ontimer;
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-      if (flyer != null) { flyer.OnKeyDown(e); if (e.Handled) return; }
-      if (e.KeyCode == Keys.Delete) askstop();
-      base.OnKeyDown(e);
-      if (flyer != null && flyer.onpostkeydown != null) flyer.onpostkeydown(e);
-    }
-    protected override void OnScroll(ScrollEventArgs se)
-    {
-      EndFlyer(); base.OnScroll(se);
-    }
-    protected internal override void OnSelChanged()
-    {
-      base.OnSelChanged(); checkover();
-    }
-    void checkover()
-    {
-      int i1 = SelectionStart, i2 = i1 + SelectionLength;
-      var t = typemap.Length; while (--t >= 0) { var p = typemap[t]; if ((p.v & 0x0f) != 1 && i1 >= p.i && i2 <= p.i + p.n) break; }
-      int id = t >= 0 ? typemap[t].v : 0; id = id & ~0xf0; //id = (id & 0xff) != 0x45 ? id & ~0xf0 : 0; //&& (typemap[t].v & 0xff) != 0x45 ? typemap[t].v & ~0xf0 : 0;  
-      if (overid != id)
-      {
-        if (overid != 0) { overid = 0; Refresh(); }
-        overid = id; lastt = -1;
-        if (overid != 0) { recolor = 5; }
-      }
-    }
-    protected override void WndProc(ref Message m)
-    {
-      base.WndProc(ref m);
-      if (m.Msg == 0x0113)//WM_TIMER
-      {
-        if (rebuild != 0 && --rebuild == 0) { build(); PostBuild(); }
-        if (recolor != 0 && --recolor == 0) Refresh();
-        if (ontimer != null) ontimer();
-      }
-    }
-    void PostBuild()
-    {
-      checkover(); if (SelectionLength != 0) return;
-      var s = text; var i1 = SelectionStart; var i2 = i1; var cv = i1 != 0 ? s[i1 - 1] : '\0';
-
-      if (cv == '(')
-      {
-        var px = typemap.Where(p => p.i + p.n <= i1 - 1).OrderBy(p => p.i + p.n).LastOrDefault();
-        if (px.n != 0 && px.v == 0 && text.Substring(px.i + px.n, i1 - 1 - (px.i + px.n)).Trim().Length == 0)
-        {
-          var cc = ((Type)px.p).GetConstructors(); if (cc.Length == 0) return; int l = 0;
-          SetToolTip(Caret, t =>
-          {
-            if (t == 0) return TypeHelper.tooltip(cc[l]);
-            if (t == 1) return string.Format("{0} of {1}", l + 1, cc.Length);
-            if (t == 40) { if (++l == cc.Length) l = 0; }
-            if (t == 38) { if (l-- == 0) l = cc.Length - 1; }
-            return null;
-          }, 2);
-          return;
-        }
-
-        var type = neuron.GetType(); var sm = wordbefore(i1);
-        var pt = typemap.Where(p => p.i < i1 - 1 && (p.v & 0xf) == 1).OrderBy(p => p.i).LastOrDefault();
-        if (!(pt.n < 1 || pt.n > 2)) type = (Type)pt.p;
-        var items = type.GetMethods(((pt.v & 0x40) == 0 ? BindingFlags.Instance : BindingFlags.Static) | BindingFlags.Public).Where(p => p.Name == sm);
-        if ((pt.v & 0x40) == 0) items = items.Concat(Extensions(type, sm));
-        var mm = items.ToArray(); if (mm.Length == 0) return; int x = Array.IndexOf(mm, px.p); if (x < 0) x = 0;
-        SetToolTip(Caret, t =>
-        {
-          if (t == 0) return TypeHelper.tooltip(mm[x]);
-          if (t == 1) return string.Format("{0} of {1}", x + 1, mm.Length);
-          if (t == 40) { if (++x == mm.Length) x = 0; }
-          if (t == 38) { if (x-- == 0) x = mm.Length - 1; }
-          return null;
-        }, 2);
-        return;
-      }
-      if (flyer != null) return;
-      if (cv == '.' || cv == '>' || cv == '#')
-      {
-        var dp = cv == '>' ? 2 : 1;
-        var tp = typemap.FirstOrDefault(p => p.i == i1 - dp && p.n == dp);
-        if (tp.n != 0)
-        {
-          var type = tp.p as Type; if (type == null) return;
-          var items = type.GetMembers(((tp.v & 0x40) == 0 ? BindingFlags.Instance : BindingFlags.Static | BindingFlags.FlattenHierarchy) |
-            (cv == '#' || neuron.GetType().IsOrIsSubclassOf(type) ? BindingFlags.Public | BindingFlags.NonPublic : BindingFlags.Public)).
-            Where(p => Compiler.__filter(p, cv == '#')).GroupBy(p => p.Name).Select(p => p.ToArray()).
-            Select(p => new TypeExplorer.Item { icon = TypeHelper.image(p[0]), text = p[0].Name, info = p });
-          if ((tp.v & 0x40) == 0) items = items.Concat(Extensions(type).GroupBy(p => p.Name).Select(p => p.ToArray()).
-            Select(p => new TypeExplorer.Item { icon = 24, text = p[0].IsGenericMethod ? p[0].Name + "<>" : p[0].Name, info = p }));
-          if ((tp.v & 0x40) == 0 && type == neuron.GetType() && equals(prevmap(tp), "this"))
-            items = items.Concat(typemap.Where(p => (p.v & 0x8f) == 0x86 || (p.v & 0xff) == 0xc3 || (p.v & 0xff) == 0x83).Select(p => new TypeExplorer.Item
-            {
-              icon = (p.v & 0x8f) == 0x86 ? 22 : (p.v & 0xff) == 0xc3 ? 23 : 25,
-              text = text.Substring(p.i, p.n),
-              info = (Func<string>)(() => TypeHelper.tooltip(p, text, false))
-            }));
-          EditFlyer(i1, i2, items.OrderBy(p => p.text).ToArray());
-          return;
-        }
-        tp = typemap.FirstOrDefault(p => p.i + p.n == i1 - 1 && (p.v & 0xf) == 0x08);
-        if (tp.n != 0)
-        {
-          var ns = (string)tp.p; var tt = compiler.GetTypes();
-          var items = tt.Select(p => p.Namespace).
-            Where(p => p.Length > ns.Length && p[ns.Length] == '.' && p.StartsWith(ns)).
-            Where(p => (tp.v & 0x0f) == 0x08 || usings.Contains(p)).
-            Select(p => p.Substring(ns.Length + 1, (int)Math.Min((uint)p.IndexOf('.', ns.Length + 1), (uint)p.Length) - (ns.Length + 1))).
-            Distinct().Select(p => new TypeExplorer.Item { icon = 3, text = p, info = string.Format("{0}.{1}", ns, p) });
-          if (tp.v == 8) items = items.Concat(tt.
-             Where(p => p.Namespace == ns).
-             GroupBy(p => p.Name.Contains('`') ? p.Name.Substring(0, p.Name.IndexOf('`') + 1) : p.Name).
-             Select(p => p.ToArray()).
-             Select(p => new TypeExplorer.Item { icon = TypeHelper.image(p[0]), text = TypeHelper.shortname(p[0], false), info = p }));
-          EditFlyer(i1, i2, items.OrderBy(p => p.text).ToArray());
-          return;
-        }
-      }
-      if (IsLetter(cv) && (i1 < 2 || !IsLetterOrDigit(s[i1 - 2])) && (i1 == s.Length || !IsLetterOrDigit(s[i1])))
-      {
-        if (i1 != 0 && charcolor[i1 - 1] == 1) return;
-        if (typemap.Any(p => p.i <= i1 && p.i + p.n >= i1)) return;
-        var tt = compiler.GetTypes(); cv = char.ToUpper(cv);
-        var items = tt.Select(p => p.Namespace).Where(p => char.ToUpper(p[0]) == cv).Distinct().
-          Select(p => p.Substring(0, (int)Math.Min((uint)p.IndexOf('.'), p.Length))).Distinct().
-          Select(p => new TypeExplorer.Item { icon = 3, text = p, info = p });
-        if (wordbefore(i1) != "using")
-        {
-          items = items.Concat(tt.Where(t => char.ToUpper(t.Name[0]) == cv && usings.Contains(t.Namespace)).
-            GroupBy(p => p.Name.Contains('`') ? p.Name.Substring(0, p.Name.IndexOf('`')) : p.Name).
-            Select(p => p.ToArray()).
-            Select(p => new TypeExplorer.Item { icon = TypeHelper.image(p[0]), text = p[0].Name.Contains('`') ? p[0].Name.Substring(0, p[0].Name.IndexOf('`')) : p[0].Name, info = p }));
-          items = items.Concat(Compiler.keywords.TakeWhile(p => p != "true").
-            Where(p => char.ToUpper(p[0]) == cv).
-            Select(p => new TypeExplorer.Item { icon = 9, text = p }));
-          items = items.Concat(neuron.GetType().GetMembers(BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy | BindingFlags.Public | BindingFlags.NonPublic).Where(p =>
-             Compiler.__filter(p, false) && char.ToUpper(p.Name[0]) == cv).
-            GroupBy(p => p.Name).Select(p => p.ToArray()).
-            Select(p => new TypeExplorer.Item { icon = TypeHelper.image(p[0]), text = p[0].Name, info = p }));
-          //items = items.Concat(script.GetMethods().
-          //  Where(p => char.ToUpper(p.Method.Name[0]) == cv).
-          //  Select(p => new RtExplorer.Item { icon = 0, text = p.Method.Name }));
-        }
-
-        EditFlyer(i1 - 1, i2, items.OrderBy(p => p.text).ToArray());
-        return;
-      }
-    }
-    string wordbefore(int i)
-    {
-      int b = i; for (; b > 1 && !IsLetterOrDigit(text[b - 2]); b--) ;
-      int a = b; for (; a > 1 && IsLetterOrDigit(text[a - 2]); a--) ;
-      return a != 0 && b != a ? text.Substring(a - 1, b - a) : string.Empty;
-    }
-    IEnumerable<MethodInfo> Extensions(Type type, string name = null)
-    {
-      return compiler.GetTypes().
-        Where(t => t.IsAbstract && t.IsSealed && !t.IsGenericType &&
-          t.IsDefined(typeof(ExtensionAttribute), false) && usings.Contains(t.Namespace)).
-        SelectMany(t => t.GetMembers(BindingFlags.Static | BindingFlags.Public | BindingFlags.InvokeMethod)).OfType<MethodInfo>().
-        Where(m =>
-        {
-          if (name != null && m.Name != name) return false;
-          if (!m.IsDefined(typeof(ExtensionAttribute), false)) return false;
-          var t = m.GetParameters()[0].ParameterType;
-          if (!m.IsGenericMethod) { if (t.IsAssignableFrom(type)) return true; return false; }
-          if (t.IsAssignableFrom(type)) return true;
-          if (type.GetInterface(t.Name) != null) return true;
-          if (t.IsGenericType && type.IsGenericType && type.GetGenericTypeDefinition() == t.GetGenericTypeDefinition()) return true;
-          return false;
-        });
-    }
-    void EditFlyer(int i1, int i2, TypeExplorer.Item[] items)
-    {
-      if (items.Length == 0) return; var t2 = i2;
-      ontimer = null; EndFlyer(); EndToolTip();
-      flyer = new TypeExplorer(); var ri = RectangleToScreen(Caret);
-      flyer.Location = new Point(ri.X, ri.Bottom);
-      flyer.items = items; flyer.noeval = true;
-      flyer.Show();
-      flyer.onclick = e => { EndFlyer(); Select(i1, i2); Paste(e.text.Split('<')[0]); return true; };
-      flyer.onpostkeydown = e => { var x = SelectionStart; if (x < i1 || x > i2 || SelectionLength != 0) EndFlyer(); };
-      flyer.onpostkeypress = a =>
-      {
-        i2 = SelectionStart; if (i2 < t2) { EndFlyer(); return; }
-        var ss = text.Substring(i1, i2 - i1);
-        var xx = items.Where(x => x.text.StartsWith(ss, true, null)).ToArray();
-        if (xx.Length == 0) { EndFlyer(); return; }
-        if (flyer.items.SequenceEqual(xx)) return;
-        flyer.items = xx; flyer.Format(); flyer.select(xx[0]); flyer.Invalidate();
-      };
-      flyer.ontooltip = (r, item) => SetToolTip(RectangleToClient(r), t => t == 0 ? TypeHelper.tooltip(item.info) : null, 1);
-    }
-    protected override void OnMouseLeave(EventArgs e)
-    {
-      base.OnMouseLeave(e); if (ClientRectangle.Contains(PointToClient(Cursor.Position))) return;
-      EndToolTip(); EndFlyer();
-    }
-    protected internal override void OnContextMenu(ToolStripItemCollection items)
-    {
-      base.OnContextMenu(items);
-      if (isrunning())
-      {
-        items.Add(new ToolStripSeparator());
-        items.Add(new UIForm.MenuItem(5020, "Toggle &Breakpoint"));
-        items.Add(new ToolStripSeparator());
-        items.Add(new UIForm.MenuItem(5013, "&Stop"));
-      }
-      else
-      {
-        items.Add(new ToolStripSeparator());
-        items.Add(new UIForm.MenuItem(5010, "Start &Debug"));
-        items.Add(new UIForm.MenuItem(5016, "Step &Over"));
-        items.Add(new UIForm.MenuItem(5015, "Step &Into"));
-        items.Add(new UIForm.MenuItem(5017, "Step Ou&t"));
-        items.Add(new ToolStripSeparator());
-        items.Add(new UIForm.MenuItem(5020, "Toggle &Breakpoint"));
-        items.Add(new ToolStripSeparator());
-        items.Add(new UIForm.MenuItem(5011, "&Start"));
-      }
-    }
-    Compiler.map _converr(Compiler.map p)
-    {
-      int i = p.i, n = p.n;
-      if (n == 0) { while (i < text.Length && text[i] < ' ') i++; if (i < text.Length) n = 1; else for (n = 1; --i >= 0 && text[i] < ' ';) ; }
-      p.i = i; p.n = n; return p;
-    }
-    int onshowil(object test)
-    {
-      if ((maxerror & 4) != 0) return 0; if (state == 7) return 0; if (test != null) return 1;
-      compiler.Compile(neuron.GetType(), text, 2);
-      var view = (CodeEditor)UIForm.ShowView(typeof(CodeEditor), this, DockStyle.Fill);
-      view.Text = "IL Code"; view.ReadOnly = true; view.EditText = compiler._trace_.ToString();
-      return 1;
-    }
-    int onremusings(object test)
-    {
-      if (ReadOnly || (maxerror & 4) != 0) return 0;
-      if (usings.Length == usingsuse.Length) return 0;
-      if (test != null) return 1;
-      repusings(usings.Where(s => usingsuse.Contains(s))); return 1;
-    }
-    int onsortusings(object test)
-    {
-      if (ReadOnly || (maxerror & 4) != 0) return 0;
-      //var u = usings.OrderBy(s => Array.IndexOf(usingsuse, s));
-      var u = usings.OrderBy(s => s).OrderBy(s => !s.StartsWith("System"));
-      if (usings.SequenceEqual(u)) return 0;
-      if (test != null) return 1;
-      repusings(u); return 1;
-    }
-    private void repusings(IEnumerable<string> u)
-    {
-      var a = typemap.First(p => p.v == 0x88);
-      var b = typemap.Last(p => p.v == 0x88);
-      var list = new List<Action<CodeEditor>>();
-      list.Add(undo(a.i, b.i + b.n - a.i, string.Join(";\nusing ", u)));
-      undoex(list.ToArray());
-    }
-    int onformat(object test)
-    {
-      if (ReadOnly || (maxerror & 4) != 0) return 0;
-      if (test != null) return 1;
-      var s = text; var list = new List<Action<CodeEditor>>();
-      var n = s.Length; for (; n > 0 && s[n - 1] <= ' '; n--) ;
-      for (int a = 0, b = 0, k = 0; ; b++)
-      {
-        if (b == n || s[b] == '\n')
-        {
-          var c = a; for (; c < b && s[c] == ' '; c++) ;
-          if (c == b) { list.Add(undo(a, b - a, string.Empty)); }
-          else if (s[c] == '<') { } //inline xml //todo: xml format
-          else
-          {
-            var f = charcolor[c];
-            if (!((f == 1 && !(s[c] == '/' || s[c] == '*')) || f == 2))
-            {
-              if (f == 0 && s[c] == '}') k -= 2;
-              var x = Math.Max(0, startsw(c, "case") || startsw(c, "default") ? k - 2 : k);
-              var h = c - a; if (h != x) list.Add(undo(a, x < h ? h - x : 0, x < h ? string.Empty : new string(' ', x - h)));
-            }
-            for (int t = c; t < b; t++)
-            {
-              if (s[t] == ' ')
-              {
-                var x = t; for (; x < b && s[x] == ' '; x++) ;
-                if (x == b) { list.Add(undo(t, x - t, string.Empty)); break; }
-                if (charcolor[t] == 0)
-                {
-                  var l = x - t; var o = 1;
-                  var c1 = t > c ? s[t - 1] : '\0'; var c2 = s[x];
-                  if (c1 == '.' || c2 == '.' || c1 == '(' || c2 == ')' || c1 == '[' || c2 == ']' || c2 == ',') o = 0;
-                  if (l != o) list.Add(undo(t, o < l ? l - o : 0, o < l ? string.Empty : new string(' ', o - l)));
-                }
-                t = x;
-              }
-              if (charcolor[t] != 0) continue;
-              if (t + 1 < b && s[t + 1] != ' ' && (s[t] == ',' || s[t] == ';'))
-                list.Add(undo(t + 1, 0, " "));
-              if (s[t] == '{') k += 2; else if (t != c && s[t] == '}') k -= 2;
-            }
-          }
-          if (b == n) break; a = b + 1; continue;
-        }
-      }
-      if (n < s.Length) list.Add(undo(n, s.Length - n, string.Empty));
-      if (list.Count != 0) undoex(list.ToArray());
-      return 1;
-    }
-  }
-
   class TypeExplorer : UserControl
   {
     protected override CreateParams CreateParams
@@ -2238,7 +1212,6 @@ namespace csg3mf
       if (cmsopen || drop != null) return;
       if (overitem != null) { overitem = null; Invalidate(); }
     }
-    internal Item selection() { return overitem; }
     internal void select(Item item)
     {
       if (overitem == item) return;
@@ -2460,6 +1433,385 @@ namespace csg3mf
     }
   }
 
+  static class TypeHelper
+  {
+    internal static List<WeakReference> cache = new List<WeakReference>(); //dynamics only
+    internal static bool IsBlittable(Type t)
+    {
+      if (t.IsPrimitive) return true; if (!t.IsValueType) return false;
+      var a = t.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+      for (int i = 0; i < a.Length; i++) if (!IsBlittable(a[i].FieldType)) return false;
+      return true;
+    }
+    static string xname(Type type)
+    {
+      if (type.IsByRef) return string.Format("{0} {1}", "ref", shortname(type.GetElementType()));
+      if (type.IsArray) return shortname(type.GetElementType()) + "[]";
+      if (type.IsGenericTypeDefinition)
+      {
+        var t1 = type.GetGenericArguments();
+        var t2 = string.Format("{0}<{1}>", type.Name.Split('`')[0], string.Join(", ", t1.Select(t => t.Name)));
+        return t2;
+      }
+      if (type.IsGenericType)
+      {
+        //if (!type.IsPublic && type.IsNested && type.ReflectedType == typeof(Dynamic)) { }
+        var t1 = type.GetGenericArguments();//var t2 = type.GetGenericTypeDefinition();
+        var t2 = string.Format("{0}<{1}>", type.Name.Split('`')[0], string.Join(", ", t1.Select(t => shortname(t))));
+        //type.IsGenericType ? "<" + string.Join(", ", type.GetGenericArguments().Select((hp, hi) => "T" + hi)) + ">"
+        return t2;
+      }
+      return type.Name;
+    }
+    internal static string shortname(object p, bool buildin = true)
+    {
+      if (p == null) return string.Empty;
+      var type = p as Type;
+      if (type != null)
+      {
+        //if (resolver != null) type = resolver(type);
+        if (buildin && !type.IsEnum)
+          switch (Type.GetTypeCode(type))
+          {
+            case TypeCode.Object: if (type == typeof(object)) return "object"; break;
+            //case TypeCode.Empty: return "void";
+            case TypeCode.Boolean: return "bool";
+            case TypeCode.Char: return "char";
+            case TypeCode.SByte: return "sbyte";
+            case TypeCode.Byte: return "byte";
+            case TypeCode.Int16: return "short";
+            case TypeCode.UInt16: return "ushort";
+            case TypeCode.Int32: return "int";
+            case TypeCode.UInt32: return "uint";
+            case TypeCode.Int64: return "long";
+            case TypeCode.UInt64: return "ulong";
+            case TypeCode.Single: return "float";
+            case TypeCode.Double: return "double";
+            case TypeCode.Decimal: return "decimal";
+            case TypeCode.String: return "string";
+          }
+        if (type == typeof(void)) return "void";
+        if (type.IsGenericParameter) return type.Name;
+        if (type.IsNested)
+        {
+          //if (type == typeof(Compiler.__null)) return "<null>";
+          //if (type.DeclaringType == typeof(Compiler)) return type.Name;//dynamic
+          return string.Format("{0}.{1}", shortname(type.DeclaringType), xname(type));
+        }
+        return xname(type);
+      }
+      var mi = p as MethodInfo; if (mi != null) return string.Format("{0} {1}.{2}{3}({4})", shortname(mi.ReturnType), shortname(mi.DeclaringType), mi.Name, mi.IsGenericMethod ? "<>" : null, shortname(mi.GetParameters()));
+      var fi = p as FieldInfo; if (fi != null) return string.Format("{0} {1}.{2}", shortname(fi.FieldType), shortname(fi.DeclaringType), fi.Name);//XType.FieldName(fi));
+      var pi = p as PropertyInfo; if (pi != null) return string.Format("{0} {1}.{2}", shortname(pi.PropertyType), shortname(pi.DeclaringType), pi.Name);
+      var ei = p as EventInfo; if (ei != null) return string.Format("{0} {1}.{2}", shortname(ei.EventHandlerType), shortname(ei.DeclaringType), ei.Name);
+      var pp = p as ParameterInfo[]; if (pp != null) return string.Join(", ", pp.Select(t => shortname(t)));
+      var ci = p as ConstructorInfo;
+      if (ci != null) return string.Format("{0} {1}({2})", shortname(ci.DeclaringType), ci.Name, shortname(ci.GetParameters()));
+      return p.ToString();
+    }
+    static string shortname(ParameterInfo t)
+    {
+      var s = string.Format("{0} {1}", shortname(t.ParameterType), t.Name);
+      if (t.IsDefined(typeof(ParamArrayAttribute), false)) s = string.Format("{0} {1}", "params", s);
+      if (t.Position == 0 && t.Member.IsDefined(typeof(ExtensionAttribute), true)) s = string.Format("{0} {1}", "this", s);
+      var v = t.DefaultValue; if (v != DBNull.Value && t.Member.DeclaringType != null) s = string.Format("[{0} = {1}]", s, v != null ? shortname(v) : "null");
+      return s;
+    }
+    internal static string fullname(Type t)
+    {
+      if (!t.IsEnum) { var tc = Type.GetTypeCode(t); if (tc != TypeCode.Object || t == typeof(object)) return shortname(t, false); }
+      //var x = resolver != null ? resolver(t) : t; if (x != t) return x.Name;
+      return string.Format("{0}.{1}", t.Namespace, shortname(t));
+    }
+    internal static int image(MemberInfo p)
+    {
+      switch (p.MemberType)
+      {
+        case MemberTypes.Method:
+          {
+            var t = p as MethodInfo;
+            return t.IsPublic ? 0 : 26;
+          }
+        case MemberTypes.Property:
+          {
+            var t = p as PropertyInfo;
+            var m = t.CanRead ? t.GetGetMethod(true) : t.GetSetMethod(true);
+            return m.IsPublic ? 18 : m.IsStatic ? 20 : 23;
+          }
+        case MemberTypes.Event:
+          return 2;
+        case MemberTypes.Field:
+          {
+            var t = p as FieldInfo;
+            if (t.IsLiteral) return 5;
+            return t.IsStatic ? 22 : t.IsPublic ? 8 : t.IsPrivate ? 15 : 21;
+          }
+        case MemberTypes.TypeInfo:
+        case MemberTypes.NestedType:
+          {
+            var t = p as Type;
+            if (t.IsInterface) return 7;
+            if (t.IsEnum) return 5;
+            if (t.IsSubclassOf(typeof(Delegate))) return 4;
+            //if (t.DeclaringType == typeof(Compiler)) return 8;
+            //if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Script.PD<>)) return 18;
+            var pub = p.MemberType == MemberTypes.NestedType ? t.IsNestedPublic : t.IsPublic;
+            return pub ? 8 : 15;
+          }
+      }
+      return 0;
+    }
+    static string tocref(Type type)
+    {
+      if (type.IsGenericParameter)
+      {
+        if (type.DeclaringMethod != null) return string.Format("``{0}", type.GenericParameterPosition);
+        if (type.DeclaringType != null) return string.Format("`{0}", type.GenericParameterPosition);
+      }
+      var ss = type.FullName != null ? type.FullName.Replace('+', '.') : type.Name;
+      if (type.IsGenericType && !type.IsGenericTypeDefinition) { int t = ss.LastIndexOf("`"); if (t >= 0) ss = ss.Substring(0, t); }
+      if (type.IsGenericType) ss = string.Format("{0}{{{1}}}", ss, string.Join(",", type.GetGenericArguments().Select(t => tocref(t)).ToArray()));
+      return ss;
+    }
+    static string tocref(ParameterInfo p)
+    {
+      var t = p.ParameterType; return t.Name.EndsWith("&") ? tocref(t.GetElementType()) + '@' : tocref(t);
+    }
+    static string tocref(MethodInfo mi)
+    {
+      var dt = mi.DeclaringType;
+      if (dt == null) { return mi.ToString(); }
+      if (dt.IsGenericType && !dt.IsGenericTypeDefinition)
+      {
+        dt = dt.GetGenericTypeDefinition();
+        mi = dt.GetMethods().FirstOrDefault(m => m.Name == mi.Name && m.GetParameters().Length == mi.GetParameters().Length);
+      }
+      var ss = $"M:{dt.FullName.Replace('+', '.')}.{mi.Name}";
+      if (mi.IsGenericMethodDefinition) ss += '`';
+      var ga = mi.GetGenericArguments(); if (ga != null && ga.Length > 0) ss = string.Format("{0}`{1}", ss, ga.Length);
+      var pp = mi.GetParameters();
+      if (pp != null && pp.Length > 0) ss = string.Format("{0}({1})", ss, string.Join(",", pp.Select(p => tocref(p)).ToArray()));
+      return ss.ToString();
+    }
+    static string tocref(ConstructorInfo mi)
+    {
+      var dt = mi.DeclaringType;
+      var ss = string.Format("M:{0}.{1}.{2}", dt.Namespace, dt.Name, "#ctor");
+      if (mi.IsGenericMethodDefinition) ss += '`';
+      var pp = mi.GetParameters();
+      if (pp != null && pp.Length > 0) ss = string.Format("{0}({1})", ss, string.Join(",", pp.Select(p => tocref(p)).ToArray()));
+      return ss.ToString();
+    }
+    static Tuple<Type, string> tocref(object p)
+    {
+      var type = p as Type; if (type != null) return Tuple.Create(type, "T:" + type.FullName.Replace('+', '.'));
+      var mi = p as MethodInfo; if (mi != null) return mi.DeclaringType != null ? Tuple.Create(mi.DeclaringType, tocref(mi)) : null;
+      var ci = p as ConstructorInfo; if (ci != null) return Tuple.Create(ci.DeclaringType, tocref(ci));
+      var pi = p as MemberInfo;
+      if (pi != null) return Tuple.Create(pi.DeclaringType, string.Format("{0}:{1}.{2}.{3}",
+       pi.MemberType == MemberTypes.Field ? "F" : pi.MemberType == MemberTypes.Event ? "E" : "P",
+         pi.DeclaringType.Namespace, pi.DeclaringType.Name, pi.Name));
+      return null;
+    }
+    static string fromcref(string s)
+    {
+      return s.Length > 1 && s[1] == ':' ? s.Substring(2) : s;
+    }
+    static string docu(object p)
+    {
+      var doc = tocref(p); if (doc == null) return null;
+      var assembly = doc.Item1.Assembly; if (assembly.IsDynamic) return null;
+      var xml = cache.Select(t => t.Target).OfType<XElement>().FirstOrDefault(t => t.Annotation<Assembly>() == assembly);
+      if (xml == null)
+      {
+        try
+        {
+          var file = Directory.EnumerateFiles(assembly.GlobalAssemblyCache ?
+              Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Reference Assemblies\\Microsoft\\Framework\\.NETFramework\\v4.0") :
+              Path.GetDirectoryName(assembly.Location), Path.ChangeExtension(Path.GetFileName(assembly.Location), ".xml"), SearchOption.AllDirectories).FirstOrDefault();
+          //Debug.WriteLine("load: " + file);
+          if (file != null) xml = XElement.Load(file);
+          var s = (string)xml.Attribute("redirect");
+          if (s != null)
+          {
+            s = Environment.ExpandEnvironmentVariables(s);
+            if (s.Contains('%')) s = Environment.ExpandEnvironmentVariables(s.Replace("DIR%", "(X86)%\\"));
+            xml = XElement.Load(s);
+          }
+        }
+        catch { }
+        if (xml == null) xml = new XElement("null"); xml.AddAnnotation(assembly); TypeHelper.cache.Add(new WeakReference(xml));
+      }
+      var members = xml.Element("members"); if (members == null) return null;
+      var member = members.Elements("member").FirstOrDefault(u => u.Attribute("name").Value == doc.Item2); if (member == null) return null;
+      var summary = member.Element("summary"); if (summary == null) return null;
+      var ss = evalsee(summary);
+      var paras = member.Elements("param");
+      if (paras.Any()) ss = string.Format("{0}\n\nParameter:\n{1}", ss, string.Join("\n",
+        paras.Select(pa => string.Format("  {0}: {1}", pa.Attribute("name").Value, evalsee(pa)))));
+      return ss;
+    }
+    static string evalsee(XElement xe)
+    {
+      return string.Concat(xe.Nodes().Select(e =>
+      {
+        var t1 = e as XText; if (t1 != null) return t1.Value;
+        var t2 = e as XElement; if (t2 != null && t2.Name == "see") { var t3 = t2.Attribute("cref"); if (t3 != null) return fromcref(t3.Value); }
+        return string.Empty;
+      })).Trim();
+    }
+    internal static string tooltip(object p)
+    {
+      var infos = p as MemberInfo[];
+      if (infos != null) p = infos.Length > 1 && infos[0] is MethodInfo ? infos.OrderByDescending(x => ((MethodInfo)x).GetParameters().Length).Last() : infos[0];// infos[infos.Length - 1];
+
+      var type = p as Type;
+      if (type != null)
+      {
+        //if (type.DeclaringType == typeof(Compiler)) return string.Format("{0}\n{1}", type.Name, "Represents an object whose operation will be resolved at runtime.");
+        return string.Format("{0} {1}\n{2}",
+         type.IsSubclassOf(typeof(Delegate)) ? "delegate" :
+         type.IsEnum ? "enum" :
+         type.IsInterface ? "interface" :
+         type.IsClass ? "class" : "struct",
+         fullname(type),
+         docu(type.IsGenericType ? type.GetGenericTypeDefinition() : type));
+      }
+      var mi = p as MethodInfo;
+      if (mi != null) return string.Format("{0} {1}\n{2}",
+        mi.IsDefined(typeof(ExtensionAttribute), false) ? string.Format("({0}) {1}", "extension", shortname(mi)) : shortname(mi),
+        infos != null && infos.Length > 1 ? string.Format("(+ {0} overload(s))", infos.Length - 1) : string.Empty,
+        docu(mi));
+
+      var ci = p as ConstructorInfo;
+      if (ci != null)
+        return string.Format("{0}.{0}({1})\n{2}", shortname(ci.DeclaringType), shortname(ci.GetParameters()), docu(ci));
+
+      var fi = p as MemberInfo;
+      if (fi != null) return string.Format("{0}\n{1}", shortname(fi), docu(fi));
+
+      var xx = p as Func<string>; if (xx != null) return xx();
+
+      return string.Format("{0} {1}", "namespace", p);
+      //return p.ToString();
+    }
+    internal static string tooltip((int i, int n, int v, object p) tpos, string text, bool skipdef = true)
+    {
+      switch (tpos.v & 0x0f)
+      {
+        case 0x00:
+        case 0x03:
+          if (tpos.p is string) return null; //inline xml
+          var name = text.Substring(tpos.i, tpos.n);
+          if (tpos.p is DynamicMethod[])
+          {
+            if (skipdef && (tpos.v & 0x80) != 0) return null;
+            var acc = (DynamicMethod[])tpos.p;
+            if (acc[0] != null) return string.Format("{0} {1}", shortname(acc[0].ReturnType), name);
+            if (acc[1] != null) return string.Format("{0} {1}", shortname(acc[1].GetParameters()[1].ParameterType), name);
+            return null;
+          }
+          if (tpos.p is DynamicMethod)
+          {
+            if (skipdef && (tpos.v & 0x80) != 0) return null;
+            var mi = (DynamicMethod)tpos.p;
+            return string.Format("{0} {1}({2})", shortname(mi.ReturnType), name, shortname(mi.GetParameters().Skip(1).ToArray()));
+          }
+          return tpos.n == 0 ? null : tooltip(tpos.p);
+        case 0x02: return string.Format("({0}) {1} {2}", "const", shortname(tpos.p as Type), text.Substring(tpos.i, tpos.n));
+        case 0x04: return string.Format("({0}) {1} {2}", "local variable", shortname(tpos.p as Type), text.Substring(tpos.i, tpos.n));
+        case 0x05: return string.Format("({0}) {1} {2}", "parameter", shortname(tpos.p as Type), text.Substring(tpos.i, tpos.n));
+        case 0x06: return string.Format("({0}) {1} {2}", "variable", shortname((Type)tpos.p), text.Substring(tpos.i, tpos.n));
+        case 0x07: return string.Format("({0}) {1} {2}", "property", shortname(((Type)tpos.p).GetGenericArguments()[0]), text.Substring(tpos.i, tpos.n));
+        case 0x08: return string.Format("{0} {1}", "namespace", tpos.p);
+        case 0x01: return "(dynamic expression)\nThis operation will be resolved at runtime.";
+      }
+      return null;
+    }
+    static Bitmap icons;
+    internal static void drawicon(Graphics g, int x, int y, int i)
+    {
+      if (icons == null) { icons = Properties.Resources.typicons; icons.MakeTransparent(); }
+      var d = CodeEditor.dpiscale(20);
+      g.DrawImage(icons, new Rectangle(x, y, d, d), new Rectangle(i * 20, 0, 20, 20), GraphicsUnit.Pixel);
+    }
+    internal static bool IsComDisposed(object p)
+    {
+      //There's no way to determine whether an object is disposed other than using
+      //it and getting an ObjectDisposedException
+      if (!p.GetType().IsCOMObject) return false;
+      try { Marshal.Release(Marshal.GetIUnknownForObject(p)); return false; }
+      catch { return true; }
+    }
+    static MethodInfo __filter(MethodInfo mi, bool priv)
+    {
+      if (mi == null) return mi; var at = mi.Attributes;
+      if ((at & MethodAttributes.SpecialName) != 0) return null;
+      if (priv) { if (mi.Name.Contains('.')) return null; return mi; }
+      if (mi.IsStatic && mi.ReflectedType.IsEnum) return null;
+      //if (!priv && mi.IsStatic && mi.ReflectedType.IsEnum) return null;
+      switch (at & MethodAttributes.MemberAccessMask)
+      {
+        case MethodAttributes.Family: // protected
+        case MethodAttributes.FamORAssem: //internal protected
+        case MethodAttributes.Public: return mi;
+      }
+      return null;
+    }
+    static PropertyInfo __filter(PropertyInfo pi, bool priv)
+    {
+      if (priv || pi == null) return pi;
+      var mi = pi.CanRead ? pi.GetGetMethod(true) : pi.GetSetMethod(true);
+      var at = mi.Attributes; //if((at & MethodAttributes.SpecialName) != 0) return null;
+      var ma = at & MethodAttributes.MemberAccessMask;
+      switch (ma)
+      {
+        case MethodAttributes.Family: // protected
+        case MethodAttributes.FamORAssem: //internal protected
+        case MethodAttributes.Public: return pi;
+      }
+      return null;
+    }
+    static FieldInfo __filter(FieldInfo fi, bool priv)
+    {
+      if (priv || fi == null) return fi;
+      var at = fi.Attributes;
+      if ((at & FieldAttributes.SpecialName) != 0) return null;
+      switch (at & FieldAttributes.FieldAccessMask)
+      {
+        case FieldAttributes.Family: // protected
+        case FieldAttributes.FamORAssem: //internal protected
+        case FieldAttributes.Public: return fi;
+      }
+      return null;
+    }
+    static Type __filter(Type ti, bool priv)
+    {
+      if (priv || ti == null) return ti;
+      var ma = ti.Attributes & TypeAttributes.VisibilityMask;
+      switch (ma)
+      {
+        case TypeAttributes.NestedFamily: // protected
+        case TypeAttributes.NestedFamORAssem: //internal protected
+        case TypeAttributes.NestedPublic:
+          return ti;
+      }
+      return null;
+    }
+    internal static bool __filter(MemberInfo p, bool priv)
+    {
+      switch (p.MemberType)
+      {
+        case MemberTypes.Method: return __filter((MethodInfo)p, priv) != null;
+        case MemberTypes.Property: return __filter((PropertyInfo)p, priv) != null;
+        case MemberTypes.Field: return __filter((FieldInfo)p, priv) != null;
+        case MemberTypes.NestedType: return __filter((Type)p, priv) != null;
+        case MemberTypes.Event: return true;
+      }
+      return false;
+    }
+  }
+
   static unsafe class Native
   {
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
@@ -2480,33 +1832,16 @@ namespace csg3mf
     internal static extern int TextOutW(IntPtr hDC, int x, int y, char* s, int n);
     [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool DeleteObject(IntPtr hObject);
-    [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
-    internal static extern IntPtr CreateSolidBrush(int color);
-    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
-    internal static extern int FillRect(IntPtr hDC, ref Rectangle r, IntPtr brush);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool InvertRect(IntPtr hDC, ref Rectangle lprc);
     [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern int SetBkMode(IntPtr hDC, int mode);
-    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode), SuppressUnmanagedCodeSecurity]
-    internal static extern int SetWindowTheme(IntPtr hWnd, string appName, string partList);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr SetTimer(IntPtr hWnd, IntPtr nIDEvent, uint uElapse, IntPtr lpTimerFunc);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool KillTimer(IntPtr hWnd, IntPtr uIDEvent);
-    [DllImport("kernel32.dll"), SuppressUnmanagedCodeSecurity]
-    internal static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hFile, int dwFlags);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool IsClipboardFormatAvailable(int format);
-    //[DllImport("user32"), SuppressUnmanagedCodeSecurity]
-    //internal static extern IntPtr SetClipboardData(uint uFormat, IntPtr hMem);
-    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool EnableWindow(IntPtr h, bool p);
-    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
-    internal static extern IntPtr SetCapture(IntPtr h);
-    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
-    internal static extern bool ValidateRect(IntPtr hWnd, IntPtr lpRect);
     [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool GdiAlphaBlend(IntPtr hdc, int x, int y, int dx, int dy, IntPtr sdc, int sx, int sy, int sdx, int sdy, int bf);
     [DllImport("gdi32.dll"), SuppressUnmanagedCodeSecurity]
@@ -2514,21 +1849,11 @@ namespace csg3mf
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     public static extern IntPtr ShowWindow(IntPtr h, int f);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
-    internal static extern bool BringWindowToTop(IntPtr h);
-    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
-    internal static extern IntPtr GetParent(IntPtr h);
-    [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr WindowFromPoint(System.Drawing.Point p);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
     internal static extern bool PostMessage(IntPtr hWnd, int m, void* w, void* l);
-    [DllImport("user32.dll")]
-    public static extern int PeekMessage(void* msg, IntPtr window, int fmin, int fmax, int remove);
     [DllImport("ntdll.dll", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
     internal static extern IntPtr memcpy(void* d, void* s, void* n);
-    [DllImport("msvcrt.dll", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-    internal static extern IntPtr memset(void* p, int v, void* n);
-    [DllImport("msvcrt.dll", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-    internal static extern int memcmp(void* a, void* b, void* n);
     [DllImport("comdlg32.dll"), SuppressUnmanagedCodeSecurity]
     static extern IntPtr FindTextW(FindReplace* p);
     [DllImport("user32.dll"), SuppressUnmanagedCodeSecurity]
@@ -2554,11 +1879,6 @@ namespace csg3mf
           if ((ft->flags & 0x40) != 0) { Application.Idle -= dlg; Marshal.FreeCoTaskMem((IntPtr)ft); hook = null; dlg = null; } //FR_DIALOGTERM
         };
       }
-    }
-    internal static bool Equals(byte[] a, byte[] b)
-    {
-      if (a == b) return true; if (a.Length != b.Length) return false;
-      fixed (byte* pa = a, pb = b) return memcmp(pa, pb, (void*)a.Length) == 0;
     }
   }
 }

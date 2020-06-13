@@ -12,7 +12,7 @@ namespace csg3mf
 {
   unsafe class CDXView : UserControl, ISink, UIForm.ICommandTarget
   {
-    internal IView view; internal List<string> infos;
+    internal IView view; //internal List<string> infos;
     long drvsettings = 0x400000000;
     public override string Text { get => "Camera"; set { } }
     protected unsafe override void OnHandleCreated(EventArgs _)
@@ -47,11 +47,6 @@ namespace csg3mf
           new UIForm.MenuItem(4021, "Script...", Keys.Shift | Keys.F12),
           new ToolStripSeparator(),
           new UIForm.MenuItem(2100, "Properties...", Keys.Alt | Keys.Enter)});
-    }
-    protected override void Dispose(bool disposing)
-    {
-      if (view != null) { Marshal.ReleaseComObject(view); view = null; }
-      base.Dispose(disposing);
     }
     public new void Invalidate() { MainFrame.inval = 1; base.Invalidate(); }
     public int OnCommand(int id, object test)
@@ -360,6 +355,8 @@ namespace csg3mf
         if (id == 1)
         {
           if (p1 == p2) { view.Scene.Select(); return; }
+          //if (p1.x > p2.x) { var o = p1.x; p1.x = p2.x; p2.x = o; }
+          //if (p1.y > p2.y) { var o = p1.y; p1.y = p2.y; p2.y = o; }
           float4 t; ((float2*)&t)[0] = p1; ((float2*)&t)[1] = p2;
           view.Command(Cmd.SelectRect, &t);
         }
@@ -483,7 +480,7 @@ namespace csg3mf
             try { view.Thumbnail(256, 256, 4, 0x00fffffe, str); }
             finally { view.Scene = t1; }
 
-            blob.Export3MF(path, str, null, wp);
+            blob.Export3MF(path, str, wp);
             var data = new DataObject(); data.SetFileDropList(new System.Collections.Specialized.StringCollection { path });
             DoDragDrop(data, DragDropEffects.Copy);
           }
@@ -501,7 +498,7 @@ namespace csg3mf
       var s = files[0]; if (!s.EndsWith(".3mf", true, null)) return;
 
       IScene drop; float3 wp;
-      try { drop = Import3MF(s, out _, out wp); } catch { return; }
+      try { drop = Import3MF(s, out wp); } catch { return; }
       var scene = view.Scene;
       var pp = drop.Descendants().ToArray();
       var tt = pp.Select(p => p.Parent != null ? p.Parent.Index : -1).ToArray();
@@ -570,17 +567,17 @@ namespace csg3mf
     {
       p(); AddUndo(p); Invalidate();
     }
-    Action undo(INode p, float4x3 m)
+    static Action undo(INode p, float4x3 m)
     {
       if (m == p.GetTransform()) return null;
       return () => { var t = p.GetTransform(); p.SetTransform(m); m = t; };
     }
-    Action undo(INode p, CSG.Rational.Matrix m)
+    static Action undo(INode p, CSG.Rational.Matrix m)
     {
       if (m.Equals(p.Transform)) return null;
       return () => { var t = p.Transform; p.Transform = m; m = t; };
     }
-    Action undo(IEnumerable<Action> a)
+    internal static Action undo(IEnumerable<Action> a)
     {
       var b = a.OfType<Action>().ToArray(); if (b.Length == 0) return null;
       if (b.Length == 1) return b[0];
@@ -638,7 +635,9 @@ namespace csg3mf
     {
       tool?.Invoke(4);
       var dc = new DC(view);
-      if (infos != null && infos.Count != 0)
+
+      var infos = XScene.From(view.Scene).Infos;
+      if (infos.Count != 0)
       {
         dc.SetOrtographic();
         dc.Font = font; dc.Color = 0x80000000;

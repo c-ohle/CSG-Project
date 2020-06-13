@@ -443,6 +443,11 @@ void CView::Pick(const short* pt)
     vv[VV_OVERPOS] = XMVector3TransformCoord(pickp, m);
     mm[MM_PLANE] = mm[MM_VIEWPROJ];
   }
+
+  if (isnan(vv[VV_OVERPOS].m128_f32[0]))
+  {
+    iover = -1; //todo: check
+  }
 }
 
 void CView::setproject()

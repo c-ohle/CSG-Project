@@ -11,7 +11,7 @@ namespace csg3mf
   {
     internal UIForm()
     {
-      mainframe = this;
+      MainFrame = this;
       BackColor = Color.FromArgb(120, 134, 169);
       //Application.Idle += (p, e) =>
       //{
@@ -54,9 +54,9 @@ namespace csg3mf
     public static Control ShowView(Type t, object tag = null, DockStyle prefdock = DockStyle.Right, int prefsize = 0)
     {
       Frame dockat = null; int firstframe = 0;
-      for (int i = mainframe.Controls.Count - 1; i >= 0; i--)
+      for (int i = MainFrame.Controls.Count - 1; i >= 0; i--)
       {
-        var p = mainframe.Controls[i] as Frame; if (p == null) { firstframe = i; continue; }
+        var p = MainFrame.Controls[i] as Frame; if (p == null) { firstframe = i; continue; }
         if (dockat == null && p.Dock == prefdock) dockat = p;
         for (int k = 0; k < p.Controls.Count; k++)
         {
@@ -67,12 +67,12 @@ namespace csg3mf
       if (dockat == null)
       {
         dockat = new Frame { Dock = prefdock };
-        if (prefdock == DockStyle.Left || prefdock == DockStyle.Right) dockat.Width = prefsize != 0 ? prefsize : mainframe.ClientSize.Width / 4;
-        else dockat.Height = prefsize != 0 ? prefsize : mainframe.ClientSize.Height / 4;
-        mainframe.SuspendLayout();
-        mainframe.Controls.Add(dockat);
-        mainframe.Controls.SetChildIndex(dockat, prefdock == DockStyle.Fill ? 0 : firstframe);
-        mainframe.ResumeLayout(); mainframe.PerformLayout();
+        if (prefdock == DockStyle.Left || prefdock == DockStyle.Right) dockat.Width = prefsize != 0 ? prefsize : MainFrame.ClientSize.Width / 4;
+        else dockat.Height = prefsize != 0 ? prefsize : MainFrame.ClientSize.Height / 4;
+        MainFrame.SuspendLayout();
+        MainFrame.Controls.Add(dockat);
+        MainFrame.Controls.SetChildIndex(dockat, prefdock == DockStyle.Fill ? 0 : firstframe);
+        MainFrame.ResumeLayout(); MainFrame.PerformLayout();
       }
       var ctrl = (Control)Activator.CreateInstance(t); ctrl.Tag = tag; ctrl.Visible = false;
       dockat.Controls.Add(ctrl); dockat.PerformLayout();
@@ -101,7 +101,8 @@ namespace csg3mf
         MessageBox.Show(e.Message, Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error); return -1;
       }
     }
-    static UIForm mainframe; static Frame activeframe;
+    internal static UIForm MainFrame { get; private set; }
+    static Frame activeframe;
     static int rand = 8, title = 28; static Point sp; static Rectangle sr;
     static Brush brush1 = new SolidBrush(Color.FromArgb(80, 85, 130));
     static Brush brush2 = new SolidBrush(Color.FromArgb(176, 179, 208));
@@ -118,7 +119,7 @@ namespace csg3mf
       {
         var gr = e.Graphics;
         var ctrls = Controls; var font = SystemFonts.MenuFont;
-        if (/*ContainsFocus*/ mainframe.ActiveControl == this && activeframe != this) { if (activeframe != null) activeframe.Invalidate(); activeframe = this; }
+        if (/*ContainsFocus*/ MainFrame.ActiveControl == this && activeframe != this) { if (activeframe != null) activeframe.Invalidate(); activeframe = this; }
         var focus = activeframe == this;
         if (Dock == DockStyle.Fill)
         {
@@ -404,10 +405,10 @@ namespace csg3mf
           if (mi == null)
           {
             var bu = items[i] as Button;
-            if (bu != null) bu.Enabled = (mainframe.TryCommand(bu.Tag, bu.id, bu) & 1) != 0; continue;
+            if (bu != null) bu.Enabled = (MainFrame.TryCommand(bu.Tag, bu.id, bu) & 1) != 0; continue;
           }
           if (mi.id == 0) continue;
-          var hr = mainframe.TryCommand(null, mi.id, mi); mi.Enabled = (hr & 1) != 0; mi.Checked = (hr & 2) != 0;
+          var hr = MainFrame.TryCommand(null, mi.id, mi); mi.Enabled = (hr & 1) != 0; mi.Checked = (hr & 2) != 0;
           if (!mi.HasDropDownItems) continue; mi.Visible = false;
           foreach (var e in mi.DropDownItems.OfType<ToolStripMenuItem>()) items.Insert(++i, new MenuItem(mi.id, e.Text) { Tag = e.Tag, Checked = e.Checked });
           mi.DropDownItems.Clear();
@@ -420,7 +421,7 @@ namespace csg3mf
       }
       protected override void OnClick(EventArgs e)
       {
-        if (id != 0) mainframe.TryCommand(null, id, Tag);
+        if (id != 0) MainFrame.TryCommand(null, id, Tag);
       }
     }
     public class Button : ToolStripButton
@@ -431,7 +432,7 @@ namespace csg3mf
         this.id = id; Text = text; Image = img; DisplayStyle = ToolStripItemDisplayStyle.Image;
         AutoSize = false; Size = new Size(40, 40);
       }
-      protected override void OnClick(EventArgs e) => mainframe.TryCommand(Tag, id, null);
+      protected override void OnClick(EventArgs e) => MainFrame.TryCommand(Tag, id, null);
     }
     public new class ContextMenu : ContextMenuStrip
     {
@@ -448,7 +449,7 @@ namespace csg3mf
     {
       protected override void OnHandleCreated(EventArgs e) { Application.Idle += idle; base.OnHandleCreated(e); }
       protected override void OnHandleDestroyed(EventArgs e) { Application.Idle -= idle; base.OnHandleDestroyed(e); }
-      void idle(object sender, EventArgs e) => MenuItem.Update(Items);
+      void idle(object sender, EventArgs e) { if (Visible) MenuItem.Update(Items); else { } }
     }
     public interface ICommandTarget
     {

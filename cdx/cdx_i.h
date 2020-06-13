@@ -7,8 +7,8 @@
 /* at Tue Jan 19 04:14:07 2038
  */
 /* Compiler settings for cdx.idl:
-    Oicf, W1, Zp8, env=Win32 (32b run), target_arch=X86 8.01.0622 
-    protocol : dce , ms_ext, c_ext, robust
+    Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.01.0622 
+    protocol : all , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
     VC __declspec() decoration level: 
          __declspec(uuid()), __declspec(selectany), __declspec(novtable)
@@ -562,6 +562,12 @@ EXTERN_C const IID IID_ICDXScene;
         virtual HRESULT STDMETHODCALLTYPE LoadFromStream( 
             /* [in] */ IStream *s) = 0;
         
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Tag( 
+            /* [retval][out] */ IUnknown **p) = 0;
+        
+        virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_Tag( 
+            /* [in] */ IUnknown *p) = 0;
+        
     };
     
     
@@ -631,6 +637,14 @@ EXTERN_C const IID IID_ICDXScene;
             ICDXScene * This,
             /* [in] */ IStream *s);
         
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Tag )( 
+            ICDXScene * This,
+            /* [retval][out] */ IUnknown **p);
+        
+        /* [propput] */ HRESULT ( STDMETHODCALLTYPE *put_Tag )( 
+            ICDXScene * This,
+            /* [in] */ IUnknown *p);
+        
         END_INTERFACE
     } ICDXSceneVtbl;
 
@@ -686,6 +700,12 @@ EXTERN_C const IID IID_ICDXScene;
 
 #define ICDXScene_LoadFromStream(This,s)	\
     ( (This)->lpVtbl -> LoadFromStream(This,s) ) 
+
+#define ICDXScene_get_Tag(This,p)	\
+    ( (This)->lpVtbl -> get_Tag(This,p) ) 
+
+#define ICDXScene_put_Tag(This,p)	\
+    ( (This)->lpVtbl -> put_Tag(This,p) ) 
 
 #endif /* COBJMACROS */
 

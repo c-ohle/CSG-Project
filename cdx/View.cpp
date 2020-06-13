@@ -42,7 +42,7 @@ LRESULT CALLBACK CView::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
     GetClientRect(hWnd, &view->rcclient); InvalidateRect(hWnd, 0, 0);
     break;
   case WM_DESTROY:
-    view->hwnd = 0; view->relres();
+    view->hwnd = 0; view->sink.Release(); view->relres();
     break;
   }
   return view->proc(hWnd, message, wParam, lParam);
@@ -167,9 +167,11 @@ static void selectrect(CView& view, UINT* data)
   void* layer = view.scene.p;
   auto& nodes = view.scene.p->nodes;
   for (UINT i = 0; i < view.scene.p->count; i++) nodes.p[i]->flags &= ~(NODE_FL_SELECT | NODE_FL_INSEL);
-  XMVECTOR r[5];
-  r[0] = XMLoadFloat2((XMFLOAT2*)data + 0); r[4] = r[0];
-  r[2] = XMLoadFloat2((XMFLOAT2*)data + 1);
+  XMVECTOR r[5]; 
+  r[0] = XMLoadFloat2((XMFLOAT2*)data + 0);  
+  r[1] = XMLoadFloat2((XMFLOAT2*)data + 1); 
+  r[2] = XMVectorMax(r[0], r[1]); 
+  r[0] = r[4] = XMVectorMin(r[0], r[1]);
   r[1] = XMVectorPermute<4, 1, 3, 3>(r[0], r[2]);
   r[3] = XMVectorPermute<0, 5, 3, 3>(r[0], r[2]);
   auto vv = (XMVECTOR*)__align16(stackptr);
