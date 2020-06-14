@@ -159,8 +159,8 @@ namespace csg3mf
       [FieldOffset(0)] readonly int t;
       [FieldOffset(4)] readonly int i;
       [FieldOffset(8)] readonly IVector p;
-      public override string ToString() => p.GetString(i);
-      public string ToString(int digits, int fl = 3) => p.GetString(i, digits, fl);
+      public override string ToString() => p != null ? p.GetString(i) : "NaN";
+      public string ToString(int digits, int fl = 3) => p !=null ? p.GetString(i, digits, fl) : "NaN";
       public static Rational Parse(string s)
       {
         var p = ctor(1); Variant v; v.vt = (ushort)VarType.String | (1 << 8);

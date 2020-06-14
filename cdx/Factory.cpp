@@ -396,8 +396,8 @@ void CView::EndVertices(UINT nv, UINT mode)
 
 void CView::Pick(const short* pt)
 {
-  if (!swapchain.p) return;
-  XMFLOAT2 pc(pt[0], pt[1]); iover = -1;
+  iover = -1; if (!swapchain.p) return;
+  XMFLOAT2 pc(pt[0], pt[1]); 
   if (!rtvtex1.p) initpixel();
   auto vp = viewport; vp.TopLeftX = -pc.x; vp.TopLeftY = -pc.y;
   context->RSSetViewports(1, &vp); //pixelscale = 0;
@@ -439,15 +439,15 @@ void CView::Pick(const short* pt)
   if (ppc)
   {
     auto& nodes = scene.p->nodes;
-    auto m = XMMatrixInverse(0, nodes.p[iover = ppc - 1]->gettrans(scene.p) * mm[MM_PLANE]);
-    vv[VV_OVERPOS] = XMVector3TransformCoord(pickp, m);
+    auto m = XMMatrixInverse(0, nodes.p[iover = ppc - 1]->gettrans(scene.p) * mm[MM_VIEWPROJ]);
+    vv[VV_OVERPOS] = XMVector3TransformCoord(pickp, m); 
     mm[MM_PLANE] = mm[MM_VIEWPROJ];
   }
 
-  if (isnan(vv[VV_OVERPOS].m128_f32[0]))
-  {
-    iover = -1; //todo: check
-  }
+  //if (isnan(vv[VV_OVERPOS].m128_f32[0]))
+  //{
+  //  iover = -1; //todo: check
+  //}
 }
 
 void CView::setproject()

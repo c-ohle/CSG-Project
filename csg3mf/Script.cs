@@ -35,7 +35,7 @@ namespace csg3mf
         stack = new Stack { Expression.Parameter(typeof(object), "this") }; stack.@this = Expression.Parameter(@this, "this");
         if (map != null) stack.dict = new Dictionary<ParameterExpression, int>();
         stack.npub = 1; a.Parse(null, null, null, 0x08 | 0x04);
-        var t1 = a.Parse(/*Expression.Label(typeof(void), "return")*/null, null, null, 0x01);
+        var t1 = a.Parse(null, null, null, 0x01);
         var t2 = Expression.Lambda<Func<object, object[]>>(t1, ".ctor", stack.Take(1)); return t2;
       }
       catch { var e = (Script*)ptr; LastError = ((int)(e->s - (char*)(ptr + 32)), e->n); throw; }
@@ -44,11 +44,15 @@ namespace csg3mf
     public static (int i, int n) LastError { get; private set; }
     public override string ToString() => new string(s, 0, n);
     char* s; int n; static byte* ptr; static Stack stack;
-    class Stack : List<ParameterExpression> { internal ParameterExpression @this; internal List<object> usings = new List<object>(); internal int nstats, nusings, npub; internal List<Expression> list = new List<Expression>(); internal Dictionary<ParameterExpression, int> dict; }
+    class Stack : List<ParameterExpression> { internal ParameterExpression @this; internal List<object> usings = new List<object>(); internal int nstats, nusings, npub, xpos; internal List<Expression> list = new List<Expression>(); internal Dictionary<ParameterExpression, int> dict; }
     Expression Parse(LabelTarget @return, LabelTarget @break, LabelTarget @continue, int flags)
     {
       var list = stack.list; int stackab = (flags & 1) != 0 ? 1 : stack.Count, listab = list.Count; var ep = *(Script*)ptr;
-      if ((flags & 0x01) != 0) { stack.Add(stack.@this); list.Add(Expression.Assign(stack.@this, Expression.Convert(stack[0], stack.@this.Type))); }
+      if ((flags & 0x01) != 0)
+      {
+        stack.Add(stack.@this); list.Add(Expression.Assign(stack.@this, Expression.Convert(stack[0], stack.@this.Type)));
+        if (dbg != null) { stack.xpos = stack.Count; stack.Add(Expression.Variable(typeof(Func<(int, object)[]>), "?")); stack.dict[stack[stack.xpos]] = -1; }
+      }
       if (map != null && (flags & 0x02) != 0) { var s = this; for (s.n = 1; *s.s != '{'; s.s--) ; __map(s); }
       for (var c = this; c.n != 0;)
       {
@@ -87,7 +91,7 @@ namespace csg3mf
         if (n.equals("switch"))
         {
           if ((flags & 0x08) != 0) continue;
-          n = t.next(); n.trim(1, 1); var t1 = n.Parse(null);
+          n = t.next(); n.trim(1, 1); __map(n); var t1 = n.Parse(null);
           n = t.next(); n.trim(1, 1); var t2 = stack.usings.Count; var t5 = (Expression)null;
           for (var ab = list.Count; n.n != 0;)
           {
@@ -118,10 +122,10 @@ namespace csg3mf
             var t1 = t.Parse(t0); if (t0 == null) @return.GetType().GetField("_type", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(@return, t0 = t1.Type);
             list.Add(Expression.Return(@return, Convert(t1, t0))); continue;
           }
-          if (t.n != 0) n.error("invalid type"); list.Add(Expression.Return(@return)); continue;
+          if (t.n != 0) n.error("invalid type"); __map(n); list.Add(Expression.Return(@return)); continue;
         }
-        if (n.equals("break")) { if ((flags & 0x08) != 0) continue; list.Add(Expression.Break(@break)); continue; }
-        if (n.equals("continue")) { if ((flags & 0x08) != 0) continue; list.Add(Expression.Break(@continue)); continue; }
+        if (n.equals("break")) { if ((flags & 0x08) != 0) continue; __map(n); list.Add(Expression.Break(@break)); continue; }
+        if (n.equals("continue")) { if ((flags & 0x08) != 0) continue; __map(n); list.Add(Expression.Break(@continue)); continue; }
         if (n.equals("new")) { if ((flags & 0x08) != 0) continue; list.Add(a.Parse(null)); continue; }
         var @public = false; if (n.equals("public")) { a = t; @public = true; }
         n = a; t = n.gettype(); if (t.n == 0) { if ((flags & 0x08) != 0) continue; __map(a); list.Add(a.Parse(null)); continue; }
@@ -151,18 +155,14 @@ namespace csg3mf
             if (map != null) { var u = n; u.n = (int)(v.s - n.s) + v.n; __map(u); }
             list.Add(Expression.Assign(e, Convert(r, e.Type)));
           }
-          if (i == 0) { stack.Add(e); if (map != null) __map(n, e); }
+          if (i == 0) { if (dbg != null && (flags & 0x01) != 0) stack.Insert(stack.xpos++, e); else stack.Add(e); if (map != null) __map(n, e); }
         }
       }
       *(Script*)ptr = ep;
       if ((flags & 0x04) != 0) return null;
-      if (map != null && (flags & 0x02) != 0)
-      {
-        var s = this; for (s = this, s.s += s.n, s.n = 1; *s.s != '}'; s.s++) ; __map(s);
-        //if (IntPtr.Size == 8) list.Add(__dbg(int.MaxValue)); //bypass RyuJIT SF bug
-      }
+      if (map != null && (flags & 0x02) != 0) { var s = this; for (s = this, s.s += s.n, s.n = 1; *s.s != '}'; s.s++) ; __map(s); }
       if ((flags & 0x02) != 0) list.Add(@return.Type != typeof(void) ? Expression.Label(@return, Expression.Default(@return.Type)) : Expression.Label(@return));
-      if ((flags & 0x01) != 0) list.Add(Expression.NewArrayInit(typeof(object), stack.Take(stack.npub)));
+      if ((flags & 0x01) != 0) { list.Add(Expression.NewArrayInit(typeof(object), stack.Take(stack.npub))); if (dbg != null) __dbg(); }
       if ((flags & 0x10) != 0) list.Add(Expression.Label(@break));
       var block = stack.Count != stackab || list.Count - listab > 1 ? Expression.Block(stack.Skip(stackab), list.Skip(listab)) : list.Count - listab == 1 ? list[listab] : Expression.Empty();
       list.RemoveRange(listab, list.Count - listab); stack.RemoveRange(stackab, stack.Count - stackab);
@@ -832,10 +832,19 @@ namespace csg3mf
         Expression.Call(t1, dbg.Method, t2, Expression.Default(typeof((int, object)[]))),
         Expression.Call(t1, dbg.Method, t2,
           Expression.NewArrayInit(typeof((int, object)),
-            stack.Intersect(stack.dict.Keys).Where(p => !p.Type.IsSubclassOf(typeof(Delegate))).
+            stack.Skip(stack.xpos).Intersect(stack.dict.Keys).//Where(p => !p.Type.IsSubclassOf(typeof(Delegate))).
             Select(p => Expression.New(__ctor ?? (__ctor = typeof((int, object)).GetConstructors()[0]),
               Expression.Constant(stack.dict[p]), Expression.Convert(p, typeof(object)))))
           ));
+    }
+    static void __dbg()
+    {
+      var t1 = Expression.NewArrayInit(typeof((int, object)),
+                stack.Intersect(stack.dict.Keys).Where(p => !p.Type.IsSubclassOf(typeof(Delegate))).
+                Select(p => Expression.New(__ctor ?? (__ctor = typeof((int, object)).GetConstructors()[0]),
+                  Expression.Constant(stack.dict[p]), Expression.Convert(p, typeof(object)))));
+      var t2 = Expression.Lambda<Func<(int, object)[]>>(t1, "?", null);
+      stack.list.Insert(0, Expression.Assign(stack[stack.xpos], t2));
     }
     static ConstructorInfo __ctor;
     #endregion
@@ -996,7 +1005,6 @@ namespace csg3mf
         }
         if (k != -1) TypeHelper.drawicon(e.Graphics, -2, LineOffset(LineFromPos(map[k].i)) + 1, 12);
       }
-
       public override int OnCommand(int id, object test)
       {
         switch (id)
@@ -1031,6 +1039,10 @@ namespace csg3mf
             if (test != null) return 1;
             return 1;
           case 5020: return breakpoint(test);
+            //case 65301: //can close
+            //  if (state != 7) return 0;
+            //  if (test != null) return 1;
+            //  MessageBox.Show("no!"); return 1;
         }
         return base.OnCommand(id, test);
       }
@@ -1064,7 +1076,7 @@ namespace csg3mf
           //xobject.GetMethod<Action>();
           Script.bps = map.Where(p => p.v == 0x1A).Select(p => p.i).ToArray();
           Script.dbg = DebugStep; (Script.map = map).Clear(); sp = null;
-          state = st; xobject.Code = EditText; 
+          state = st; xobject.Code = EditText;
         }
         catch (Exception e)
         {
@@ -1121,6 +1133,7 @@ namespace csg3mf
         ReadOnly = true; if (!Focused) { UIForm.ShowView(typeof(ScriptEditor), Parent.Tag, DockStyle.Left); }
         m.v |= 0x20; map[i] = m; Select(m.i); UpdateSyntaxColors(); ScrollVisible(); this.stack = stack;//var ff = new StackTrace().GetFrames();
         sp = &i; for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); Application.RaiseIdle(null); }
+        if (map.Count == 0) return false;
         ReadOnly = false; this.stack = null; m = map[i]; m.v &= ~0x20; map[i] = m; UpdateSyntaxColors(); Invalidate(); Update();
         MainFrame.Inval(); return true;
       }
@@ -1142,7 +1155,8 @@ namespace csg3mf
           if (lastpos == m.i) return; lastpos = m.i;
           if (state == 7 && (m.v >> 8) != 0)
           {
-            var v = stack.FirstOrDefault(p => p.id == m.v >> 8);
+            var g = ((Func<(int id, object p)[]>)(stack[0].p))();
+            var v = g.Concat(stack).FirstOrDefault(p => p.id == m.v >> 8);
             if (v.id != 0)
             {
               EndToolTip(); EndFlyer(); //ToolTip(text.Substring(tpos.i, tpos.n) + " = " + p.ToString());
@@ -1270,7 +1284,7 @@ namespace csg3mf
       {
         if (flyer != null) { flyer.Dispose(); flyer = null; }
       }
-      protected override void OnHandleDestroyed(EventArgs e) { map.Clear(); EndFlyer(); base.OnHandleDestroyed(e); }
+      protected override void OnHandleDestroyed(EventArgs e) { state = 0; map.Clear(); EndFlyer(); base.OnHandleDestroyed(e); }
       protected override void OnScroll(ScrollEventArgs se) { EndFlyer(); base.OnScroll(se); }
       protected override void OnMouseLeave(EventArgs e)
       {

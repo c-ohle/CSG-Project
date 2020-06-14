@@ -16,30 +16,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "csgtest", "csgtest\csgtest.
 		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF} = {EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "bin", "bin", "{59E52018-3128-4454-91C5-B89C0D9C716F}"
-	ProjectSection(SolutionItems) = preProject
-		bin\cdx32.dll = bin\cdx32.dll
-		bin\cdx64.dll = bin\cdx64.dll
-		bin\csg32.dll = bin\csg32.dll
-		bin\csg3mf.exe = bin\csg3mf.exe
-		bin\csg64.dll = bin\csg64.dll
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "demos", "demos", "{BE1336B9-3BC7-4D40-ABE4-17105DB1EF47}"
-	ProjectSection(SolutionItems) = preProject
-		bin\demos\demo1.3mf = bin\demos\demo1.3mf
-		bin\demos\demo2.3mf = bin\demos\demo2.3mf
-		bin\demos\demo3.3mf = bin\demos\demo3.3mf
-		bin\demos\primitives.3mf = bin\demos\primitives.3mf
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "textures", "textures", "{F504DF33-21FF-44DA-B495-D422AA8CFA75}"
-	ProjectSection(SolutionItems) = preProject
-		bin\textures\bricks1.png = bin\textures\bricks1.png
-		bin\textures\rooftiles1.png = bin\textures\rooftiles1.png
-		bin\textures\wood1.png = bin\textures\wood1.png
-	EndProjectSection
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cdx", "cdx\cdx.vcxproj", "{74BE92FA-0EF3-4FB7-A522-ACAFE1D385CC}"
 	ProjectSection(ProjectDependencies) = postProject
 		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF} = {EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}
@@ -99,10 +75,6 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{BE1336B9-3BC7-4D40-ABE4-17105DB1EF47} = {59E52018-3128-4454-91C5-B89C0D9C716F}
-		{F504DF33-21FF-44DA-B495-D422AA8CFA75} = {59E52018-3128-4454-91C5-B89C0D9C716F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {7FC8D76C-00FC-4ADC-B7E2-BF6AA82F7091}
