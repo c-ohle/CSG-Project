@@ -21,6 +21,29 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cdx", "cdx\cdx.vcxproj", "{
 		{EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF} = {EDEEBD18-521A-4CDB-BDB5-D2143D00CEFF}
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "bin", "bin", "{EB0FC26B-609C-418F-95CB-F72D93FD9F7C}"
+	ProjectSection(SolutionItems) = preProject
+		bin\cdx32.dll = bin\cdx32.dll
+		bin\cdx64.dll = bin\cdx64.dll
+		bin\csg32.dll = bin\csg32.dll
+		bin\csg64.dll = bin\csg64.dll
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "textures", "textures", "{3E7B4188-AEA5-4C15-BF90-0961316D18B3}"
+	ProjectSection(SolutionItems) = preProject
+		bin\textures\bricks1.png = bin\textures\bricks1.png
+		bin\textures\rooftiles1.png = bin\textures\rooftiles1.png
+		bin\textures\wood1.png = bin\textures\wood1.png
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "demos", "demos", "{CEDFAC42-32F0-4A34-A522-AE9DB38A63AD}"
+	ProjectSection(SolutionItems) = preProject
+		bin\demos\demo1.3mf = bin\demos\demo1.3mf
+		bin\demos\demo2.3mf = bin\demos\demo2.3mf
+		bin\demos\demo3.3mf = bin\demos\demo3.3mf
+		bin\demos\primitives.3mf = bin\demos\primitives.3mf
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -75,6 +98,10 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{3E7B4188-AEA5-4C15-BF90-0961316D18B3} = {EB0FC26B-609C-418F-95CB-F72D93FD9F7C}
+		{CEDFAC42-32F0-4A34-A522-AE9DB38A63AD} = {EB0FC26B-609C-418F-95CB-F72D93FD9F7C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {7FC8D76C-00FC-4ADC-B7E2-BF6AA82F7091}
