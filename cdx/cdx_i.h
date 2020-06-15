@@ -86,6 +86,13 @@ typedef interface ICDXFont ICDXFont;
 #endif 	/* __ICDXFont_FWD_DEFINED__ */
 
 
+#ifndef __ICDXTexture_FWD_DEFINED__
+#define __ICDXTexture_FWD_DEFINED__
+typedef interface ICDXTexture ICDXTexture;
+
+#endif 	/* __ICDXTexture_FWD_DEFINED__ */
+
+
 #ifndef __ICDXFactory_FWD_DEFINED__
 #define __ICDXFactory_FWD_DEFINED__
 typedef interface ICDXFactory ICDXFactory;
@@ -117,6 +124,7 @@ extern "C"{
 
 /* interface __MIDL_itf_cdx_0000_0000 */
 /* [local] */ 
+
 
 
 
@@ -168,11 +176,15 @@ enum CDX_DRAW
         CDX_DRAW_SET_COLOR	= 4,
         CDX_DRAW_GET_FONT	= 5,
         CDX_DRAW_SET_FONT	= 6,
-        CDX_DRAW_FILL_RECT	= 7,
-        CDX_DRAW_FILL_ELLIPSE	= 8,
-        CDX_DRAW_GET_TEXTEXTENT	= 9,
-        CDX_DRAW_DRAW_TEXT	= 10,
-        CDX_DRAW_DRAW_RECT	= 11
+        CDX_DRAW_GET_TEXTURE	= 7,
+        CDX_DRAW_SET_TEXTURE	= 8,
+        CDX_DRAW_GET_MAPPING	= 9,
+        CDX_DRAW_SET_MAPPING	= 10,
+        CDX_DRAW_FILL_RECT	= 11,
+        CDX_DRAW_FILL_ELLIPSE	= 12,
+        CDX_DRAW_GET_TEXTEXTENT	= 13,
+        CDX_DRAW_DRAW_TEXT	= 14,
+        CDX_DRAW_DRAW_RECT	= 15
     } 	CDX_DRAW;
 
 
@@ -1366,6 +1378,76 @@ EXTERN_C const IID IID_ICDXFont;
 #endif 	/* __ICDXFont_INTERFACE_DEFINED__ */
 
 
+#ifndef __ICDXTexture_INTERFACE_DEFINED__
+#define __ICDXTexture_INTERFACE_DEFINED__
+
+/* interface ICDXTexture */
+/* [unique][uuid][object] */ 
+
+
+EXTERN_C const IID IID_ICDXTexture;
+
+#if defined(__cplusplus) && !defined(CINTERFACE)
+    
+    MIDL_INTERFACE("37E366F0-098E-45FB-9152-54CD33D05B21")
+    ICDXTexture : public IUnknown
+    {
+    public:
+    };
+    
+    
+#else 	/* C style interface */
+
+    typedef struct ICDXTextureVtbl
+    {
+        BEGIN_INTERFACE
+        
+        HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
+            ICDXTexture * This,
+            /* [in] */ REFIID riid,
+            /* [annotation][iid_is][out] */ 
+            _COM_Outptr_  void **ppvObject);
+        
+        ULONG ( STDMETHODCALLTYPE *AddRef )( 
+            ICDXTexture * This);
+        
+        ULONG ( STDMETHODCALLTYPE *Release )( 
+            ICDXTexture * This);
+        
+        END_INTERFACE
+    } ICDXTextureVtbl;
+
+    interface ICDXTexture
+    {
+        CONST_VTBL struct ICDXTextureVtbl *lpVtbl;
+    };
+
+    
+
+#ifdef COBJMACROS
+
+
+#define ICDXTexture_QueryInterface(This,riid,ppvObject)	\
+    ( (This)->lpVtbl -> QueryInterface(This,riid,ppvObject) ) 
+
+#define ICDXTexture_AddRef(This)	\
+    ( (This)->lpVtbl -> AddRef(This) ) 
+
+#define ICDXTexture_Release(This)	\
+    ( (This)->lpVtbl -> Release(This) ) 
+
+
+#endif /* COBJMACROS */
+
+
+#endif 	/* C style interface */
+
+
+
+
+#endif 	/* __ICDXTexture_INTERFACE_DEFINED__ */
+
+
 #ifndef __ICDXFactory_INTERFACE_DEFINED__
 #define __ICDXFactory_INTERFACE_DEFINED__
 
@@ -1405,6 +1487,10 @@ EXTERN_C const IID IID_ICDXFactory;
             FLOAT size,
             UINT style,
             /* [retval][out] */ ICDXFont **p) = 0;
+        
+        virtual HRESULT STDMETHODCALLTYPE GetTexture( 
+            /* [in] */ IStream *str,
+            /* [retval][out] */ ICDXTexture **p) = 0;
         
     };
     
@@ -1458,6 +1544,11 @@ EXTERN_C const IID IID_ICDXFactory;
             UINT style,
             /* [retval][out] */ ICDXFont **p);
         
+        HRESULT ( STDMETHODCALLTYPE *GetTexture )( 
+            ICDXFactory * This,
+            /* [in] */ IStream *str,
+            /* [retval][out] */ ICDXTexture **p);
+        
         END_INTERFACE
     } ICDXFactoryVtbl;
 
@@ -1498,6 +1589,9 @@ EXTERN_C const IID IID_ICDXFactory;
 
 #define ICDXFactory_GetFont(This,name,size,style,p)	\
     ( (This)->lpVtbl -> GetFont(This,name,size,style,p) ) 
+
+#define ICDXFactory_GetTexture(This,str,p)	\
+    ( (This)->lpVtbl -> GetTexture(This,str,p) ) 
 
 #endif /* COBJMACROS */
 

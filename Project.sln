@@ -26,6 +26,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "bin", "bin", "{EB0FC26B-609
 		bin\cdx32.dll = bin\cdx32.dll
 		bin\cdx64.dll = bin\cdx64.dll
 		bin\csg32.dll = bin\csg32.dll
+		bin\csg3mf.exe = bin\csg3mf.exe
 		bin\csg64.dll = bin\csg64.dll
 	EndProjectSection
 EndProject

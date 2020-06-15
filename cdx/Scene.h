@@ -1,13 +1,21 @@
 #pragma once
 
-struct CTexture
+struct CTexture : ICDXTexture
 {
-  UINT refcount = 1;// , hash;
+  UINT refcount = 1, fl = 0; //1: error 2: A8
+  CComPtr<IStream> str; void init();
   CComPtr<ID3D11ShaderResourceView> p;
-  CComPtr<IStream> str;
   static CTexture* first; CTexture* next;
   CTexture() { Critical crit; next = first; first = this; }
   ~CTexture() { auto p = &first; for (; *p != this; p = &(*p)->next); *p = next; }
+  HRESULT __stdcall QueryInterface(REFIID riid, void** p)
+  {
+    if (riid == __uuidof(IUnknown) || riid == __uuidof(ICDXTexture) || riid == __uuidof(IAgileObject))
+    {
+      *p = static_cast<ICDXTexture*>(this); InterlockedIncrement(&refcount); return 0;
+    }
+    return E_NOINTERFACE;
+  }
   ULONG __stdcall AddRef(void) { return InterlockedIncrement(&refcount); }
   ULONG __stdcall Release(void)
   {
@@ -28,7 +36,6 @@ struct Material
   UINT i = 0, n = 0, color = 0xff808080;
   CComPtr<CTexture> tex;
   void serialize(struct Archive& ar);
-  void update(struct CScene* scene);
 };
 
 struct CCSGVAR : CSGVAR
@@ -106,8 +113,8 @@ struct CTexCoords : sarray<XMFLOAT2>
 #define NODE_FL_STATIC    4
 
 struct CNode : public ICDXNode
-{ 
-  ~CNode() { auto s = SysAllocStringLen(name.p, name.n); TRACE(L"~CNode %ws\n", s); SysFreeString(s); }
+{
+  //~CNode() { auto s = SysAllocStringLen(name.p, name.n); TRACE(L"~CNode %ws\n", s); SysFreeString(s); }
   sarray<WCHAR> name; UINT flags = 0;
   CComPtr<ICSGVector> transform;
   CComPtr<ICSGMesh> mesh;
@@ -125,8 +132,8 @@ struct CNode : public ICDXNode
     if (parent == scene) return matrix;
     return matrix * static_cast<CNode*>(parent)->gettrans(scene);
   }
+  struct CScene* getscene();
   CNode* getparent();
-  CScene* getscene();
   bool ispart(CNode* main)
   {
     for (auto p = this; p; p = p->getparent()) if (p == main) return true;
@@ -255,7 +262,6 @@ struct CNode : public ICDXNode
   HRESULT __stdcall GetTexturCoords(CSGVAR* m);
   HRESULT __stdcall SetTexturCoords(CSGVAR m);
   HRESULT __stdcall AddNode(BSTR name, ICDXNode** p);
-
   CComPtr<IUnknown> tag;
   HRESULT __stdcall get_Tag(IUnknown** p)
   {
@@ -269,18 +275,15 @@ struct CNode : public ICDXNode
 
 struct CScene : public ICDXScene
 {
-  sarray<CNode*> nodes; UINT count = 0; CDX_UNIT unit = CDX_UNIT_UNDEF;
+  UINT refcount = 1, count = 0;
+  CDX_UNIT unit = CDX_UNIT_UNDEF;
+  sarray<CNode*> nodes;
+  CComPtr<IUnknown> tag;
   ~CScene()
   {
     //TRACE(L"~CScene\n");
     Clear();
-    //for (UINT i = 0; i < count; i++)
-    //{
-    //  auto p = nodes.p[i]; p->parent = 0; 
-    //  p->relres(); p->Release(); 
-    //}
   }
-  UINT refcount = 1;
   HRESULT __stdcall QueryInterface(REFIID riid, void** p)
   {
     if (riid == __uuidof(IUnknown) || riid == __uuidof(ICDXScene) || riid == __uuidof(IAgileObject))
@@ -326,7 +329,6 @@ struct CScene : public ICDXScene
   HRESULT __stdcall AddNode(BSTR name, ICDXNode** p);
   HRESULT __stdcall SaveToStream(IStream* str);
   HRESULT __stdcall LoadFromStream(IStream* str);
-  CComPtr<IUnknown> tag;
   HRESULT __stdcall get_Tag(IUnknown** p)
   {
     return tag.CopyTo(p);

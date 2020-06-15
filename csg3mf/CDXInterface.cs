@@ -25,6 +25,7 @@ namespace csg3mf
       IView CreateView(IntPtr wnd, ISink sink, uint samples);
       IScene CreateScene(int reserve = 0);
       IFont GetFont(string name, float size, System.Drawing.FontStyle style);
+      ITexture GetTexture(COM.IStream str);
     }
 
     public enum Render
@@ -53,11 +54,13 @@ namespace csg3mf
       GetTransform = 1, SetTransform = 2,
       GetColor = 3, SetColor = 4,
       GetFont = 5, SetFont = 6,
-      FillRect = 7,
-      FillEllipse = 8,
-      GetTextExtent = 9,
-      DrawText = 10,
-      DrawRect = 11,
+      GetTexture = 7, SetTexture = 8,
+      GetMapping = 9, SetMapping = 10,
+      FillRect = 11,
+      FillEllipse = 12,
+      GetTextExtent = 13,
+      DrawText = 14,
+      DrawRect = 15,
     }
 
     [ComImport, Guid("4C0EC273-CA2F-48F4-B871-E487E2774492"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
@@ -132,6 +135,12 @@ namespace csg3mf
       float Descent { get; }
       float Height { get; }
     }
+
+    [ComImport, Guid("37E366F0-098E-45FB-9152-54CD33D05B21"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
+    public interface ITexture
+    {
+    }
+
 #if(false)
     public static void AddAnnotation(this INode p, object v)
     {
@@ -267,7 +276,29 @@ namespace csg3mf
           IntPtr t; p.Draw(Draw.GetFont, &t); if (t == IntPtr.Zero) return null;
           var f = (IFont)Marshal.GetObjectForIUnknown(t); Marshal.Release(t); return f;
         }
-        set { var t = Marshal.GetIUnknownForObject(value); p.Draw(Draw.SetFont, t.ToPointer()); Marshal.Release(t); }
+        set
+        {
+          if (value == null) { p.Draw(Draw.SetFont, IntPtr.Zero.ToPointer()); return; }
+          var t = Marshal.GetIUnknownForObject(value); p.Draw(Draw.SetFont, t.ToPointer()); Marshal.Release(t);
+        }
+      }
+      public ITexture Texture
+      {
+        get
+        {
+          IntPtr t; p.Draw(Draw.GetTexture, &t); if (t == IntPtr.Zero) return null;
+          var f = (ITexture)Marshal.GetObjectForIUnknown(t); Marshal.Release(t); return f;
+        }
+        set
+        {
+          if (value == null) { p.Draw(Draw.SetTexture, IntPtr.Zero.ToPointer()); return; }
+          var t = Marshal.GetIUnknownForObject(value); p.Draw(Draw.SetTexture, t.ToPointer()); Marshal.Release(t);
+        }
+      }
+      public float4x3 Mapping
+      {
+        get { float4x3 c; p.Draw(Draw.GetMapping, &c); return c; }
+        set => p.Draw(Draw.SetMapping, &value);
       }
       public void DrawRect(float x, float y, float dx, float dy)
       {

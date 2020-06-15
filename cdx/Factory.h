@@ -21,13 +21,6 @@ END_COM_MAP()
 	HRESULT FinalConstruct() { return S_OK; }
 	void FinalRelease() { }
 public:
-	HRESULT __stdcall get_Devices(BSTR* p);
-	HRESULT __stdcall get_Samples(BSTR* p);
-	HRESULT __stdcall SetDevice(UINT id);
-	HRESULT __stdcall SetSamples(UINT id);
-	HRESULT __stdcall CreateView(HWND hwnd, ICDXSink* sink, UINT samp, ICDXView** p);
-	HRESULT __stdcall CreateScene(UINT reserve, ICDXScene** p);
-	HRESULT __stdcall GetFont(BSTR name, FLOAT size, UINT style, ICDXFont** p);
 	HRESULT __stdcall get_Version(UINT* pVal)
 	{
 		auto p = (BYTE*)pVal;
@@ -37,6 +30,14 @@ public:
 		p[3] = 1;
 		return S_OK;
 	}
+	HRESULT __stdcall get_Devices(BSTR* p);
+	HRESULT __stdcall get_Samples(BSTR* p);
+	HRESULT __stdcall SetDevice(UINT id);
+	HRESULT __stdcall SetSamples(UINT id);
+	HRESULT __stdcall CreateView(HWND hwnd, ICDXSink* sink, UINT samp, ICDXView** p);
+	HRESULT __stdcall CreateScene(UINT reserve, ICDXScene** p);
+	HRESULT __stdcall GetFont(BSTR name, FLOAT size, UINT style, ICDXFont** p);
+	HRESULT __stdcall GetTexture(IStream* str, ICDXTexture** p);
 };
 
 OBJECT_ENTRY_AUTO(__uuidof(Factory), CFactory)

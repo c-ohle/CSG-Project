@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -84,7 +85,7 @@ namespace csg3mf
           if (test != null) return (view.Render & (CDX.Render)(1 << (id - 2210))) != 0 ? 3 : 1;
           view.Render ^= (CDX.Render)(1 << (id - 2210)); Application.UserAppDataRegistry.SetValue("fl", (int)view.Render);
           Invalidate(); return 1;
-         case 65301: //can close
+        case 65301: //can close
           //if(Tag is IScene) return 1;
           if (test != null) return 1;
           MessageBox.Show("no!"); return 1;
@@ -627,14 +628,44 @@ namespace csg3mf
       };
     }
 #endif
-    IFont font = Factory.GetFont("Arial", 13, System.Drawing.FontStyle.Bold);
+
     //IFont font = GetFont(System.Drawing.SystemFonts.MenuFont);
     //Stopwatch sw;
+    IFont font = Factory.GetFont("Arial", 13, System.Drawing.FontStyle.Bold);
+    ITexture checkboard;
 
     void ISink.Render()
     {
       tool?.Invoke(4);
       var dc = new DC(view);
+
+      if (true)
+      {
+        if (checkboard == null)
+        {
+          using (var bmp = new Bitmap(256, 256, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+          {
+            using (var gr = Graphics.FromImage(bmp))
+            {
+              gr.FillRectangle(Brushes.White, 0, 0, 256, 1);
+              gr.FillRectangle(Brushes.White, 0, 0, 1, 256);
+            }
+            using (var tmp = bmp.Clone(new Rectangle(0, 0, bmp.Width, bmp.Height), System.Drawing.Imaging.PixelFormat.Format1bppIndexed))
+            {
+              tmp.SetResolution(1, 1); var t = tmp.Palette; t.Entries[0] = Color.Transparent; tmp.Palette = t;
+              var s = new MemoryStream(); tmp.Save(s, System.Drawing.Imaging.ImageFormat.Png);
+              fixed (byte* p = s.GetBuffer()) checkboard = Factory.GetTexture(COM.SHCreateMemStream(p, (int)s.Length));
+            }
+            //var str = new MemoryStream(); //bmp.SetResolution(1, 1);
+            //bmp.Save(str, System.Drawing.Imaging.ImageFormat.Png);
+            //fixed (byte* p = str.GetBuffer()) checkboard = Factory.GetTexture(COM.SHCreateMemStream(p, (int)str.Length));
+          }
+        }
+        dc.Transform = 1;
+        dc.Color = 0xfe000000;
+        var t1 = dc.Texture; dc.Texture = checkboard;
+        dc.Mapping = 1; dc.FillRect(-100, -100, 200, 200); dc.Texture = t1;
+      }
 
       var infos = XScene.From(view.Scene).Infos;
       if (infos.Count != 0)

@@ -40,10 +40,11 @@ HRESULT CreateTexture(UINT dx, UINT dy, UINT pitch, DXGI_FORMAT fmt, UINT mips, 
   return 0;
 }
 
-static HRESULT CreateTexture(IStream* str, UINT flags, ID3D11ShaderResourceView** srv)
+void CTexture::init()
 {
-  INT64 x = 0; str->Seek(*(LARGE_INTEGER*)&x, 0, 0);
-  GpBitmap* bmp = 0; GdipCreateBitmapFromStream(str, &bmp); if (!bmp) return E_FAIL;
+  if (fl & 1) return; fl |= 1;
+  INT64 x = 0; str.p->Seek(*(LARGE_INTEGER*)&x, 0, 0);
+  GpBitmap* bmp = 0; GdipCreateBitmapFromStream(str, &bmp); if (!bmp) return;
   UINT dx; GdipGetImageWidth(bmp, &dx);
   UINT dy; GdipGetImageHeight(bmp, &dy);
   PixelFormat pf; GdipGetImagePixelFormat(bmp, &pf);
@@ -51,7 +52,7 @@ static HRESULT CreateTexture(IStream* str, UINT flags, ID3D11ShaderResourceView*
   switch (pf)
   {
   case PixelFormat32bppRGB: fmt = DXGI_FORMAT_B8G8R8X8_UNORM; break;
-  case PixelFormat32bppARGB: fmt = DXGI_FORMAT_B8G8R8A8_UNORM; if ((flags & 1) != 0) fmt = DXGI_FORMAT_A8_UNORM; break;
+  case PixelFormat32bppARGB: fmt = DXGI_FORMAT_B8G8R8A8_UNORM; { REAL res; GdipGetImageHorizontalResolution(bmp, &res); if (res <= 1) fmt = DXGI_FORMAT_A8_UNORM; } break;
   case PixelFormat24bppRGB: fmt = DXGI_FORMAT_B8G8R8X8_UNORM; pf = PixelFormat32bppRGB; break;
   case PixelFormat16bppRGB565: fmt = DXGI_FORMAT_B5G6R5_UNORM; break;
   case PixelFormat16bppRGB555: fmt = DXGI_FORMAT_B5G6R5_UNORM; pf = PixelFormat16bppRGB565; break;
@@ -62,20 +63,18 @@ static HRESULT CreateTexture(IStream* str, UINT flags, ID3D11ShaderResourceView*
   auto ptr = (BYTE*)data.Scan0; auto stride = data.Stride;
   if (fmt == DXGI_FORMAT_A8_UNORM)
   {
-    auto p = ptr;
+    auto p = ptr; fl |= 2;
     for (UINT y = 0; y < dx; y++, p += stride)
       for (UINT x = 0; x < dy; x++) p[x] = p[(x << 2) + 3];
   }
-  auto hr = CreateTexture(dx, dy, stride, fmt, 1, ptr, srv);
+  auto hr = CreateTexture(dx, dy, stride, fmt, 1, ptr, &this->p);
   GdipBitmapUnlockBits(bmp, &data);
-  GdipDisposeImage(bmp);
-  return hr;
+  GdipDisposeImage(bmp); if (hr >= 0) fl &= ~1;
 }
 
-void Material::update(CScene* scene)
+HRESULT CFactory::GetTexture(IStream* str, ICDXTexture** p)
 {
-  auto hr = CreateTexture(tex->str.p, 0, &tex->p.p);
-  if (hr < 0) tex.Release();
+  auto t = new CTexture(); t->str = str; *p = t; return 0;
 }
 
 struct __declspec(uuid("557cf406-1a04-11d3-9a73-0000f81ef32e")) _PNG {};
@@ -107,10 +106,10 @@ HRESULT CView::Thumbnail(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* 
   context->ClearRenderTargetView(rtv.p, bk.m128_f32);
   context->ClearDepthStencilView(dsv.p, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
 
-  auto t1 = flags; flags = (CDX_RENDER)(flags & CDX_RENDER_SHADOWS); 
+  auto t1 = flags; flags = (CDX_RENDER)(flags & CDX_RENDER_SHADOWS);
   auto t2 = camera.p->matrix; auto t3 = znear; auto t4 = zfar; auto t5 = minwz; auto t6 = this->viewport; auto t7 = rcclient;
-  if (bkcolor == 0x00fffffe) 
-  { 
+  if (bkcolor == 0x00fffffe)
+  {
     this->viewport = viewport; rcclient.right = dx; rcclient.bottom = dy;
     float rand = 0; Command(CDX_CMD_CENTER, (UINT*)&rand);
   }
@@ -118,7 +117,7 @@ HRESULT CView::Thumbnail(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* 
   {
     auto f = (this->viewport.Width + this->viewport.Height) * 0.5f;
     this->viewport.Width = f;
-    this->viewport.Height= f;
+    this->viewport.Height = f;
   }
   setproject(); RenderScene();
   flags = t1; camera.p->matrix = t2; znear = t3; zfar = t4; minwz = t5; this->viewport = t6; rcclient = t7;

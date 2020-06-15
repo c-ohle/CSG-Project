@@ -238,8 +238,7 @@ struct VERTEX { XMFLOAT3 p, n; XMFLOAT2 t; };
 #define MM_VIEWPROJ 0
 #define MM_WORLD		1
 #define MM_PLANE		2
-#define MM_TEXTURE	3
-//#define MM_OVERWLD	4
+#define MM_MAPPING	3
 
 #define TT_DIFFUSE	0
 

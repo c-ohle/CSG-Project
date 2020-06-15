@@ -45,6 +45,7 @@ struct CView : ICDXView
   void Pick(const short* pt);
   VERTEX* BeginVertices(UINT nv);
   void EndVertices(UINT nv, UINT topo);
+  void mapping(VERTEX* vv, UINT nv);
   void XM_CALLCONV DrawLine(XMVECTOR a, XMVECTOR b);
   void XM_CALLCONV DrawBox(XMVECTOR a, XMVECTOR b);
   void XM_CALLCONV DrawArrow(XMVECTOR p, XMVECTOR v, float r, int s = 10);

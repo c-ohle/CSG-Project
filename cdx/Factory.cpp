@@ -193,6 +193,7 @@ CComPtr<ID3D11Buffer>             cbbuffer[3];
 void* currentbuffer[3];
 
 CComPtr<CFont>                    d_font; UINT d_blend;
+CComPtr<CTexture>                 d_texture;
 
 static void SetMode(UINT mode)
 {
@@ -397,7 +398,7 @@ void CView::EndVertices(UINT nv, UINT mode)
 void CView::Pick(const short* pt)
 {
   iover = -1; if (!swapchain.p) return;
-  XMFLOAT2 pc(pt[0], pt[1]); 
+  XMFLOAT2 pc(pt[0], pt[1]);
   if (!rtvtex1.p) initpixel();
   auto vp = viewport; vp.TopLeftX = -pc.x; vp.TopLeftY = -pc.y;
   context->RSSetViewports(1, &vp); //pixelscale = 0;
@@ -440,7 +441,7 @@ void CView::Pick(const short* pt)
   {
     auto& nodes = scene.p->nodes;
     auto m = XMMatrixInverse(0, nodes.p[iover = ppc - 1]->gettrans(scene.p) * mm[MM_VIEWPROJ]);
-    vv[VV_OVERPOS] = XMVector3TransformCoord(pickp, m); 
+    vv[VV_OVERPOS] = XMVector3TransformCoord(pickp, m);
     mm[MM_PLANE] = mm[MM_VIEWPROJ];
   }
 
@@ -474,10 +475,9 @@ void CView::RenderScene()
     for (UINT k = 0; k < node.materials.n; k++)
     {
       auto& ma = node.materials.p[k]; if ((ma.color >> 24) != 0xff) { transp++; continue; }
-      if (ma.tex.p && !ma.tex.p->p) ma.update(scene.p);
-      SetColor(VV_DIFFUSE, ma.color); SetVertexBuffer(node.vb.p->p.p); SetIndexBuffer(node.ib.p->p.p);
-      SetTexture(ma.tex.p ? ma.tex.p->p : 0); SetBuffers();
-      SetMode(MO_TOPO_TRIANGLELISTADJ | MO_DEPTHSTENCIL_ZWRITE | (ma.tex.p ? MO_PSSHADER_TEXTURE3D : MO_PSSHADER_COLOR3D));
+      auto tex = ma.tex.p; if (tex) { if (!tex->p.p) tex->init(); SetTexture(tex->p.p); }
+      SetColor(VV_DIFFUSE, ma.color); SetVertexBuffer(node.vb.p->p.p); SetIndexBuffer(node.ib.p->p.p); SetBuffers();
+      SetMode(MO_TOPO_TRIANGLELISTADJ | MO_DEPTHSTENCIL_ZWRITE | (tex ? MO_PSSHADER_TEXTURE3D : MO_PSSHADER_COLOR3D));
       context->DrawIndexed(ma.n << 1, ma.i << 1, 0);
     }
   }
@@ -503,8 +503,8 @@ void CView::RenderScene()
       for (UINT k = 0; k < node.materials.n; k++)
       {
         auto& ma = node.materials.p[k]; if ((ma.color >> 24) != 0xff) continue;
-        SetColor(VV_DIFFUSE, ma.color); SetVertexBuffer(node.vb.p->p.p); SetIndexBuffer(node.ib.p->p.p);
-        SetTexture(ma.tex.p ? ma.tex.p->p : 0); SetBuffers();
+        auto tex = ma.tex.p; if (tex) { if (!tex->p.p) tex->init(); SetTexture(tex->p.p); }
+        SetColor(VV_DIFFUSE, ma.color); SetVertexBuffer(node.vb.p->p.p); SetIndexBuffer(node.ib.p->p.p); SetBuffers();
         SetMode(MO_TOPO_TRIANGLELISTADJ | MO_BLENDSTATE_ALPHAADD | (ma.tex.p ? MO_PSSHADER_TEXTURE3D : MO_PSSHADER_COLOR3D));
         context->DrawIndexed(ma.n << 1, ma.i << 1, 0);
       }
@@ -561,7 +561,7 @@ void CView::RenderScene()
           box[1] = XMVectorMax(box[1], p);
         }
       }
-      if (XMVector3Greater(box[0], box[1])) 
+      if (XMVector3Greater(box[0], box[1]))
         box[0] = box[1] = XMVectorZero();
       SetMatrix(MM_WORLD, main->gettrans(scene.p));
       if (flags & CDX_RENDER_COORDINATES)
@@ -617,10 +617,10 @@ void CView::RenderScene()
       for (UINT k = 0; k < node.materials.n; k++)
       {
         auto& ma = node.materials.p[k]; if ((ma.color >> 24) == 0xff) continue;
-        if (ma.tex.p && !ma.tex.p->p.p) ma.update(scene.p);
+        auto tex = ma.tex.p; if (tex) { if (!tex->p.p) tex->init(); SetTexture(tex->p.p); }
         SetColor(VV_DIFFUSE, ma.color); SetVertexBuffer(node.vb.p->p.p); SetIndexBuffer(node.ib.p->p.p);
-        SetTexture(ma.tex.p ? ma.tex.p->p.p : 0); SetMatrix(MM_WORLD, node.gettrans(scene.p)); SetBuffers();
-        SetMode(MO_TOPO_TRIANGLELISTADJ | MO_BLENDSTATE_ALPHA | (ma.tex.p ? MO_PSSHADER_TEXTURE3D : MO_PSSHADER_COLOR3D));
+        SetMatrix(MM_WORLD, node.gettrans(scene.p)); SetBuffers();
+        SetMode(MO_TOPO_TRIANGLELISTADJ | MO_BLENDSTATE_ALPHA | (tex ? MO_PSSHADER_TEXTURE3D : MO_PSSHADER_COLOR3D));
         context->DrawIndexed(ma.n << 1, ma.i << 1, 0); if (--transp == 0) { i = scene.p->count; break; }
       }
     }
@@ -811,7 +811,7 @@ HRESULT __stdcall CFactory::get_Devices(BSTR* p)
 
 HRESULT __stdcall CFactory::SetDevice(UINT id)
 {
-  if (id == -1) { if (device.p) { d_font.Release(); releasedx(); } return 0; }
+  if (id == -1) { if (device.p) { d_font.Release(); d_texture.Release();  releasedx(); } return 0; }
   if (adapterid == id) return 0;
   adapterid = id; if (device.p == 0) return 0;
   releasedx(); CHR(CreateDevice());
@@ -832,6 +832,12 @@ HRESULT __stdcall CFactory::CreateScene(UINT reserve, ICDXScene** p)
   return 0;
 }
 
+void CView::mapping(VERTEX* vv, UINT nv)
+{
+  for (UINT i = 0; i < nv; i++)
+    XMStoreFloat2(&vv[i].t, XMVector3TransformCoord(XMLoadFloat4A((const XMFLOAT4A*)&vv[i].p), mm[MM_MAPPING]));
+}
+
 HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
 {
   switch (id)
@@ -850,21 +856,37 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
     XMStoreColor((XMCOLOR*)data, vv[VV_DIFFUSE]);
     return 0;
   case CDX_DRAW_SET_COLOR:
-    SetColor(VV_DIFFUSE, data[0]); d_blend = data[0] >> 24 != 0xff ? MO_BLENDSTATE_ALPHA : 0;
+    SetColor(VV_DIFFUSE, data[0]);
+    d_blend = (d_blend & ~MO_BLENDSTATE_MASK) | (data[0] >> 24 != 0xff ? MO_BLENDSTATE_ALPHA : 0);
     return 0;
   case CDX_DRAW_GET_FONT:
     return d_font.CopyTo((CFont**)data);
   case CDX_DRAW_SET_FONT:
     d_font = (CFont*)data;
-    return 0; 
+    return 0;
+  case CDX_DRAW_GET_TEXTURE:
+    return d_texture.CopyTo((CTexture**)data);
+  case CDX_DRAW_SET_TEXTURE:
+  {
+    d_texture = (CTexture*)data; if (d_texture.p) { if (!d_texture.p->p.p) d_texture.p->init(); SetTexture(d_texture->p.p); }
+    d_blend = (d_blend & ~MO_PSSHADER_MASK) | (!d_texture.p ? MO_PSSHADER_COLOR : d_texture.p->fl & 2 ? MO_PSSHADER_FONT : MO_PSSHADER_TEXTURE);
+    return 0;
+  }
+  case CDX_DRAW_GET_MAPPING:
+    XMStoreFloat4x3((XMFLOAT4X3*)data, mm[MM_MAPPING]);
+    return 0;
+  case CDX_DRAW_SET_MAPPING:
+    SetMatrix(MM_MAPPING, XMLoadFloat4x3((XMFLOAT4X3*)data));
+    return 0;
   case CDX_DRAW_FILL_RECT:
   {
-    auto p = BeginVertices(4);
-    p[0].p.x = p[2].p.x = ((float*)data)[0];
-    p[0].p.y = p[1].p.y = ((float*)data)[1];
-    p[1].p.x = p[3].p.x = ((float*)data)[0] + ((float*)data)[2];
-    p[2].p.y = p[3].p.y = ((float*)data)[1] + ((float*)data)[3];
-    EndVertices(4, MO_TOPO_TRIANGLESTRIP | MO_PSSHADER_COLOR | MO_RASTERIZER_NOCULL | d_blend);
+    auto vv = BeginVertices(4);
+    vv[0].p.x = vv[2].p.x = ((float*)data)[0];
+    vv[0].p.y = vv[1].p.y = ((float*)data)[1];
+    vv[1].p.x = vv[3].p.x = ((float*)data)[0] + ((float*)data)[2];
+    vv[2].p.y = vv[3].p.y = ((float*)data)[1] + ((float*)data)[3];
+    if (d_texture.p) mapping(vv, 4);
+    EndVertices(4, MO_TOPO_TRIANGLESTRIP | MO_RASTERIZER_NOCULL | d_blend);
     return 0;
   }
   case CDX_DRAW_FILL_ELLIPSE:
@@ -880,7 +902,8 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
       vv[j].p.x = x + u; vv[j++].p.y = y + v;
       vv[j].p.x = x - u; vv[j++].p.y = y + v;
     }
-    EndVertices(nv, MO_TOPO_TRIANGLESTRIP | MO_PSSHADER_COLOR | MO_RASTERIZER_NOCULL | d_blend);
+    if (d_texture.p) mapping(vv, nv);
+    EndVertices(nv, MO_TOPO_TRIANGLESTRIP | MO_RASTERIZER_NOCULL | d_blend);
     return 0;
   }
   case CDX_DRAW_GET_TEXTEXTENT:

@@ -8,6 +8,7 @@ interface ICDXSink;
 interface ICDXScene;
 interface ICDXNode;
 interface ICDXFont;
+interface ICDXTexture;
 
 cpp_quote("#if(0)")
 typedef IUnknown ICSGMesh;
@@ -46,11 +47,15 @@ typedef enum CDX_DRAW
   CDX_DRAW_SET_COLOR = 4, //UINT
   CDX_DRAW_GET_FONT = 5, //ICDXFont
   CDX_DRAW_SET_FONT = 6, //ICDXFont
-  CDX_DRAW_FILL_RECT = 7, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
-  CDX_DRAW_FILL_ELLIPSE = 8, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
-  CDX_DRAW_GET_TEXTEXTENT = 9, //FLOAT x, FLOAT y, LPCWSTR s, UINT n  
-  CDX_DRAW_DRAW_TEXT = 10, //FLOAT x, FLOAT y, LPCWSTR s, UINT n  
-  CDX_DRAW_DRAW_RECT = 11, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
+  CDX_DRAW_GET_TEXTURE = 7, //ICDXTexture
+  CDX_DRAW_SET_TEXTURE = 8, //ICDXTexture
+  CDX_DRAW_GET_MAPPING = 9, //XMFLOAT4X3
+  CDX_DRAW_SET_MAPPING = 10, //XMFLOAT4X3
+  CDX_DRAW_FILL_RECT = 11, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
+  CDX_DRAW_FILL_ELLIPSE = 12, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
+  CDX_DRAW_GET_TEXTEXTENT = 13, //FLOAT x, FLOAT y, LPCWSTR s, UINT n  
+  CDX_DRAW_DRAW_TEXT = 14, //FLOAT x, FLOAT y, LPCWSTR s, UINT n  
+  CDX_DRAW_DRAW_RECT = 15, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
 } CDX_DRAW;
 
 [object, uuid(4C0EC273-CA2F-48F4-B871-E487E2774492), pointer_default(unique)]
@@ -165,6 +170,11 @@ interface ICDXFont : IUnknown
   [propget] HRESULT Height([out, retval] FLOAT* p);
 };
 
+[object, uuid(37E366F0-098E-45FB-9152-54CD33D05B21), pointer_default(unique)]
+interface ICDXTexture : IUnknown
+{
+};
+
 [object, uuid(f0993d73-ea2a-4bf1-b128-826d4a3ba584), pointer_default(unique)]
 interface ICDXFactory : IUnknown
 {
@@ -174,6 +184,7 @@ interface ICDXFactory : IUnknown
   HRESULT CreateView([in] HWND hwnd, [in] ICDXSink* sink, [in] UINT sampels, [out, retval] ICDXView** p);
   HRESULT CreateScene([in] UINT reserve, [out, retval] ICDXScene** p);
   HRESULT GetFont([in] BSTR name, FLOAT size, UINT style, [out, retval] ICDXFont** p);
+  HRESULT GetTexture([in] IStream* str, [out, retval] ICDXTexture** p);
 };
 
 [uuid(6d43a611-b5a3-489c-aa3a-dc01bb9225e8), version(1.0)]
