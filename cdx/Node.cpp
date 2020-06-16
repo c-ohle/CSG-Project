@@ -405,7 +405,7 @@ HRESULT CScene::LoadFromStream(IStream* str)
 {
   Archive ar(str, false);
   if ((ar.version = ar.ReadCount()) > 1) return E_FAIL;
-  Clear(); 
+  Clear();
   unit = (CDX_UNIT)ar.ReadCount(); nodes.setsize(count = ar.ReadCount());
   for (UINT i = 0; i < count; i++) nodes.p[i] = new CNode();
   for (UINT i = 0; i < count; i++)
@@ -417,6 +417,13 @@ HRESULT CScene::LoadFromStream(IStream* str)
   return 0;
 }
 
+CTexCoords* CTexCoords::Get(const XMFLOAT2* p, UINT n)
+{
+  { Critical crit; for (auto t = CTexCoords::first; t; t = t->next) if (t->n == n && !memcmp(t->p, p, n * sizeof(XMFLOAT2))) { t->AddRef(); return t; } }
+  auto t = new CTexCoords(); t->setsize(n); memcpy(t->p, p, n * sizeof(XMFLOAT2)); return t;
+}
+CTexCoords* CTexCoords::first;
+
 HRESULT CNode::GetTexturCoords(CSGVAR* m)
 {
   if (texcoords.p) *m = CCSGVAR(texcoords.p->p, texcoords.p->n);
@@ -426,17 +433,20 @@ HRESULT CNode::SetTexturCoords(CSGVAR m)
 {
   ib.Release(); vb.Release();
   if (!m.vt) { texcoords.Release(); return 0; }
-  if (m.vt != CSG_TYPE_FLOAT || m.count != 2) return E_INVALIDARG;
-  auto scene = getscene();
-  for (UINT i = 0; i < scene->count; i++)
+  ////
+  if (m.vt == CSG_TYPE_FLOAT && m.count == 12)
   {
-    auto p = scene->nodes.p[i]->texcoords.p; if (!p) continue;
-    if (p->n != m.length || memcmp(p->p, *(void**)&m.p, m.length * sizeof(XMFLOAT2))) continue;
-    texcoords = p; return 0;
+    if (!mesh.p) return E_FAIL;
+    UINT nv; mesh.p->get_VertexCount(&nv); auto vv = (XMFLOAT3*)stackptr; mesh.p->CopyBuffer(0, 0, CCSGVAR(vv, nv));
+    UINT ni; mesh.p->get_IndexCount(&ni);  auto ii = (UINT*)(vv + nv); mesh.p->CopyBuffer(1, 0, CCSGVAR(ii, ni));
+    XMVector3TransformCoordStream(vv, sizeof(XMFLOAT3), vv, sizeof(XMFLOAT3), nv, XMLoadFloat4x3((XMFLOAT4X3*)m.p));
+    auto tt = (XMFLOAT2*)(ii + ni); for (UINT i = 0; i < ni; i++) tt[i] = *(XMFLOAT2*)&vv[ii[i]];
+    *(XMFLOAT2**)&m.p = tt; m.length = ni; m.count = 2;
   }
-  texcoords.p = new CTexCoords();
-  texcoords.p->setsize(m.length);
-  memcpy(texcoords.p->p, *(void**)&m.p, m.length * sizeof(XMFLOAT2));
+  ////
+  if (m.vt != CSG_TYPE_FLOAT || m.count != 2) return E_INVALIDARG;
+  auto p = CTexCoords::Get((const XMFLOAT2*)m.p, m.length);
+  texcoords.Release(); texcoords.p = p;
   return 0;
 }
 
@@ -458,7 +468,7 @@ HRESULT CNode::get_Transform(CSGVAR* p)
     XMFLOAT4X3A m; XMStoreFloat4x3A(&m, matrix);
     //v->SetValue(0, CCSGVAR(m));
     //v->SetValue(0, CCSGVAR(m, 9)); DECIMAL dd[3]; for (UINT i = 0; i < 3; i++) VarDecFromR4((&m._41)[i], dd + i); v->SetValue(9, CCSGVAR(dd, 3));
-    DECIMAL dd[12]; for (UINT i = 0; i < 12; i++) matdec(i, (&m._11)[i], dd + i); 
+    DECIMAL dd[12]; for (UINT i = 0; i < 12; i++) matdec(i, (&m._11)[i], dd + i);
     v->SetValue(0, CCSGVAR(dd, 12));
   }
   else v->Copy(0, transform.p, 0, 12);
@@ -483,14 +493,14 @@ HRESULT CNode::GetTransform(CSGVAR* m)
     return 0;
   }
   UINT ab = m->vt == CSG_TYPE_RATIONAL ? m->dummy : 0;
-  if (transform.p) 
+  if (transform.p)
     return transform.p->GetValue(ab, m);
-   
+
   XMFLOAT4X3A a; XMStoreFloat4x3A(&a, matrix);
   if (m->vt == CSG_TYPE_RATIONAL)
   {
     DECIMAL dd[12]; for (UINT i = 0; i < m->count; i++) matdec(ab + i, (&a._11)[ab + i], dd + i);
-    (*(ICSGVector**)&m->p)->SetValue(m->length, CCSGVAR(dd,m->count));
+    (*(ICSGVector**)&m->p)->SetValue(m->length, CCSGVAR(dd, m->count));
     return 0;
   }
   if (m->vt == CSG_TYPE_STRING && m->count <= 12)

@@ -13,8 +13,7 @@ namespace csg3mf
 {
   unsafe class CDXView : UserControl, ISink, UIForm.ICommandTarget
   {
-    internal IView view; //internal List<string> infos;
-    long drvsettings = 0x400000000;
+    internal IView view; long drvsettings = 0x400000000;
     public override string Text { get => "Camera"; set { } }
     protected unsafe override void OnHandleCreated(EventArgs _)
     {
@@ -670,12 +669,23 @@ namespace csg3mf
       var infos = XScene.From(view.Scene).Infos;
       if (infos.Count != 0)
       {
+        dc.SetOrtographic(); dc.Font = font; dc.Color = 0x80000000;
+        float y = 10 + font.Ascent, dy = font.Height;
+        for (int i = 0; i < infos.Count; i++, y += dy) dc.DrawText(10, y, infos[i]);
+      }
+      if(true)
+      {
         dc.SetOrtographic();
         dc.Font = font; dc.Color = 0x80000000;
-        var y = 10 + font.Ascent;
-        for (int i = 0; i < infos.Count; i++, y += font.Height)
-          dc.DrawText(10, y, infos[i]);
+        float y = 10 + font.Ascent, dy = font.Height, x = ClientSize.Width - 10f;
+        var s = $"Vertexbuffer {Factory.GetInfo(0)}"; dc.DrawText(x - dc.GetTextExtent(s).x, y, s); y += dy;
+        s = $"Indexbuffer {Factory.GetInfo(1)}"; dc.DrawText(x - dc.GetTextExtent(s).x, y, s); y += dy;
+        s = $"Mappings {Factory.GetInfo(2)}"; dc.DrawText(x - dc.GetTextExtent(s).x, y, s); y += dy;
+        s = $"Textures {Factory.GetInfo(3)}"; dc.DrawText(x - dc.GetTextExtent(s).x, y, s); y += dy;
+        s = $"Fonts {Factory.GetInfo(4)}"; dc.DrawText(x - dc.GetTextExtent(s).x, y, s); y += dy;
+        s = $"Views {Factory.GetInfo(5)}"; dc.DrawText(x - dc.GetTextExtent(s).x, y, s); y += dy;
       }
+
 #if (false)
         var p = dc.GetTextExtent("Test GetTextExtent");
         dc.DrawText(Width - p.x, font.Ascent, "Test GetTextExtent");

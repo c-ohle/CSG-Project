@@ -158,7 +158,6 @@ namespace csg3mf
       }
       protected override void OnLayout(LayoutEventArgs levent)
       {
-        // if (!IsHandleCreated) return;
         if (Parent == null) return;
         var ctrls = Parent.Controls; int ff = 0;
         for (int i = ctrls.Count - 1; i >= 0; i--)

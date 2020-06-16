@@ -1130,7 +1130,7 @@ namespace csg3mf
           }
           return true;
         }
-        ReadOnly = true; if (!Focused) { UIForm.ShowView(typeof(ScriptEditor), Parent.Tag, DockStyle.Left); }
+        ReadOnly = true; MainFrame.Inval(); if (!Focused) UIForm.ShowView(typeof(ScriptEditor), Parent.Tag, DockStyle.Left); 
         m.v |= 0x20; map[i] = m; Select(m.i); UpdateSyntaxColors(); ScrollVisible(); this.stack = stack;//var ff = new StackTrace().GetFrames();
         sp = &i; for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); Application.RaiseIdle(null); }
         if (map.Count == 0) return false;

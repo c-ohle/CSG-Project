@@ -996,10 +996,6 @@ namespace csg3mf
         }
       AutoScrollMinSize = new Size(maxx + 32, ly + linehight);
     }
-    protected override void OnLayout(LayoutEventArgs e)
-    {
-      base.OnLayout(e);
-    }
     void _updateranges()
     {
       if (ranges == null) ranges = new List<Range>();

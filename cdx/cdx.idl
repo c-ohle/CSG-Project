@@ -150,8 +150,8 @@ interface ICDXNode : IUnknown
   [propput] HRESULT MaterialCount([in] UINT p);
   [propget] HRESULT Tag([out, retval] IUnknown** p);
   [propput] HRESULT Tag([in] IUnknown* p);
-  HRESULT GetMaterial([in] UINT i, [out] UINT* start, [out] UINT* count, [out] UINT* color, [out] IStream** tex);
-  HRESULT SetMaterial([in] UINT i, [in] UINT start, [in] UINT count, [in] UINT color, [in] IStream* tex);
+  HRESULT GetMaterial([in] UINT i, [out] UINT* start, [out] UINT* count, [out] UINT* color, [out] ICDXTexture** tex);
+  HRESULT SetMaterial([in] UINT i, [in] UINT start, [in] UINT count, [in] UINT color, [in] ICDXTexture* tex);
   HRESULT GetTexturCoords([out] CSGVAR* m);
   HRESULT SetTexturCoords([in] CSGVAR m);
   HRESULT GetTransform([in, out] CSGVAR* m);
@@ -173,7 +173,19 @@ interface ICDXFont : IUnknown
 [object, uuid(37E366F0-098E-45FB-9152-54CD33D05B21), pointer_default(unique)]
 interface ICDXTexture : IUnknown
 {
+  HRESULT GetStream([out, retval] IStream** p);
 };
+
+typedef enum CDX_INFO
+{
+  CDX_INFO_VERTEXBUFFER = 0,
+  CDX_INFO_INDEXBUFFER = 1,
+  CDX_INFO_MAPPINGS = 2,
+  CDX_INFO_TEXTURES = 3,
+  CDX_INFO_FONTS = 4,
+  CDX_INFO_VIEWS = 5,
+} CDX_INFO;
+
 
 [object, uuid(f0993d73-ea2a-4bf1-b128-826d4a3ba584), pointer_default(unique)]
 interface ICDXFactory : IUnknown
@@ -185,6 +197,7 @@ interface ICDXFactory : IUnknown
   HRESULT CreateScene([in] UINT reserve, [out, retval] ICDXScene** p);
   HRESULT GetFont([in] BSTR name, FLOAT size, UINT style, [out, retval] ICDXFont** p);
   HRESULT GetTexture([in] IStream* str, [out, retval] ICDXTexture** p);
+  HRESULT GetInfo([in] CDX_INFO id, [out, retval] UINT* v);
 };
 
 [uuid(6d43a611-b5a3-489c-aa3a-dc01bb9225e8), version(1.0)]

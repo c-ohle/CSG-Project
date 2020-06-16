@@ -832,6 +832,22 @@ HRESULT __stdcall CFactory::CreateScene(UINT reserve, ICDXScene** p)
   return 0;
 }
 
+HRESULT __stdcall CFactory::GetInfo(CDX_INFO id, UINT* v)
+{
+  Critical crit;
+  switch (id)
+  {
+  case CDX_INFO_VERTEXBUFFER: for (auto p = CVertices::first; p; p = p->next, (*v)++); return 0;
+  case CDX_INFO_INDEXBUFFER:  for (auto p = CIndices::first; p; p = p->next, (*v)++); return 0;
+  case CDX_INFO_MAPPINGS:     for (auto p = CTexCoords::first; p; p = p->next, (*v)++); return 0;
+  case CDX_INFO_TEXTURES:     for (auto p = CTexture::first; p; p = p->next, (*v)++); return 0;
+  case CDX_INFO_FONTS:        for (auto p = CFont::first; p; p = p->next, (*v)++); return 0;
+  case CDX_INFO_VIEWS:        for (auto p = CView::first; p; p = p->next, (*v)++); return 0;
+  }
+  return 0;
+}
+
+
 void CView::mapping(VERTEX* vv, UINT nv)
 {
   for (UINT i = 0; i < nv; i++)

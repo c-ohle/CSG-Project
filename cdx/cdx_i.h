@@ -963,14 +963,14 @@ EXTERN_C const IID IID_ICDXNode;
             /* [out] */ UINT *start,
             /* [out] */ UINT *count,
             /* [out] */ UINT *color,
-            /* [out] */ IStream **tex) = 0;
+            /* [out] */ ICDXTexture **tex) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE SetMaterial( 
             /* [in] */ UINT i,
             /* [in] */ UINT start,
             /* [in] */ UINT count,
             /* [in] */ UINT color,
-            /* [in] */ IStream *tex) = 0;
+            /* [in] */ ICDXTexture *tex) = 0;
         
         virtual HRESULT STDMETHODCALLTYPE GetTexturCoords( 
             /* [out] */ CSGVAR *m) = 0;
@@ -1099,7 +1099,7 @@ EXTERN_C const IID IID_ICDXNode;
             /* [out] */ UINT *start,
             /* [out] */ UINT *count,
             /* [out] */ UINT *color,
-            /* [out] */ IStream **tex);
+            /* [out] */ ICDXTexture **tex);
         
         HRESULT ( STDMETHODCALLTYPE *SetMaterial )( 
             ICDXNode * This,
@@ -1107,7 +1107,7 @@ EXTERN_C const IID IID_ICDXNode;
             /* [in] */ UINT start,
             /* [in] */ UINT count,
             /* [in] */ UINT color,
-            /* [in] */ IStream *tex);
+            /* [in] */ ICDXTexture *tex);
         
         HRESULT ( STDMETHODCALLTYPE *GetTexturCoords )( 
             ICDXNode * This,
@@ -1393,6 +1393,9 @@ EXTERN_C const IID IID_ICDXTexture;
     ICDXTexture : public IUnknown
     {
     public:
+        virtual HRESULT STDMETHODCALLTYPE GetStream( 
+            /* [retval][out] */ IStream **p) = 0;
+        
     };
     
     
@@ -1413,6 +1416,10 @@ EXTERN_C const IID IID_ICDXTexture;
         
         ULONG ( STDMETHODCALLTYPE *Release )( 
             ICDXTexture * This);
+        
+        HRESULT ( STDMETHODCALLTYPE *GetStream )( 
+            ICDXTexture * This,
+            /* [retval][out] */ IStream **p);
         
         END_INTERFACE
     } ICDXTextureVtbl;
@@ -1437,6 +1444,9 @@ EXTERN_C const IID IID_ICDXTexture;
     ( (This)->lpVtbl -> Release(This) ) 
 
 
+#define ICDXTexture_GetStream(This,p)	\
+    ( (This)->lpVtbl -> GetStream(This,p) ) 
+
 #endif /* COBJMACROS */
 
 
@@ -1447,6 +1457,25 @@ EXTERN_C const IID IID_ICDXTexture;
 
 #endif 	/* __ICDXTexture_INTERFACE_DEFINED__ */
 
+
+/* interface __MIDL_itf_cdx_0000_0007 */
+/* [local] */ 
+
+typedef 
+enum CDX_INFO
+    {
+        CDX_INFO_VERTEXBUFFER	= 0,
+        CDX_INFO_INDEXBUFFER	= 1,
+        CDX_INFO_MAPPINGS	= 2,
+        CDX_INFO_TEXTURES	= 3,
+        CDX_INFO_FONTS	= 4,
+        CDX_INFO_VIEWS	= 5
+    } 	CDX_INFO;
+
+
+
+extern RPC_IF_HANDLE __MIDL_itf_cdx_0000_0007_v0_0_c_ifspec;
+extern RPC_IF_HANDLE __MIDL_itf_cdx_0000_0007_v0_0_s_ifspec;
 
 #ifndef __ICDXFactory_INTERFACE_DEFINED__
 #define __ICDXFactory_INTERFACE_DEFINED__
@@ -1491,6 +1520,10 @@ EXTERN_C const IID IID_ICDXFactory;
         virtual HRESULT STDMETHODCALLTYPE GetTexture( 
             /* [in] */ IStream *str,
             /* [retval][out] */ ICDXTexture **p) = 0;
+        
+        virtual HRESULT STDMETHODCALLTYPE GetInfo( 
+            /* [in] */ CDX_INFO id,
+            /* [retval][out] */ UINT *v) = 0;
         
     };
     
@@ -1549,6 +1582,11 @@ EXTERN_C const IID IID_ICDXFactory;
             /* [in] */ IStream *str,
             /* [retval][out] */ ICDXTexture **p);
         
+        HRESULT ( STDMETHODCALLTYPE *GetInfo )( 
+            ICDXFactory * This,
+            /* [in] */ CDX_INFO id,
+            /* [retval][out] */ UINT *v);
+        
         END_INTERFACE
     } ICDXFactoryVtbl;
 
@@ -1592,6 +1630,9 @@ EXTERN_C const IID IID_ICDXFactory;
 
 #define ICDXFactory_GetTexture(This,str,p)	\
     ( (This)->lpVtbl -> GetTexture(This,str,p) ) 
+
+#define ICDXFactory_GetInfo(This,id,v)	\
+    ( (This)->lpVtbl -> GetInfo(This,id,v) ) 
 
 #endif /* COBJMACROS */
 

@@ -38,6 +38,7 @@ public:
 	HRESULT __stdcall CreateScene(UINT reserve, ICDXScene** p);
 	HRESULT __stdcall GetFont(BSTR name, FLOAT size, UINT style, ICDXFont** p);
 	HRESULT __stdcall GetTexture(IStream* str, ICDXTexture** p);
+	HRESULT __stdcall GetInfo(CDX_INFO i, UINT* v);
 };
 
 OBJECT_ENTRY_AUTO(__uuidof(Factory), CFactory)

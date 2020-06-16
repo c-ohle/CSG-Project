@@ -26,6 +26,7 @@ namespace csg3mf
       IScene CreateScene(int reserve = 0);
       IFont GetFont(string name, float size, System.Drawing.FontStyle style);
       ITexture GetTexture(COM.IStream str);
+      int GetInfo(int id);
     }
 
     public enum Render
@@ -116,8 +117,8 @@ namespace csg3mf
       uint Color { get; set; }
       int MaterialCount { get; set; }
       object Tag { [return: MarshalAs(UnmanagedType.IUnknown)] get; [param: MarshalAs(UnmanagedType.IUnknown)] set; }
-      void GetMaterial(int i, out int start, out int count, out uint color, out COM.IStream tex);
-      void SetMaterial(int i, int start, int count, uint color, COM.IStream tex);
+      void GetMaterial(int i, out int start, out int count, out uint color, out ITexture tex);
+      void SetMaterial(int i, int start, int count, uint color, ITexture tex);
       void GetTexturCoords(out CSG.Variant v);
       void SetTexturCoords(CSG.Variant v);
       void GetTransform(ref CSG.Variant v);
@@ -139,6 +140,7 @@ namespace csg3mf
     [ComImport, Guid("37E366F0-098E-45FB-9152-54CD33D05B21"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     public interface ITexture
     {
+      COM.IStream GetStream();
     }
 
 #if(false)
@@ -235,12 +237,16 @@ namespace csg3mf
     public static void Remove(this IScene a, INode b) => a.Remove(b.Index);
     public static void SetMaterial(this INode node, int i, uint color, byte[] tex = null)
     {
-      COM.IStream s; if (tex != null) fixed (byte* p = tex) s = COM.SHCreateMemStream(p, tex.Length); else s = null;
+      ITexture s; if (tex != null) fixed (byte* p = tex) s = Factory.GetTexture(COM.SHCreateMemStream(p, tex.Length)); else s = null;
       node.SetMaterial(i, -1, -1, color, s);
     }
     public static void SetTexturCoords(this INode node, float2[] a)
     {
       fixed (float2* p = a) node.SetTexturCoords(new CSG.Variant(&p->x, 2, a.Length));
+    }
+    public static void SetTexturCoords(this INode node, float4x3 m)
+    {
+      node.SetTexturCoords(new CSG.Variant((float*)&m, 12));// new CSG.Variant(&p->x, 2, a.Length));
     }
     public static void SetPlane(this IView view, float4x3 p)
     {

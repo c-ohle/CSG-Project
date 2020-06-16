@@ -72,9 +72,35 @@ void CTexture::init()
   GdipDisposeImage(bmp); if (hr >= 0) fl &= ~1;
 }
 
+static bool equals(IStream* a, IStream* b)
+{
+  if (a == b) return true;
+  STATSTG sa; a->Stat(&sa, STATFLAG_NONAME);
+  STATSTG sb; b->Stat(&sb, STATFLAG_NONAME);
+  if (sa.cbSize.LowPart != sb.cbSize.LowPart) return false;
+  INT64 x = 0; BYTE pa[4096], pb[4096];
+  a->Seek(*(LARGE_INTEGER*)&x, 0, 0);
+  b->Seek(*(LARGE_INTEGER*)&x, 0, 0);
+  for (;;)
+  {
+    ULONG na; a->Read(pa, sizeof(pa), &na);
+    ULONG nb; b->Read(pb, sizeof(pb), &nb);
+    if (memcmp(pa, pb, na)) return false;
+    if (na < sizeof(pa)) break;
+  }
+  return true;
+}
+
+CTexture* CTexture::GetTexture(IStream* str)
+{
+  { Critical crit; for (auto t = CTexture::first; t; t = t->next) if (equals(str, t->str.p)) { t->AddRef(); return t; } }
+  auto t = new CTexture(); t->str = str; return t;
+}
+
 HRESULT CFactory::GetTexture(IStream* str, ICDXTexture** p)
 {
-  auto t = new CTexture(); t->str = str; *p = t; return 0;
+  *p = CTexture::GetTexture(str);
+  return 0;
 }
 
 struct __declspec(uuid("557cf406-1a04-11d3-9a73-0000f81ef32e")) _PNG {};

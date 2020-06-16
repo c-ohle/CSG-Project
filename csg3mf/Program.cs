@@ -112,7 +112,7 @@ namespace csg3mf
           new ToolStripMenuItem("GC.Collect", null, (p,e) => {
             Debug.WriteLine("GC.Collect()");
             GC.Collect(2, GCCollectionMode.Forced, true, true);
-            GC.WaitForPendingFinalizers(); }) { ShortcutKeys = Keys.Control|Keys.Shift|Keys.Alt|Keys.F12 },
+            GC.WaitForPendingFinalizers(); Inval(); }) { ShortcutKeys = Keys.Control|Keys.Shift|Keys.Alt|Keys.F12 },
           new ToolStripSeparator(),
 #endif
           new MenuItem(5105 , "&Protect...")

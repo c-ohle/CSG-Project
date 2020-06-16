@@ -76,10 +76,11 @@ namespace csg3mf
           }
           for (int k = 0, nk = group.MaterialCount; k < nk; k++)
           {
-            group.GetMaterial(k, out var mastart, out var macount, out var ucolor, out var tex);
+            group.GetMaterial(k, out var mastart, out var macount, out var ucolor, out var itex);
             var texgid = 0;
-            if (tex != null)
+            if (itex != null)
             {
+              var tex = itex.GetStream();
               int texid; int i = 0; for (; i < textures.Count && textures[i].str != tex; i++) ;
               if (i != textures.Count) texid = textures[i].id;
               else
@@ -127,8 +128,7 @@ namespace csg3mf
         var item = new XElement(ns + (dest.Name.LocalName == "build" ? "item" : "component"));
         var objectid = uid++; obj.SetAttributeValue("id", objectid);
         item.SetAttributeValue("objectid", objectid);
-        var ss = (char*)buffer.ToPointer(); //
-        //group.Transform.GetValues(new Variant(ss, 12));
+        var ss = (char*)buffer.ToPointer();
         group.GetTransform(new Variant(ss, 12));
         item.SetAttributeValue("transform", new string(ss));
         dest.Add(item);
@@ -154,8 +154,7 @@ namespace csg3mf
           var pack = package.CreatePart(new Uri((string)e.Attribute("path"), UriKind.Relative), (string)e.Attribute("contenttype"));
           using (var str = pack.GetStream())
           {
-            bin.Seek(0);
-            for (; ; ) { int nr; fixed (byte* p = buff) bin.Read(p, 4096, &nr); str.Write(buff, 0, nr); if (nr < 4096) break; }
+            bin.Seek(0); for (int nr; ; ) { fixed (byte* p = buff) bin.Read(p, 4096, &nr); str.Write(buff, 0, nr); if (nr < 4096) break; }
           }
           packdoc.CreateRelationship(pack.Uri, System.IO.Packaging.TargetMode.Internal, "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dtexture", "rel" + id);
         }
@@ -292,12 +291,12 @@ namespace csg3mf
 #endif
 #endif
           node.Mesh = me;
-          node.MaterialCount = mm.Length; float2[] tt = null;//.Materials = new Node.Material[mm.Length];
+          node.MaterialCount = mm.Length; float2[] tt = null; byte[] buff = null;
           var ms = (XNamespace)"http://schemas.microsoft.com/3dmanufacturing/material/2015/02";
           for (int i = 0, ab = 0, bis = 1; i < mm.Length; i++, ab = bis)
           {
             var pid = mm[i]; for (; bis < kk.Length && kk[bis - 1].Attribute("pid")?.Value == pid; bis++) ;
-            COM.IStream bin = null;//ref var ma = ref node.Materials[i];ma.Color = color; ma.IndexCount = bis * 3 - (ma.StartIndex = ab * 3);
+            ITexture tex = null;//ref var ma = ref node.Materials[i];ma.Color = color; ma.IndexCount = bis * 3 - (ma.StartIndex = ab * 3);
             if (pid != null)
             {
               var basematerials = res.Elements(ns + "basematerials").FirstOrDefault(p => (string)p.Attribute("id") == pid);
@@ -320,20 +319,25 @@ namespace csg3mf
               }
               var texid = (string)texture2dgroup.Attribute("texid");
               var texture2d = res.Elements(ms + "texture2d").Where(t => (string)t.Attribute("id") == texid).First();
-              bin = texture2d.Annotation<COM.IStream>();
-              if (bin == null)
+              tex = texture2d.Annotation<ITexture>();
+              if (tex == null)
               {
                 var texpath = (string)texture2d.Attribute("path");
                 var texpart = package.GetPart(new Uri(texpath, UriKind.Relative));
                 using (var str = texpart.GetStream())
                 {
-                  var a = new byte[str.Length]; str.Read(a, 0, a.Length);
-                  fixed (byte* p = a) bin = COM.SHCreateMemStream(p, a.Length);
-                  texture2d.AddAnnotation(bin);
+                  var dst = COM.SHCreateMemStream(); dst.SetSize(str.Length);
+                  if (buff == null) buff = new byte[4096];
+                  for (int c; (c = str.Read(buff, 0, buff.Length)) != 0;) fixed (byte* p = buff) dst.Write(p, c);
+                  texture2d.AddAnnotation(tex = Factory.GetTexture(dst));
+                   
+                  //var a = new byte[str.Length]; str.Read(a, 0, a.Length);
+                  //fixed (byte* p = a) tex = Factory.GetTexture(COM.SHCreateMemStream(p, a.Length));
+                  //texture2d.AddAnnotation(tex);
                 }
               }
             }
-          addmat: node.SetMaterial(i, ab * 3, (bis - ab) * 3, color, bin);
+          addmat: node.SetMaterial(i, ab * 3, (bis - ab) * 3, color, tex);
           }
           if (tt != null) fixed (float2* p = tt) node.SetTexturCoords(new Variant(&p->x, 2, tt.Length));
         };

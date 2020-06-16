@@ -8,6 +8,7 @@ struct CTexture : ICDXTexture
   static CTexture* first; CTexture* next;
   CTexture() { Critical crit; next = first; first = this; }
   ~CTexture() { auto p = &first; for (; *p != this; p = &(*p)->next); *p = next; }
+  static CTexture* GetTexture(IStream*);
   HRESULT __stdcall QueryInterface(REFIID riid, void** p)
   {
     if (riid == __uuidof(IUnknown) || riid == __uuidof(ICDXTexture) || riid == __uuidof(IAgileObject))
@@ -29,6 +30,7 @@ struct CTexture : ICDXTexture
     }
     return count;
   }
+  HRESULT __stdcall GetStream(IStream** p) { str.CopyTo(p); return 0; }
 };
 
 struct Material
@@ -96,6 +98,10 @@ struct CIndices
 struct CTexCoords : sarray<XMFLOAT2>
 {
   UINT refcount = 1;
+  CTexCoords() { Critical crit; next = first; first = this; }
+  ~CTexCoords() { auto p = &first; for (; *p != this; p = &(*p)->next); *p = next; }
+  static CTexCoords* Get(const XMFLOAT2* p, UINT n);
+  static CTexCoords* first; CTexCoords* next;
   ULONG __stdcall AddRef(void)
   {
     return InterlockedIncrement(&refcount);
@@ -234,7 +240,7 @@ struct CNode : public ICDXNode
   {
     materials.setsize(p); return 0;
   }
-  HRESULT __stdcall GetMaterial(UINT i, UINT* start, UINT* count, UINT* color, IStream** tex)
+  HRESULT __stdcall GetMaterial(UINT i, UINT* start, UINT* count, UINT* color, ICDXTexture** tex)
   {
     if (i >= materials.n) return E_INVALIDARG;
     auto& m = materials.p[i];
@@ -244,19 +250,17 @@ struct CNode : public ICDXNode
       m.i = 0; m.n = ni;
     }
     *start = m.i; *count = m.n; *color = m.color;
-    if (*tex = (m.tex.p ? m.tex.p->str.p : 0)) (*tex)->AddRef();
+    if(*tex = m.tex.p) m.tex.p->AddRef();
+    //if (*tex = (m.tex.p ? m.tex.p->str.p : 0)) (*tex)->AddRef();
     return 0;
   }
-  HRESULT __stdcall SetMaterial(UINT i, UINT start, UINT count, UINT color, IStream* tex)
+  HRESULT __stdcall SetMaterial(UINT i, UINT start, UINT count, UINT color, ICDXTexture* tex)
   {
     if (i >= materials.n) return E_INVALIDARG;
     auto& m = materials.p[i];
     if (start != -1) m.i = start;
     if (count != -1) m.n = count;
-    m.color = color;
-    if (!tex) { m.tex.Release(); return 0; }
-    { Critical crit; for (auto p = CTexture::first; p; p = p->next) if (p->str.p == tex) { m.tex = p; return 0; } }
-    m.tex.Release(); m.tex.p = new CTexture(); m.tex->str = tex;
+    m.color = color; m.tex = tex ? static_cast<CTexture*>(tex) : 0;
     return 0;
   }
   HRESULT __stdcall GetTexturCoords(CSGVAR* m);
