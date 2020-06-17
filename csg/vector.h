@@ -399,6 +399,8 @@ struct CVector : public ICSGVector
     case CSG_OP2_PLANEP3: *(Vector4R*)&vc = 0 | Vector4R::PlaneFromPoints(*(const Vector3R*)&vc, *(const Vector3R*)&va, *(const Vector3R*)&vb); return 0;
     case CSG_OP2_PLANEPN: *(Vector4R*)&vc = 0 | Vector4R::PlaneFromPointNormal(*(const Vector3R*)&va, *(const Vector3R*)&vb); return 0;
     case CSG_OP2_POW: if (vb.den != 3) return E_INVALIDARG; vc = 0 | Rational::pow(va, vb.num); return 0;
+    case CSG_OP2_PLANEDOT: vc = 0 | (*(Vector4R*)&va).DotCoord(*(const Vector3R*)&vb); return 0;
+    case CSG_OP2_PLANEDOS: vc = 0 ^ (*(Vector4R*)&va).DotCoord(*(const Vector3R*)&vb); return 0;
     }
     return 0;
   }

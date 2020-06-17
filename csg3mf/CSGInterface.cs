@@ -63,6 +63,7 @@ namespace csg3mf
       void AddGlyphContour(Variant s, IntPtr font, int flat = 8);
       void Stretch(IMesh a, Variant v);
       void Skeleton(IMesh a, Variant v);
+      void ConvexHull(IMesh a);
     }
 
     public enum JoinOp { Union = 0, Difference = 1, Intersection = 2 }
@@ -96,7 +97,7 @@ namespace csg3mf
     }
 
     public enum Op1 { Copy = 0, Neg = 1, TransPM = 2, Inv3x4 = 3, Dot2 = 4, Dot3 = 5, Norm3 = 6, Num = 7, Den = 8, Lsb = 9, Msb = 10, Trunc = 11, Floor = 12, Ceil = 13, Round = 14, Rnd10 = 15, Com = 16 }
-    public enum Op2 { Add = 0, Sub = 1, Mul = 2, Div = 3, Mul3x4 = 4, PlaneP3 = 5, PlanePN = 6, Pow = 7 }
+    public enum Op2 { Add = 0, Sub = 1, Mul = 2, Div = 3, Mul3x4 = 4, PlaneP3 = 5, PlanePN = 6, Pow = 7, PlaneDot = 8, PlaneDos = 9 }
 
     [ComImport, Guid("db6ebd51-d2fc-4d75-b2af-543326aeed48"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     public interface IVector
@@ -160,7 +161,7 @@ namespace csg3mf
       [FieldOffset(4)] readonly int i;
       [FieldOffset(8)] readonly IVector p;
       public override string ToString() => p != null ? p.GetString(i) : "NaN";
-      public string ToString(int digits, int fl = 3) => p !=null ? p.GetString(i, digits, fl) : "NaN";
+      public string ToString(int digits, int fl = 3) => p != null ? p.GetString(i, digits, fl) : "NaN";
       public static Rational Parse(string s)
       {
         var p = ctor(1); Variant v; v.vt = (ushort)VarType.String | (1 << 8);
@@ -309,6 +310,14 @@ namespace csg3mf
         {
           var e = new Plane(0);
           e.m.p.Execute2(Op2.PlanePN, e.m.i, p.m.p, p.m.i, n.m.p, n.m.i); return e;
+        }
+        public Rational DotCoord(Vector3 v)
+        {
+          var p = ctor(1); p.p.Execute2(Op2.PlaneDot, p.i, m.p, m.i, v.m.p, v.m.i); return p;
+        }
+        public int DotCoordSign(Vector3 v)
+        {
+          var p = ctor(1); p.p.Execute2(Op2.PlaneDos, p.i, m.p, m.i, v.m.p, v.m.i); return p.Sign;
         }
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         readonly Rational m; internal Plane(int _) => m = ctor(4);
@@ -463,6 +472,50 @@ namespace csg3mf
       }
       tess.Skeleton(mesh, new Variant());
     }
+
+    //static void xor(List<int> ii, int a, int b)
+    //{
+    //  var i = ii.IndexOf(a | (b << 16));
+    //  if (i == -1) ii.Add(b | (a << 16)); else ii.RemoveAt(i);
+    //}
+    public static void ConvexHull(this ITesselator tess, IMesh mesh, IEnumerable<Rational.Vector3> ep)
+    {
+      if (!(ep is Rational.Vector3[] pp)) pp = ep.ToArray();
+      mesh.Update(pp.Length, 0); for (int i = 0; i < pp.Length; i++) mesh.SetVertex(i, pp[i]);
+      tess.ConvexHull(mesh);
+
+      //var tt = new List<int>();
+      //tt.Add(0); tt.Add(1); tt.Add(2);
+      //tt.Add(0); tt.Add(2); tt.Add(1);
+      //
+      //var ll = new List<int>();
+      //for (int i = 3, k = 0; i < pp.Length; i++)
+      //{
+      //  var p = pp[i]; ll.Clear();
+      //  for (int t = tt.Count - 3; t >= 0; t -= 3)
+      //  {
+      //    var d = Rational.Plane.FromPoints(pp[tt[t + 0]], pp[tt[t + 1]], pp[tt[t + 2]]);
+      //    var f = d.DotCoordSign(p); if (k == 0 ? f <= 0 : f < 0) continue;
+      //    xor(ll, tt[t + 0], tt[t + 1]);
+      //    xor(ll, tt[t + 1], tt[t + 2]);
+      //    xor(ll, tt[t + 2], tt[t + 0]); tt.RemoveRange(t, 3);
+      //  }
+      //  if (ll.Count == 0) continue;
+      //  for (int t = 0; t < ll.Count; t++) { tt.Add(ll[t] >> 16); tt.Add(ll[t] & 0xffff); tt.Add(i); }
+      //  if (k == 0) k = i = 2;
+      //}
+      //
+      //var ff = new int[pp.Length];
+      //for (int i = 0; i < tt.Count; i++) ff[tt[i]] = 1; var xp = 0;
+      //for (int i = 0; i < pp.Length; i++) if (ff[i] != 0) { if (i != xp) pp[xp] = pp[i]; ff[i] = xp++; }
+      //for (int i = 0; i < tt.Count; i++) tt[i] = ff[tt[i]];
+      //
+      //mesh.Update(xp, tt.Count);
+      //for (int i = 0; i < xp; i++) mesh.SetVertex(i, pp[i]);
+      //for (int i = 0; i < tt.Count; i++) mesh.SetIndex(i, tt[i]);
+
+    }
+
     #endregion
   }
 

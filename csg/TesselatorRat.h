@@ -328,7 +328,8 @@ public:
   HRESULT __stdcall Join(ICSGMesh* a, ICSGMesh* b, CSG_JOIN op);
   HRESULT __stdcall AddGlyphContour(CSGVAR text, HFONT font, int flat);
   HRESULT __stdcall Stretch(ICSGMesh* a, CSGVAR dir);
-  HRESULT __stdcall Skeleton(ICSGMesh* mesh, CSGVAR data);
+  HRESULT __stdcall Skeleton(ICSGMesh* a, CSGVAR data);
+  HRESULT __stdcall ConvexHull(ICSGMesh* a);
 private:
   //CSG extension
   struct _csg
@@ -408,12 +409,20 @@ private:
       }
       return v;
     }
-    void trim(UINT ni)
+    //void trim(UINT ni)
+    //{
+    //  ff.getptr(np); memset(ff.p, 0, np * sizeof(int));
+    //  for (UINT i = 0; i < ni; i++) ff[ii[i]] = 1; int xp = 0;
+    //  for (UINT i = 0; i < np; i++) if (ff[i] != 0) { if (i != xp) pp[xp] = pp[i]; ff[i] = xp++; }
+    //  if (np != xp) { np = xp; for (UINT i = 0; i < ni; i++) ii[i] = ff[ii[i]]; }
+    //}
+    inline void trim(UINT ni) { np = trim(pp.p, np, ni); }
+    UINT trim(Vector3R* pp, UINT np, UINT ni)
     {
       ff.getptr(np); memset(ff.p, 0, np * sizeof(int));
       for (UINT i = 0; i < ni; i++) ff[ii[i]] = 1; int xp = 0;
       for (UINT i = 0; i < np; i++) if (ff[i] != 0) { if (i != xp) pp[xp] = pp[i]; ff[i] = xp++; }
-      if (np != xp) { np = xp; for (UINT i = 0; i < ni; i++) ii[i] = ff[ii[i]]; }
+      if (np != xp) { for (UINT i = 0; i < ni; i++) ii[i] = ff[ii[i]]; } return xp;
     }
   };
   _csg csg;

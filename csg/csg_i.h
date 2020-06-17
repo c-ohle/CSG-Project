@@ -239,6 +239,9 @@ EXTERN_C const IID IID_ICSGTesselator;
             /* [in] */ ICSGMesh *a,
             /* [in] */ CSGVAR data) = 0;
         
+        virtual HRESULT STDMETHODCALLTYPE ConvexHull( 
+            /* [in] */ ICSGMesh *a) = 0;
+        
     };
     
     
@@ -348,6 +351,10 @@ EXTERN_C const IID IID_ICSGTesselator;
             /* [in] */ ICSGMesh *a,
             /* [in] */ CSGVAR data);
         
+        HRESULT ( STDMETHODCALLTYPE *ConvexHull )( 
+            ICSGTesselator * This,
+            /* [in] */ ICSGMesh *a);
+        
         END_INTERFACE
     } ICSGTesselatorVtbl;
 
@@ -431,6 +438,9 @@ EXTERN_C const IID IID_ICSGTesselator;
 #define ICSGTesselator_Skeleton(This,a,data)	\
     ( (This)->lpVtbl -> Skeleton(This,a,data) ) 
 
+#define ICSGTesselator_ConvexHull(This,a)	\
+    ( (This)->lpVtbl -> ConvexHull(This,a) ) 
+
 #endif /* COBJMACROS */
 
 
@@ -477,7 +487,9 @@ enum CSG_OP2
         CSG_OP2_MUL3X4	= 4,
         CSG_OP2_PLANEP3	= 5,
         CSG_OP2_PLANEPN	= 6,
-        CSG_OP2_POW	= 7
+        CSG_OP2_POW	= 7,
+        CSG_OP2_PLANEDOT	= 8,
+        CSG_OP2_PLANEDOS	= 9
     } 	CSG_OP2;
 
 

@@ -71,6 +71,7 @@ interface ICSGTesselator : IUnknown
   HRESULT AddGlyphContour([in] CSGVAR text, [in] HFONT font, [in] int flat);
   HRESULT Stretch([in] ICSGMesh* a, [in] CSGVAR dir);
   HRESULT Skeleton([in] ICSGMesh* a, [in] CSGVAR data);
+  HRESULT ConvexHull([in] ICSGMesh* a);
 };
 
 typedef enum CSG_OP1
@@ -104,6 +105,8 @@ typedef enum CSG_OP2
   CSG_OP2_PLANEP3 = 5,
   CSG_OP2_PLANEPN = 6,
   CSG_OP2_POW = 7,
+  CSG_OP2_PLANEDOT = 8,
+  CSG_OP2_PLANEDOS = 9,
 } CSG_OP2;
 
 [object, uuid(DB6EBD51-D2FC-4D75-B2AF-543326AEED48), pointer_default(unique)]

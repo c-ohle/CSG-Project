@@ -439,3 +439,41 @@ int CTesselatorRat::join(int ni, int fl)
   return ni;
 }
 
+HRESULT CTesselatorRat::ConvexHull(ICSGMesh* mesh)
+{
+  auto& m = *static_cast<CMesh*>(mesh); m.resetee();
+  UINT i1 = 1; for (; i1 < m.pp.n && m.pp[0].Equals(m.pp[i1]); i1++);
+  UINT i2 = i1 + 1; for (; i2 < m.pp.n && (m.pp[0].Equals(m.pp[i2]) || m.pp[i1].Equals(m.pp[i2])); i2++);
+  if (i2 >= m.pp.n) { m.clear(); return 0; }
+
+  UINT ni = 0; auto ii = csg.ii.getptr(m.pp.n << 2);
+  ii[ni++] = 0; ii[ni++] = i1; ii[ni++] = i2;
+  ii[ni++] = 0; ii[ni++] = i2; ii[ni++] = i1;
+  for (UINT i = i2 + 1, k = 0; i < m.pp.n; i++)
+  {
+    const auto& p = m.pp.p[i]; this->ni = 0;
+    for (INT t = ni - 3; t >= 0; t -= 3)
+    {
+      auto d = 0 | Vector4R::PlaneFromPoints(m.pp.p[ii[t + 0]], m.pp.p[ii[t + 1]], m.pp.p[ii[t + 2]]);
+      auto f = 0 ^ d.DotCoord(p); if (k == 0 ? f <= 0 : f < 0) continue;
+      if (!this->ni) beginsex();
+      addsex(ii[t + 0], ii[t + 1]);
+      addsex(ii[t + 1], ii[t + 2]);
+      addsex(ii[t + 2], ii[t + 0]);
+      memcpy(ii + t, ii + (t + 3), (ni - (t + 3)) * sizeof(UINT)); ni -= 3;
+    }
+    if (this->ni == 0) continue;
+    ii = csg.ii.getptr(ni + (this->ni << 2));
+    for (int t = 0; t < this->ni; t++)
+    {
+      if (this->ii[t].a == -1) continue;
+      ii[ni++] = this->ii[t].a;
+      ii[ni++] = this->ii[t].b;
+      ii[ni++] = i;
+    }
+    if (k == 0) k = i = i2;
+  }
+  m.pp.setsize(csg.trim(m.pp.p, m.pp.n, ni));
+  m.ii.copy((UINT*)ii, ni); m.flags |= MESH_FL_MODIFIED;
+  return 0;
+}
