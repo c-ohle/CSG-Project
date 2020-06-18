@@ -445,34 +445,36 @@ HRESULT CTesselatorRat::ConvexHull(ICSGMesh* mesh)
   UINT i1 = 1; for (; i1 < m.pp.n && m.pp[0].Equals(m.pp[i1]); i1++);
   UINT i2 = i1 + 1; for (; i2 < m.pp.n && (m.pp[0].Equals(m.pp[i2]) || m.pp[i1].Equals(m.pp[i2])); i2++);
   if (i2 >= m.pp.n) { m.clear(); return 0; }
-
-  UINT ni = 0; auto ii = csg.ii.getptr(m.pp.n << 2);
-  ii[ni++] = 0; ii[ni++] = i1; ii[ni++] = i2;
-  ii[ni++] = 0; ii[ni++] = i2; ii[ni++] = i1;
+  UINT ni = 6; auto ii = csg.ii.getptr(m.pp.n << 2); csg.ee.getptr(m.pp.n);
+  ii[0] = 0; ii[1] = i1; ii[2] = i2; csg.ee[0] = 0 | Vector4R::PlaneFromPointsUnorm(m.pp[ii[0]], m.pp[ii[1]], m.pp[ii[2]]);
+  ii[3] = 0; ii[4] = i2; ii[5] = i1; csg.ee[1] = -csg.ee[0]; // 0 | Vector4R::PlaneFromPoints(m.pp[ii[3]], m.pp[ii[4]], m.pp[ii[5]]);
   for (UINT i = i2 + 1, k = 0; i < m.pp.n; i++)
   {
     const auto& p = m.pp.p[i]; this->ni = 0;
     for (INT t = ni - 3; t >= 0; t -= 3)
     {
-      auto d = 0 | Vector4R::PlaneFromPoints(m.pp.p[ii[t + 0]], m.pp.p[ii[t + 1]], m.pp.p[ii[t + 2]]);
-      auto f = 0 ^ d.DotCoord(p); if (k == 0 ? f <= 0 : f < 0) continue;
+      UINT l = t / 3; auto& e = csg.ee[l]; //e = 0 | Vector4R::PlaneFromPoints(m.pp.p[ii[t + 0]], m.pp.p[ii[t + 1]], m.pp.p[ii[t + 2]]);
+      auto f = 0 ^ e.DotCoord(p); if (k == 0 ? f <= 0 : f < 0) continue;
       if (!this->ni) beginsex();
       addsex(ii[t + 0], ii[t + 1]);
       addsex(ii[t + 1], ii[t + 2]);
       addsex(ii[t + 2], ii[t + 0]);
       memcpy(ii + t, ii + (t + 3), (ni - (t + 3)) * sizeof(UINT)); ni -= 3;
+      for (UINT j = l, n = ni / 3; j < n; csg.ee[j] = csg.ee[j + 1], j++);
     }
     if (this->ni == 0) continue;
-    ii = csg.ii.getptr(ni + (this->ni << 2));
+    ii = csg.ii.getptr(ni + (this->ni << 2)); csg.ee.getptr(ni / 3 + this->ni);
     for (int t = 0; t < this->ni; t++)
     {
       if (this->ii[t].a == -1) continue;
-      ii[ni++] = this->ii[t].a;
-      ii[ni++] = this->ii[t].b;
-      ii[ni++] = i;
+      ii[ni + 0] = this->ii[t].a; ii[ni + 1] = this->ii[t].b; ii[ni + 2] = i;
+      if (i + 1 < m.pp.n || k == 0)
+        csg.ee[ni / 3] = 0 | Vector4R::PlaneFromPointsUnorm(m.pp[ii[ni + 0]], m.pp[ii[ni + 1]], m.pp[ii[ni + 2]]);
+      ni += 3;
     }
     if (k == 0) k = i = i2;
   }
+  if (ni == 6) { m.clear(); return 0; } //plane
   m.pp.setsize(csg.trim(m.pp.p, m.pp.n, ni));
   m.ii.copy((UINT*)ii, ni); m.flags |= MESH_FL_MODIFIED;
   return 0;

@@ -187,6 +187,10 @@ struct Vector4R
   {
     return PlaneFromPointNormal(a, Vector3R::Ccw(a, b, c));
   }
+  static Vector4R PlaneFromPointsUnorm(const Vector3R& a, const Vector3R& b, const Vector3R& c)
+  {
+    auto v = Vector3R::Ccw(a, b, c); return Vector4R(v.x, v.y, v.z, -(a.x * v.x + a.y * v.y + a.z * v.z));
+  }
   Rational DotCoord(const Vector3R& p) const
   {
     return x * p.x + y * p.y + z * p.z + w;

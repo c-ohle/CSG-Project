@@ -224,6 +224,7 @@ namespace csg3mf
     public static void Union(this INode a, INode b) => Join(a, b, CSG.JoinOp.Union);
     public static void Difference(this INode a, INode b) => Join(a, b, CSG.JoinOp.Difference);
     public static void Intersection(this INode a, INode b) => Join(a, b, CSG.JoinOp.Intersection);
+    public static void Optimize(this INode a) => Join(a, null, CSG.JoinOp.Union);
     public static void Cut(this INode a, INode b)
     {
       if (a.Mesh == null) return;

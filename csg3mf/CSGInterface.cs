@@ -472,50 +472,12 @@ namespace csg3mf
       }
       tess.Skeleton(mesh, new Variant());
     }
-
-    //static void xor(List<int> ii, int a, int b)
-    //{
-    //  var i = ii.IndexOf(a | (b << 16));
-    //  if (i == -1) ii.Add(b | (a << 16)); else ii.RemoveAt(i);
-    //}
     public static void ConvexHull(this ITesselator tess, IMesh mesh, IEnumerable<Rational.Vector3> ep)
     {
       if (!(ep is Rational.Vector3[] pp)) pp = ep.ToArray();
       mesh.Update(pp.Length, 0); for (int i = 0; i < pp.Length; i++) mesh.SetVertex(i, pp[i]);
       tess.ConvexHull(mesh);
-
-      //var tt = new List<int>();
-      //tt.Add(0); tt.Add(1); tt.Add(2);
-      //tt.Add(0); tt.Add(2); tt.Add(1);
-      //
-      //var ll = new List<int>();
-      //for (int i = 3, k = 0; i < pp.Length; i++)
-      //{
-      //  var p = pp[i]; ll.Clear();
-      //  for (int t = tt.Count - 3; t >= 0; t -= 3)
-      //  {
-      //    var d = Rational.Plane.FromPoints(pp[tt[t + 0]], pp[tt[t + 1]], pp[tt[t + 2]]);
-      //    var f = d.DotCoordSign(p); if (k == 0 ? f <= 0 : f < 0) continue;
-      //    xor(ll, tt[t + 0], tt[t + 1]);
-      //    xor(ll, tt[t + 1], tt[t + 2]);
-      //    xor(ll, tt[t + 2], tt[t + 0]); tt.RemoveRange(t, 3);
-      //  }
-      //  if (ll.Count == 0) continue;
-      //  for (int t = 0; t < ll.Count; t++) { tt.Add(ll[t] >> 16); tt.Add(ll[t] & 0xffff); tt.Add(i); }
-      //  if (k == 0) k = i = 2;
-      //}
-      //
-      //var ff = new int[pp.Length];
-      //for (int i = 0; i < tt.Count; i++) ff[tt[i]] = 1; var xp = 0;
-      //for (int i = 0; i < pp.Length; i++) if (ff[i] != 0) { if (i != xp) pp[xp] = pp[i]; ff[i] = xp++; }
-      //for (int i = 0; i < tt.Count; i++) tt[i] = ff[tt[i]];
-      //
-      //mesh.Update(xp, tt.Count);
-      //for (int i = 0; i < xp; i++) mesh.SetVertex(i, pp[i]);
-      //for (int i = 0; i < tt.Count; i++) mesh.SetIndex(i, tt[i]);
-
     }
-
     #endregion
   }
 
