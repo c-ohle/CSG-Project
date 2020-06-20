@@ -1073,7 +1073,6 @@ namespace csg3mf
         try
         {
           if (st == 8) { xobject.Code = EditText; return; }
-          //xobject.GetMethod<Action>();
           Script.bps = map.Where(p => p.v == 0x1A).Select(p => p.i).ToArray();
           Script.dbg = DebugStep; (Script.map = map).Clear(); sp = null;
           state = st; xobject.Code = EditText;
@@ -1085,34 +1084,6 @@ namespace csg3mf
           MessageBox.Show(e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
       }
-
-      //int OnRun(object test)
-      //{
-      //  if (test != null) return 1;
-      //  if (state != 0) { state = 0; return 0; }
-      //  try
-      //  {
-      //    var node = (CDX.INode)Parent.Tag; var xnode = XNode.From(node); var code = EditText;
-      //    xnode.GetMethod<Action>();
-      //    Script.dbg = DebugStep; (Script.map = map).Clear(); state = 1;
-      //    xnode.Code = code;
-      //    Script.dbg = null; Script.map = null; state = 0;
-      //    
-      //    //if (xnode.Code == code) return 1;
-      //    //xnode.GetMethod<Action>();
-      //    //Script.dbg = DebugStep; (Script.map = map).Clear(); state = 0;
-      //    //var view = ((MainFrame)FindForm()).view;
-      //    //view.Execute(() => { var p = XNode.From(node); var t = p.Code; p.Code = code; code = t; });
-      //    //Script.dbg = null; Script.map = null;
-      //  }
-      //  catch (Exception e)
-      //  {
-      //    Script.dbg = null; Script.map = null; state = 0;
-      //    var p = Script.LastError; Select(p.i, p.i + p.n);
-      //    MessageBox.Show(e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-      //  }
-      //  return 1;
-      //}
 
       List<(int i, int n, int v, object p)> map = new List<(int i, int n, int v, object p)>();
       int state; int* sp; (int id, object p)[] stack; Action ontimer; int lastpos = -1;

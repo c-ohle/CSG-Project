@@ -102,8 +102,8 @@ namespace csg3mf
       }
     }
     internal static UIForm MainFrame { get; private set; }
-    static Frame activeframe;
-    static int rand = 8, title = 28; static Point sp; static Rectangle sr;
+    static Frame activeframe; static Font font = SystemFonts.MenuFont;
+     static int rand = font.Height / 3, title = font.Height + rand; static Point sp; static Rectangle sr;
     static Brush brush1 = new SolidBrush(Color.FromArgb(80, 85, 130));
     static Brush brush2 = new SolidBrush(Color.FromArgb(176, 179, 208));
     public class Frame : UserControl
@@ -117,8 +117,7 @@ namespace csg3mf
       }
       protected override void OnPaint(PaintEventArgs e)
       {
-        var gr = e.Graphics;
-        var ctrls = Controls; var font = SystemFonts.MenuFont;
+        var gr = e.Graphics; var ctrls = Controls;
         if (/*ContainsFocus*/ MainFrame.ActiveControl == this && activeframe != this) { if (activeframe != null) activeframe.Invalidate(); activeframe = this; }
         var focus = activeframe == this;
         if (Dock == DockStyle.Fill)
@@ -126,7 +125,7 @@ namespace csg3mf
           for (int i = 0, x = rc.X, n = ctrls.Count; i < n; i++)
           {
             var p = ctrls[i]; var s = p.Text; bool active = p.Visible || (wo & ~2) == ((i << 8) | 1);
-            var dx = Math.Min(rc.Width - x, Math.Max(128, Math.Min(250, TextRenderer.MeasureText(s, font).Width + 10)));
+            var dx = Math.Min(rc.Width - x, Math.Max(title*5, Math.Min(title*15, TextRenderer.MeasureText(s, font).Width + 10)));
             gr.FillRectangle(!active ? brush1 : p.Visible ? (focus ? Brushes.NavajoWhite : SystemBrushes.GradientInactiveCaption) : brush2, new Rectangle(x, rc.Top - title, dx, title));
             if (i != 0) gr.FillRectangle(Brushes.Gray, new Rectangle(x, rc.Top - title, 1, title));
             TextRenderer.DrawText(gr, s, font, new Rectangle(x + 3, rc.Top - title, dx - title, title), active ? Color.Black : Color.LightGray,
@@ -148,7 +147,7 @@ namespace csg3mf
             TextRenderer.DrawText(gr, "🗙", font, new Rectangle(rc.Right - title, rc.Y - title - 2, title, title),
               (wo & 2) != 0 ? (focus ? Color.Black : Color.Gray) : (focus ? Color.Gray : Color.FromArgb(0xbb, 0xbb, 0xbb)), TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
             if (n == 1) break; active |= (wo & ~2) == ((i << 8) | 1);
-            var dx = Math.Min(rc.Width - x, Math.Max(64, Math.Min(150, TextRenderer.MeasureText(s, font).Width + 10)));
+            var dx = Math.Min(rc.Width - x, Math.Max(title*3, Math.Min(title*10, TextRenderer.MeasureText(s, font).Width + 10)));
             gr.FillRectangle(!active ? brush1 : p.Visible ? Brushes.White : brush2, new Rectangle(x, rc.Bottom, dx, title));
             if (i != 0) gr.FillRectangle(Brushes.Gray, new Rectangle(x, rc.Bottom + 2, 1, title));
             TextRenderer.DrawText(gr, s, font, new Rectangle(x, rc.Bottom, dx, title), active ? Color.Black : Color.LightGray, TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);

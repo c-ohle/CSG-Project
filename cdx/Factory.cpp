@@ -453,8 +453,8 @@ void CView::Pick(const short* pt)
 
 void CView::setproject()
 {
-  auto vpx = viewport.Width * znear * vscale; //var vp = size * (vscale * z1);
-  auto vpy = viewport.Height * znear * vscale;
+  auto vpx = viewport.Width * (znear * vscale); 
+  auto vpy = viewport.Height * (znear * vscale);
   SetMatrix(MM_VIEWPROJ, XMMatrixInverse(0,
     camera.p->gettrans(camera.p->parent ? scene.p : 0)) *
     XMMatrixPerspectiveOffCenterLH(vpx, -vpx, -vpy, vpy, znear, zfar));
@@ -846,7 +846,6 @@ HRESULT __stdcall CFactory::GetInfo(CDX_INFO id, UINT* v)
   }
   return 0;
 }
-
 
 void CView::mapping(VERTEX* vv, UINT nv)
 {

@@ -48,7 +48,7 @@ namespace csg3mf
           new ToolStripSeparator(),
           new UIForm.MenuItem(2100, "Properties...", Keys.Alt | Keys.Enter)});
     }
-    public new void Invalidate() { MainFrame.inval = 1; base.Invalidate(); }
+    public new void Invalidate() { MainFrame.inval = 3; base.Invalidate(); }
     public int OnCommand(int id, object test)
     {
       switch (id)
@@ -113,20 +113,6 @@ namespace csg3mf
       var scene = view.Scene;
       var a = scene.Select(1); if (!a.Any()) return 0;// if (a.Take(2).Count() != 2) return 0;
       if (test != null) return 1;
-      //var mi = new float3(+float.MaxValue, +float.MaxValue, +float.MaxValue);
-      //var ma = new float3(-float.MaxValue, -float.MaxValue, -float.MaxValue);
-      //foreach (var p in scene.Select(2).Select(i => scene[i]))
-      //{
-      //  if (p.Mesh == null) continue;
-      //  var m = p.GetTransform(null);
-      //  foreach (var v in p.Mesh.VerticesF3())
-      //  {
-      //    var t = v * m;
-      //    if (t.x < mi.x) mi.x = t.x; if (t.x > ma.x) ma.x = t.x;
-      //    if (t.y < mi.y) mi.y = t.y; if (t.y > ma.y) ma.y = t.y;
-      //    if (t.z < mi.z) mi.z = t.z; if (t.z > ma.z) ma.z = t.z;
-      //  }
-      //}
       var bo = float4x3.Identity; view.Command(Cmd.GetBoxSel, &bo);
       var mi = bo.mx; var ma = *(float3*)&bo._22;
       var mp = (mi + ma) / 2;
@@ -178,7 +164,7 @@ namespace csg3mf
     }
     int OnDelete(object test)
     {
-      if (!Focused) return 0;
+      //if (!Focused) return 0;
       var a = view.Scene.Select(2);
       if (!a.Any()) return 0;
       if (test != null) return 1;
@@ -628,10 +614,11 @@ namespace csg3mf
     }
 #endif
 
-    //IFont font = GetFont(System.Drawing.SystemFonts.MenuFont);
-    //Stopwatch sw;
-    IFont font = Factory.GetFont("Arial", 13, System.Drawing.FontStyle.Bold);
+    //IFont font = Factory.GetFont("Wingdings", 10, FontStyle.Regular);
+    //IFont font = Factory.GetFont("Arial", 10, FontStyle.Regular);
+    IFont font = GetFont(SystemFonts.MenuFont);
     ITexture checkboard;
+    //Stopwatch sw;
 
     void ISink.Render()
     {
@@ -669,14 +656,14 @@ namespace csg3mf
       var infos = XScene.From(view.Scene).Infos;
       if (infos.Count != 0)
       {
-        dc.SetOrtographic(); dc.Font = font; dc.Color = 0x80000000;
+        dc.SetOrtographic(); dc.Font = font; dc.Color = 0xff000000;
         float y = 10 + font.Ascent, dy = font.Height;
         for (int i = 0; i < infos.Count; i++, y += dy) dc.DrawText(10, y, infos[i]);
       }
-      if(true)
+      if (true)
       {
         dc.SetOrtographic();
-        dc.Font = font; dc.Color = 0x80000000;
+        dc.Font = font; dc.Color = 0xff000000;
         float y = 10 + font.Ascent, dy = font.Height, x = ClientSize.Width - 10f;
         var s = $"Vertexbuffer {Factory.GetInfo(0)}"; dc.DrawText(x - dc.GetTextExtent(s).x, y, s); y += dy;
         s = $"Indexbuffer {Factory.GetInfo(1)}"; dc.DrawText(x - dc.GetTextExtent(s).x, y, s); y += dy;

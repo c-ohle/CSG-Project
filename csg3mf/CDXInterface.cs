@@ -69,6 +69,7 @@ namespace csg3mf
     {
       string Samples { get; set; }
       uint BkColor { get; set; }
+      float Projection { get; set; }
       Render Render { get; set; }
       IScene Scene { get; set; }
       INode Camera { get; set; }
@@ -257,7 +258,7 @@ namespace csg3mf
     {
       float2 p; p.x = float.NaN; view.Command(Cmd.PickPlane, &p); return p;
     }
-    //public static IFont GetFont(System.Drawing.Font p) => Factory.GetFont(p.FontFamily.Name, p.Size, p.Style);
+    public static IFont GetFont(System.Drawing.Font p) => Factory.GetFont(p.FontFamily.Name, p.SizeInPoints, p.Style);
     public struct DC
     {
       IView p;

@@ -1,7 +1,7 @@
 
 import "oaidl.idl";
 import "ocidl.idl";
- 
+
 interface ICDXFactory;
 interface ICDXView;
 interface ICDXSink;
@@ -22,10 +22,10 @@ typedef enum CDX_RENDER
 {
   CDX_RENDER_BOUNDINGBOX = 0x0001,
   CDX_RENDER_COORDINATES = 0x0002,
-  CDX_RENDER_NORMALS     = 0x0004,
-  CDX_RENDER_WIREFRAME   = 0x0008,
-  CDX_RENDER_OUTLINES    = 0x0010,
-  CDX_RENDER_SHADOWS     = 0x0400,
+  CDX_RENDER_NORMALS = 0x0004,
+  CDX_RENDER_WIREFRAME = 0x0008,
+  CDX_RENDER_OUTLINES = 0x0010,
+  CDX_RENDER_SHADOWS = 0x0400,
 } CDX_RENDER;
 
 typedef enum CDX_CMD
@@ -65,6 +65,8 @@ interface ICDXView : IUnknown
   [propput] HRESULT Samples([in] BSTR p);
   [propget] HRESULT BkColor([out, retval] UINT* p);
   [propput] HRESULT BkColor([in] UINT p);
+  [propget] HRESULT Projection([out, retval] FLOAT* p);
+  [propput] HRESULT Projection([in] FLOAT p);
   [propget] HRESULT Render([out, retval] CDX_RENDER* p);
   [propput] HRESULT Render([in] CDX_RENDER p);
   [propget] HRESULT Scene([out, retval] ICDXScene** p);

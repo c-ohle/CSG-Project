@@ -65,6 +65,9 @@ namespace csg3mf
           new MenuItem(2040, "&Paste", Keys.V|Keys.Control ),
           new MenuItem(2015, "Delete", Keys.Delete) { Visible = false },
           new ToolStripSeparator(),
+          new MenuItem(2035, "&Group", Keys.Control | Keys.G),
+          new MenuItem(2036, "U&ngroup", Keys.Control | Keys.U),
+          new ToolStripSeparator(),
           new MenuItem(2045, "Make Uppercase", Keys.U|Keys.Control|Keys.Shift ),
           new MenuItem(2046, "Make Lowercase", Keys.U|Keys.Control ),
           new MenuItem(2060, "Select &all", Keys.A|Keys.Control ),
@@ -108,6 +111,7 @@ namespace csg3mf
           new ToolStripSeparator(),
           new MenuItem(5025 ,"&IL Code..."),
           new MenuItem(1120, "3MF Content..."),
+          new MenuItem(1121, "Project Explorer..."),
           new ToolStripSeparator(),
 #if(DEBUG)
           new ToolStripMenuItem("GC.Collect", null, (p,e) => {
@@ -162,7 +166,7 @@ namespace csg3mf
       if (path == null) OnNew(null);
       base.OnHandleCreated(e);
     }
-    string path; IScene scene; internal CDXView view; //NeuronEditor edit;
+    string path; IScene scene; internal CDXView view;
     void UpdateTitle()
     {
       Text = string.Format("{0} - {1} {2} Bit {3}", path ?? string.Format("({0})", "Untitled"), Application.ProductName, Environment.Is64BitProcess ? "64" : "32", COM.DEBUG ? "Debug" : "Release");
@@ -190,6 +194,7 @@ namespace csg3mf
         case 1050: return OnLastFiles(test);
         case 1100: if (test == null) Close(); return 1;
         case 2100: if (test == null) ShowView(typeof(PropertyView), view, DockStyle.Left); return 1;
+        case 1121: if (test == null) ShowView(typeof(ProjectView), view, DockStyle.Left); return 1;
         //case 2100: if (test == null) { var p = (PropertyGrid)ShowView(typeof(PropertyGrid)); p.SelectedObject = p; } return 1;
         case 1120: return OnShow3MF(test);
         case 5070: if (test == null) OnAbout(); return 1;
@@ -497,10 +502,7 @@ namespace csg3mf
     XScene(IScene p) { p.Tag = this; Marshal.Release(unk = Marshal.GetIUnknownForObject(p)); }
     public IScene Nodes => (IScene)Marshal.GetObjectForIUnknown(unk); IntPtr unk;
     public readonly List<string> Infos = new List<string>();
-    [Category("General")]
     public Unit BaseUnit { get => Nodes.Unit; set => Nodes.Unit = value; }
-    [Category("Internal")]
-    public int NodeCount { get => Nodes.Count; }
   }
 
   class XNode : XObject
@@ -509,7 +511,7 @@ namespace csg3mf
     internal static XNode From(INode p) => p.Tag as XNode ?? new XNode(p);
     XNode(INode p) { p.Tag = this; Marshal.Release(unk = Marshal.GetIUnknownForObject(p)); }
     protected INode Node => (INode)Marshal.GetObjectForIUnknown(unk); IntPtr unk;
-
+    internal bool open;
     [Category("General")]
     public string Name { get => Node.Name; set => Node.Name = value; }
     [Category("General")]
@@ -562,7 +564,6 @@ namespace csg3mf
         t == 1 || t == -1 ? -(float)Math.Atan2(m._21, m._22) : (float)Math.Atan2(m._12, m._11));
     }
     static float4x3 euler(float3 e) => float4x3.RotationX(e.x) * float4x3.RotationY(e.y) * float4x3.RotationZ(e.z);
-
 #if (__DEBUG)
     public string flt_matrix1 => $"{Node.GetTransform().mx}";
     public string flt_matrix2 => $"{Node.GetTransform().my}";
@@ -576,41 +577,81 @@ namespace csg3mf
 #endif
   }
 
+  class XView
+  {
+    CDXView p;
+    public XView(CDXView view) => this.p = view;
+    [Category("General")]
+    public Unit BaseUnit { get => p.view.Scene.Unit; set => p.view.Scene.Unit = value; }
+    [Category("View")]
+    public Color BkColor { get => Color.FromArgb(unchecked((int)p.view.BkColor)); set => p.view.BkColor = (uint)value.ToArgb(); }
+    [Category("View")]
+    public float Projection { get => p.view.Projection; set => p.view.Projection = value; }
+  }
+
   class PropertyView : PropertyGrid, UIForm.ICommandTarget
   {
+    public override string Text { get => "Properties"; set { } }
     protected override void OnHandleCreated(EventArgs e)
     {
       view = (CDXView)Tag; base.OnHandleCreated(e); MainFrame.inval |= 1;
       Font = SystemFonts.MenuFont; DoubleBuffered = true;
-      Native.SetTimer(Handle, IntPtr.Zero, 100, IntPtr.Zero);
+      //Native.SetTimer(Handle, IntPtr.Zero, 100, IntPtr.Zero);
+      Application.Idle += OnIdle;
     }
-    protected unsafe override void WndProc(ref Message m)
+    protected override void OnHandleDestroyed(EventArgs e)
     {
-      if (m.Msg == 0x0113) //WM_TIMER 
-      {
-        if ((MainFrame.inval & 1) == 0) return;
-        if (!Visible) return;
-        MainFrame.inval &= ~1;
-        var scene = view.view.Scene;
-        if (nodes != null)
-        {
-          int i = 0, a = -1, b;
-          for (; (b = scene.Select(a, 1)) != -1 && i < nodes.Length && scene[b] == nodes[i]; a = b, i++) ;
-          if (b != -1 || i != nodes.Length) nodes = null;
-        }
-        if (nodes == null)
-        {
-          nodes = scene.Selection().ToArray();
-          if (nodes.Length == 0) SelectedObject = XScene.From(scene);
-          else SelectedObjects = nodes.Select(p => (object)XNode.From(p)).ToArray();
-        }
-        else Refresh();
-      }
-      base.WndProc(ref m);
+      Application.Idle -= OnIdle;
+      base.OnHandleDestroyed(e);
     }
+    void OnIdle(object sender, EventArgs e)
+    {
+      if ((MainFrame.inval & 1) == 0) return;
+      if (!Visible) return;
+      MainFrame.inval &= ~1;
+      var scene = view.view.Scene;
+      if (nodes != null)
+      {
+        int i = 0, a = -1, b;
+        for (; (b = scene.Select(a, 1)) != -1 && i < nodes.Length && scene[b] == nodes[i]; a = b, i++) ;
+        if (b != -1 || i != nodes.Length) nodes = null;
+      }
+      if (nodes == null)
+      {
+        nodes = scene.Selection().ToArray();
+        if (nodes.Length == 0) SelectedObject = new XView(view); //XScene.From(scene);
+        else SelectedObjects = nodes.Select(p => (object)XNode.From(p)).ToArray();
+      }
+      else Refresh();
+    }
+    //protected unsafe override void WndProc(ref Message m)
+    //{
+    //  if (m.Msg == 0x0113) //WM_TIMER 
+    //  {
+    //    if ((MainFrame.inval & 1) == 0) return;
+    //    if (!Visible) return;
+    //    MainFrame.inval &= ~1;
+    //    var scene = view.view.Scene;
+    //    if (nodes != null)
+    //    {
+    //      int i = 0, a = -1, b;
+    //      for (; (b = scene.Select(a, 1)) != -1 && i < nodes.Length && scene[b] == nodes[i]; a = b, i++) ;
+    //      if (b != -1 || i != nodes.Length) nodes = null;
+    //    }
+    //    if (nodes == null)
+    //    {
+    //      nodes = scene.Selection().ToArray();
+    //      if (nodes.Length == 0) SelectedObject = new XView(view); //XScene.From(scene);
+    //      else SelectedObjects = nodes.Select(p => (object)XNode.From(p)).ToArray();
+    //    }
+    //    else Refresh();
+    //  }
+    //  base.WndProc(ref m);
+    //}
     CDXView view; INode[] nodes; object[] oldvals;
     int UIForm.ICommandTarget.OnCommand(int id, object test)
     {
+      switch (id) { case 65301: return 0; }//can close
       return view.OnCommand(id, test);
     }
     protected override void OnSelectedGridItemChanged(SelectedGridItemChangedEventArgs e)
@@ -634,6 +675,129 @@ namespace csg3mf
       if (f == null) { view.AddUndo(XNode.undo(d, p, e.OldValue)); return; }
       var pp = (object[])p; var dd = (PropertyDescriptor[])f.GetValue(d);
       view.AddUndo(CDXView.undo(pp.Select((a, i) => XNode.undo(dd[i], a, e.OldValue ?? oldvals[i]))));
+    }
+  }
+
+
+  class ProjectView : UserControl, UIForm.ICommandTarget
+  {
+    public override string Text { get => "Project"; set { } }
+    CDXView view; IScene scene;
+    protected override void OnHandleCreated(EventArgs e)
+    {
+      DoubleBuffered = true; view = (CDXView)Tag; scene = view.view.Scene;       //base.OnHandleCreated(e);
+      BackColor = SystemColors.Window; Font = SystemFonts.MenuFont;
+      Application.Idle += OnIdle;
+    }
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+      Application.Idle -= OnIdle;
+      base.OnHandleDestroyed(e);
+    }
+    void OnIdle(object sender, EventArgs e)
+    {
+      if ((MainFrame.inval & 2) == 0) return;
+      if (!Visible) return; MainFrame.inval &= ~2; Invalidate();
+    }
+    int UIForm.ICommandTarget.OnCommand(int id, object test)
+    {
+      switch (id) { case 65301: return 0; }//can close
+      return view.OnCommand(id, test);
+    }
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+      base.OnMouseDown(e); cmd = 1; pt = e.Location; OnPaint(null);
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+      var dy = Font.Height; int x = dy * 3 / 2, y = (dy >> 2) + AutoScrollPosition.Y;
+      draw(e?.Graphics, -1, scene.Select(-1, -1 << 8), x, ref y);
+      if (e != null) AutoScrollMinSize = new System.Drawing.Size(0, y + dy - AutoScrollPosition.Y);
+    }
+    int cmd; System.Drawing.Point pt;
+    void draw(Graphics g, int f, int a, int x, ref int y)
+    {
+      var font = Font; var dy = font.Height; int y1 = f == -1 ? y + (dy >> 1) : y, y2 = y, xl = x - (dy >> 1);
+      for (; a != -1; a = scene.Select(a, f << 8))
+      {
+        var node = scene[a]; var c = scene.Select(-1, a << 8);
+        var xnode = c != -1 ? XNode.From(node) : null; var s = node.Name;
+        if (g != null)
+        {
+          g.DrawLine(Pens.Gray, xl, y2 = y + (dy >> 1), x, y + (dy >> 1));
+          if (c != -1)
+          {
+            var r = new Rectangle(xl - (dy >> 2), y + (dy >> 1) - (dy >> 2), dy >> 1, dy >> 1);
+            g.FillRectangle(Brushes.White, r); g.DrawRectangle(Pens.Gray, r);
+            g.DrawLine(Pens.Black, r.X + 3, (r.Y + r.Bottom) >> 1, r.Right - 3, (r.Y + r.Bottom) >> 1);
+            if (!xnode.open) g.DrawLine(Pens.Black, (r.X + r.Right) >> 1, r.Y + 3, (r.X + r.Right) >> 1, r.Bottom - 3);
+            //TextRenderer.DrawText(g, xnode.open ? "-" : "+", font, new System.Drawing.Point(x - dy, y), Color.Black);
+          }
+          if (node.IsSelect) { var dx = TextRenderer.MeasureText(s, font).Width; g.FillRectangle(Focused ? SystemBrushes.GradientInactiveCaption : SystemBrushes.ButtonFace, x, y - 1, dx, dy + 2); }
+          TextRenderer.DrawText(g, s, font, new System.Drawing.Point(x, y), Color.Black);
+        }
+        else
+        {
+          if (pt.Y < y) return;
+          if (pt.Y < y + dy)
+          {
+            if (cmd == 1) { if (pt.X >= x - 16 && pt.X <= x && c != -1) { xnode.open ^= true; Invalidate(); } }
+            if (cmd == 1)
+            {
+              if (pt.X >= x && pt.X <= x + TextRenderer.MeasureText(s, font).Width)
+              {
+                if ((ModifierKeys & Keys.Control) != 0) node.IsSelect ^= true; else node.Select();
+                MainFrame.Inval();
+              }
+            }
+            y = short.MaxValue; return;
+          }
+        }
+        y += dy; if (c != -1 && xnode.open) draw(g, a, c, x + dy, ref y);
+      }
+      if (g != null) g.DrawLine(Pens.Gray, xl, y1, xl, y2);
+    }
+    void select(int i) { /*if(ModifierKeys!=Keys.Shift)*/ scene.Select(); scene[i].IsSelect = true; MainFrame.Inval(); }
+    int nexsibling(int i)
+    {
+      var p = scene[i];
+      if (p.Tag is XNode x && x.open) { var k = scene.Select(-1, i << 8); if (k != -1) return k; }
+      for (; ; )
+      {
+        var t = p.Parent != null ? p.Parent.Index : -1;
+        var n = scene.Select(i, t << 8); if (n != -1) return n;
+        if (t == -1) return t; p = scene[i = t];
+      }
+    }
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+      switch (e.KeyCode)
+      {
+        case Keys.Left:
+        case Keys.Up:
+          {
+            var i = scene.Select(-1, 1); if (i == -1) { if (scene.Count != 0) select(0); break; }
+            if (e.KeyCode == Keys.Left) { var p = scene[i]; if (p.Tag is XNode xn && xn.open) { xn.open = false; Invalidate(); break; } }
+            int a = scene.Select(-1, -1 << 8), b;
+            for (; a != -1 && (b = nexsibling(a)) != i; a = b) ;
+            if (a != -1) select(a);
+          }
+          break;
+        case Keys.Right:
+        case Keys.Down:
+          {
+            var i = scene.Select(-1, 1); if (i == -1) { if (scene.Count != 0) select(0); break; }
+            for (int t; (t = scene.Select(i, 1)) != -1; i = t) ;
+            if (e.KeyCode == Keys.Right) { var p = scene[i]; if (p.Tag is XNode xn && !xn.open) { xn.open = true; Invalidate(); break; } }
+            var x = nexsibling(i); if (x != -1) select(x);
+          }
+          break;
+      }
+    }
+    protected override bool IsInputKey(Keys keyData)
+    {
+      if ((keyData & (Keys.Control | Keys.Alt)) != 0) return false;
+      return true;
     }
   }
 

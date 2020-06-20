@@ -219,6 +219,12 @@ EXTERN_C const IID IID_ICDXView;
         virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_BkColor( 
             /* [in] */ UINT p) = 0;
         
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Projection( 
+            /* [retval][out] */ FLOAT *p) = 0;
+        
+        virtual /* [propput] */ HRESULT STDMETHODCALLTYPE put_Projection( 
+            /* [in] */ FLOAT p) = 0;
+        
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_Render( 
             /* [retval][out] */ CDX_RENDER *p) = 0;
         
@@ -294,6 +300,14 @@ EXTERN_C const IID IID_ICDXView;
         /* [propput] */ HRESULT ( STDMETHODCALLTYPE *put_BkColor )( 
             ICDXView * This,
             /* [in] */ UINT p);
+        
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Projection )( 
+            ICDXView * This,
+            /* [retval][out] */ FLOAT *p);
+        
+        /* [propput] */ HRESULT ( STDMETHODCALLTYPE *put_Projection )( 
+            ICDXView * This,
+            /* [in] */ FLOAT p);
         
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_Render )( 
             ICDXView * This,
@@ -379,6 +393,12 @@ EXTERN_C const IID IID_ICDXView;
 
 #define ICDXView_put_BkColor(This,p)	\
     ( (This)->lpVtbl -> put_BkColor(This,p) ) 
+
+#define ICDXView_get_Projection(This,p)	\
+    ( (This)->lpVtbl -> get_Projection(This,p) ) 
+
+#define ICDXView_put_Projection(This,p)	\
+    ( (This)->lpVtbl -> put_Projection(This,p) ) 
 
 #define ICDXView_get_Render(This,p)	\
     ( (This)->lpVtbl -> get_Render(This,p) ) 

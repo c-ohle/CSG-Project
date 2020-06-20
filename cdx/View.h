@@ -18,8 +18,7 @@ struct CView : ICDXView
   CComPtr<CNode>                    camera;
   UINT                              iover = -1;
   CDX_RENDER                        flags = (CDX_RENDER)0;
-  
-  float                             vscale = 0.0004f, znear = 0.1f, zfar = 100, minwz = -1;
+  float                             vscale = 0.0002f, znear = 0.1f, zfar = 100, minwz = -1;
 
   static CView* first; CView* next;
   CView() { Critical crit; next = first; first = this; }
@@ -87,6 +86,14 @@ struct CView : ICDXView
   }
   HRESULT __stdcall get_BkColor(UINT* p);
   HRESULT __stdcall put_BkColor(UINT p);
+  HRESULT __stdcall get_Projection(FLOAT* p)
+  {
+    *p = vscale; return 0;
+  }
+  HRESULT __stdcall put_Projection(FLOAT p)
+  {
+    vscale = p; return 0;
+  }
   HRESULT __stdcall get_Render(CDX_RENDER* p)
   {
     *p = flags; return 0;
@@ -108,6 +115,6 @@ struct CView : ICDXView
     XMStoreFloat3(p, vv[VV_OVERPOS]); return 0;
   }
   HRESULT __stdcall Draw(CDX_DRAW id, UINT* data);
-  HRESULT __stdcall Command(CDX_CMD  cmd, UINT* data); 
+  HRESULT __stdcall Command(CDX_CMD  cmd, UINT* data);
   HRESULT __stdcall Thumbnail(UINT dx, UINT dy, UINT samples, UINT bkcolor, IStream* str);
 };

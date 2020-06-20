@@ -9,10 +9,11 @@ HRESULT CreateTexture(UINT dx, UINT dy, UINT pitch, DXGI_FORMAT fmt, UINT mips, 
 
 void CFont::create()
 {
-  hFont = CreateFontW(-(int)round(size * (96.0f / 72)), 0, 0, 0,
+  HDC hdc = GetDC(0);
+  hFont = CreateFontW(-(int)roundf(size * GetDeviceCaps(hdc, LOGPIXELSY) / 72), 0, 0, 0,
     style & 1 ? 700 : 400, style & 2 ? 1 : 0, style & 4 ? 1 : 0, style & 8 ? 1 : 0,
     DEFAULT_CHARSET, OUT_TT_PRECIS, 0, CLEARTYPE_QUALITY, 0, name.p);
-  HDC hdc = GetDC(0); auto hof = SelectObject(hdc, hFont);
+  auto hof = SelectObject(hdc, hFont);
   TEXTMETRIC tm; GetTextMetrics(hdc, &tm);
   scale = 1.0f / size;
   ascent = tm.tmAscent * scale;
@@ -77,7 +78,7 @@ void CFont::create(LPCWSTR s, UINT n)
       {
         //XMLoadByte4()
         auto t = (pp[(k << 2)] * 0x4c + pp[(k << 2) + 1] * 0x95 + pp[(k << 2) + 2] * 0x1f) >> 8;
-        t = (t * t) >> 8;
+        //t = (t * t) >> 8;
         pp[k] = (byte)t;
       }
       CreateTexture(mx, my, mx, DXGI_FORMAT_A8_UNORM, 1, pp, &srvs.p[srvn++]);
