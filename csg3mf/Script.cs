@@ -232,7 +232,11 @@ namespace csg3mf
         }
         if (mo != null)
         {
-          var pp = mo.GetParameters();
+          var pp = mo.GetParameters(); 
+          //if (pp[1].ParameterType.IsByRef && eb is MemberExpression me && me.Member.DeclaringType.IsValueType) 
+          //{
+          //  var t = Expression.Variable(eb.Type, string.Empty); stack.Add(t); eb = Expression.Assign(t, eb);
+          //}
           ea = Convert(ea, pp[0].ParameterType);
           eb = Convert(eb, pp[1].ParameterType);
         }
@@ -313,7 +317,7 @@ namespace csg3mf
       {
         if (a.n > 1 && a.s[0] == '0' && (a.s[1] | 0x20) == 'x')
         {
-          a.trim(2, 0); if (a.n == 8 && a.s[0] > '7') { left = Expression.Constant(uint.Parse(a.ToString(), NumberStyles.HexNumber)); goto eval; }
+          a.trim(2, 0); if (wt == typeof(uint) || (a.n == 8 && a.s[0] > '7')) { left = Expression.Constant(uint.Parse(a.ToString(), NumberStyles.HexNumber)); goto eval; }
           left = Expression.Constant(int.Parse(a.ToString(), NumberStyles.HexNumber)); goto eval;
         }
         var tc = TypeCode.Int32;
@@ -467,6 +471,7 @@ namespace csg3mf
           if (Convertible(t2, pp[1].ParameterType) == null) continue;
           match = m;
         }
+        if (t1 == t2) break;
       }
       return match;
     }
@@ -673,8 +678,16 @@ namespace csg3mf
       if (a.Type == t) return a;
       if (t == typeof(object) && !a.Type.IsClass) return Expression.Convert(a, t);
       if (t.IsAssignableFrom(a.Type)) return a;
-      //if (t.IsByRef && t.GetElementType() == a.Type) return a;
-      if (t.IsByRef) return Convert(a, t.GetElementType());
+      if (t.IsByRef)
+      {
+        t = t.GetElementType();
+        if (a.Type == t && a is MemberExpression ex && ex.Member.DeclaringType.IsValueType) //bypass Expressions bug, ref access to struct member  
+        {
+          var v = Expression.Variable(t, string.Empty); stack.Add(v); 
+          return Expression.Assign(v, a);
+        }
+        return Convert(a, t);
+      }
       if (a is ConstantExpression c)
       {
         var v = c.Value; if (v == null) return Expression.Constant(v, t);
@@ -1012,8 +1025,6 @@ namespace csg3mf
           //case 5014: return onstep(9, test); // Compile
           //case 5020: return onbreakpoint(test);
           //case 5021: return onclearbreaks(test);
-          //case 5025: return onshowil(test);
-
           case 5011: // Run Without Debugging Strg+F5
             if (test != null) return 1;
             if (state == 7) { EndFlyer(); ontimer = null; state = 0; return 1; }
@@ -1039,12 +1050,23 @@ namespace csg3mf
             if (test != null) return 1;
             return 1;
           case 5020: return breakpoint(test);
-            //case 65301: //can close
-            //  if (state != 7) return 0;
-            //  if (test != null) return 1;
-            //  MessageBox.Show("no!"); return 1;
+          //case 65301: //can close
+          //  if (state != 7) return 0;
+          //  if (test != null) return 1;
+          //  MessageBox.Show("no!"); return 1;
+          case 5025: return onshowil(test);
+
         }
         return base.OnCommand(id, test);
+      }
+      int onshowil(object test)
+      {
+        if (error != null) return 0; if (test != null) return 1;
+        var e = Script.Compile(xobject.GetType(), EditText);
+        var s = (string)typeof(Expression).GetProperty("DebugView", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(e);
+        var v = (CodeEditor)UIForm.ShowView(typeof(CodeEditor), this, DockStyle.Fill);
+        v.Text = "Expressions"; v.EditText = s;
+        return 1;
       }
       int breakpoint(object test)
       {
@@ -1063,7 +1085,7 @@ namespace csg3mf
       {
         Script.bps = map.Where(p => p.v == 0x1A).Select(p => p.i).ToArray();
         (Script.map = map).Clear(); error = null;
-        try { var expr = Script.Compile(xobject.GetType(), EditText); }
+        try { var e = Script.Compile(xobject.GetType(), EditText); }
         catch (Exception e) { epos = Script.LastError; error = e.Message; }
         UpdateSyntaxColors(); Invalidate();
         if (error != null) for (int i = 0; i < epos.n; i++) { charcolor[epos.i + i] |= 0x70; }
@@ -1101,7 +1123,7 @@ namespace csg3mf
           }
           return true;
         }
-        ReadOnly = true; MainFrame.Inval(); if (!Focused) UIForm.ShowView(typeof(ScriptEditor), Parent.Tag, DockStyle.Left); 
+        ReadOnly = true; MainFrame.Inval(); if (!Focused) UIForm.ShowView(typeof(ScriptEditor), Parent.Tag, DockStyle.Left);
         m.v |= 0x20; map[i] = m; Select(m.i); UpdateSyntaxColors(); ScrollVisible(); this.stack = stack;//var ff = new StackTrace().GetFrames();
         sp = &i; for (state = 7; state == 7;) { Native.WaitMessage(); Application.DoEvents(); Application.RaiseIdle(null); }
         if (map.Count == 0) return false;

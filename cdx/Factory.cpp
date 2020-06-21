@@ -453,7 +453,7 @@ void CView::Pick(const short* pt)
 
 void CView::setproject()
 {
-  auto vpx = viewport.Width * (znear * vscale); 
+  auto vpx = viewport.Width * (znear * vscale);
   auto vpy = viewport.Height * (znear * vscale);
   SetMatrix(MM_VIEWPROJ, XMMatrixInverse(0,
     camera.p->gettrans(camera.p->parent ? scene.p : 0)) *
@@ -945,7 +945,59 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
   //  EndVertices(np, MO_TOPO_LINESTRIP | MO_PSSHADER_COLOR | MO_RASTERIZER_NOCULL | d_blend);
   //  return 0;
   //}
+  case CDX_DRAW_DRAW_POINTS:
+  {
+    auto radius = *(float*)&data[0]; auto np = data[1]; auto pp = *(const XMFLOAT3**)&data[2];
+
+    //auto vs = XMMatrixTranslation(1, -1, 0) * XMMatrixScaling(viewport.Width * 0.5f, viewport.Height * -0.5f, 1);
+    auto m1 = mm[MM_WORLD] * mm[MM_VIEWPROJ] * XMMatrixScaling(viewport.Width * 0.5f, viewport.Height * 0.5f, 1);
+    auto m2 = XMMatrixInverse(0, m1);
+
+    float t1[2]; t1[0] = -radius; t1[1] = +radius;
+
+    for (UINT i = 0; i < np; i++)
+    {
+      auto mp = XMVector3TransformCoord(XMLoadFloat3(&pp[i]), m1);
+      auto vv = BeginVertices(4);
+      vv[1].t.x = vv[3].t.x = 1;
+      vv[2].t.y = vv[3].t.y = 1;
+      for (UINT t = 0; t < 4; t++, vv++)
+      {
+        vv->p.x = mp.m128_f32[0] + t1[(t >> 1) & 1];
+        vv->p.y = mp.m128_f32[1] + t1[t & 1];
+        vv->p.z = mp.m128_f32[2];
+        XMStoreFloat3(&vv->p, XMVector3TransformCoord(XMLoadFloat3(&vv->p), m2));
+      }
+      EndVertices(4, MO_TOPO_TRIANGLESTRIP | MO_BLENDSTATE_ALPHA | MO_PSSHADER_TEXTURE | MO_RASTERIZER_NOCULL);
+    }
+    return 0;
+  }
   }
   return E_FAIL;
 }
 
+/*
+var t2 = dc.Texture; dc.Texture = texpt32 ? ? (texpt32 = gettex(0));
+var t0 = dc.State;
+dc.PixelShader = PixelShader.AlphaTexture;
+dc.BlendState = BlendState.Alpha;
+dc.Rasterizer = Rasterizer.CullNone;
+dc.DepthStencil = DepthStencil.ZWrite;
+float4x4 m1, m2; dc.Operator(0x75, &m1); m2 = !m1; //wm * vp * vm
+float2 t1; t1.x = -radius; t1.y = +radius;
+for (int i = 0; i < np; i++)
+{
+  float3 mp = pp[i] * m1;
+  var v = dc.BeginVertices(4);
+  v[0].t.x = v[2].t.x = 0; v[1].t.x = v[3].t.x = 1;
+  v[0].t.y = v[1].t.y = 0; v[2].t.y = v[3].t.y = 1;
+  for (int t = 0; t < 4; t++, v++)
+  {
+    v->p.x = mp.x + (&t1.x)[(t >> 1) & 1];
+    v->p.y = mp.y + (&t1.x)[t & 1];
+    v->p.z = mp.z; v->p = v->p * m2;
+  }
+  dc.EndVertices(4, i == 0 ? Topology.TriangleStrip : 0);
+}
+dc.State = t0; dc.Texture = t2;
+*/

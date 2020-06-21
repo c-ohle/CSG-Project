@@ -104,16 +104,16 @@ namespace csg3mf
           new MenuItem(5013, "&Stop", Keys.F5|Keys.Shift )
         ),
         new MenuItem("&Extra",
+          new MenuItem(1121, "Project Explorer..."),
+          new MenuItem(1120, "3MF Content..."),
+          new MenuItem(5025 ,"Expressions..."),
+          new ToolStripSeparator(),
           new MenuItem(5100, "&Format", Keys.E|Keys.Control ),
           new ToolStripSeparator(),
           new MenuItem(5110 , "Remove Unused Usings"),
           new MenuItem(5111 , "Sort Usings"),
           new ToolStripSeparator(),
-          new MenuItem(5025 ,"&IL Code..."),
-          new MenuItem(1120, "3MF Content..."),
-          new MenuItem(1121, "Project Explorer..."),
-          new ToolStripSeparator(),
-#if(DEBUG)
+          #if(DEBUG)
           new ToolStripMenuItem("GC.Collect", null, (p,e) => {
             Debug.WriteLine("GC.Collect()");
             GC.Collect(2, GCCollectionMode.Forced, true, true);
@@ -678,14 +678,13 @@ namespace csg3mf
     }
   }
 
-
   class ProjectView : UserControl, UIForm.ICommandTarget
   {
     public override string Text { get => "Project"; set { } }
     CDXView view; IScene scene;
     protected override void OnHandleCreated(EventArgs e)
     {
-      DoubleBuffered = true; view = (CDXView)Tag; scene = view.view.Scene;       //base.OnHandleCreated(e);
+      DoubleBuffered = true; view = (CDXView)Tag; scene = view.view.Scene; //base.OnHandleCreated(e);
       BackColor = SystemColors.Window; Font = SystemFonts.MenuFont;
       Application.Idle += OnIdle;
     }
@@ -710,24 +709,25 @@ namespace csg3mf
     }
     protected override void OnPaint(PaintEventArgs e)
     {
-      var dy = Font.Height; int x = dy * 3 / 2, y = (dy >> 2) + AutoScrollPosition.Y;
+      var dy = Font.Height; int x = dy * 4 / 3, y = (dy >> 2) + AutoScrollPosition.Y;
       draw(e?.Graphics, -1, scene.Select(-1, -1 << 8), x, ref y);
       if (e != null) AutoScrollMinSize = new System.Drawing.Size(0, y + dy - AutoScrollPosition.Y);
     }
-    int cmd; System.Drawing.Point pt;
+    int cmd; System.Drawing.Point pt; Pen pen = new Pen(Color.Gray) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dot };
     void draw(Graphics g, int f, int a, int x, ref int y)
     {
       var font = Font; var dy = font.Height; int y1 = f == -1 ? y + (dy >> 1) : y, y2 = y, xl = x - (dy >> 1);
+      if (g != null) g.DrawLine(pen, xl, y1, xl, y1 + short.MaxValue);
       for (; a != -1; a = scene.Select(a, f << 8))
       {
         var node = scene[a]; var c = scene.Select(-1, a << 8);
         var xnode = c != -1 ? XNode.From(node) : null; var s = node.Name;
         if (g != null)
         {
-          g.DrawLine(Pens.Gray, xl, y2 = y + (dy >> 1), x, y + (dy >> 1));
+          g.DrawLine(pen, xl, y2 = y + (dy >> 1), x, y + (dy >> 1));
           if (c != -1)
           {
-            var r = new Rectangle(xl - (dy >> 2), y + (dy >> 1) - (dy >> 2), dy >> 1, dy >> 1);
+            var r = new Rectangle(xl - (dy >> 2), y + (dy >> 1) - (dy >> 2), dy >> 1, dy >> 1); y2 = r.Bottom;
             g.FillRectangle(Brushes.White, r); g.DrawRectangle(Pens.Gray, r);
             g.DrawLine(Pens.Black, r.X + 3, (r.Y + r.Bottom) >> 1, r.Right - 3, (r.Y + r.Bottom) >> 1);
             if (!xnode.open) g.DrawLine(Pens.Black, (r.X + r.Right) >> 1, r.Y + 3, (r.X + r.Right) >> 1, r.Bottom - 3);
@@ -755,7 +755,7 @@ namespace csg3mf
         }
         y += dy; if (c != -1 && xnode.open) draw(g, a, c, x + dy, ref y);
       }
-      if (g != null) g.DrawLine(Pens.Gray, xl, y1, xl, y2);
+      if (g != null) g.DrawLine(SystemPens.Window, xl, y2 + 1, xl, y2 + short.MaxValue);
     }
     void select(int i) { /*if(ModifierKeys!=Keys.Shift)*/ scene.Select(); scene[i].IsSelect = true; MainFrame.Inval(); }
     int nexsibling(int i)
@@ -798,6 +798,14 @@ namespace csg3mf
     {
       if ((keyData & (Keys.Control | Keys.Alt)) != 0) return false;
       return true;
+    }
+    protected override void OnGotFocus(EventArgs e)
+    {
+      base.OnGotFocus(e); Invalidate();
+    }
+    protected override void OnLostFocus(EventArgs e)
+    {
+      base.OnLostFocus(e); Invalidate();
     }
   }
 

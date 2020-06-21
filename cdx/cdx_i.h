@@ -184,7 +184,8 @@ enum CDX_DRAW
         CDX_DRAW_FILL_ELLIPSE	= 12,
         CDX_DRAW_GET_TEXTEXTENT	= 13,
         CDX_DRAW_DRAW_TEXT	= 14,
-        CDX_DRAW_DRAW_RECT	= 15
+        CDX_DRAW_DRAW_RECT	= 15,
+        CDX_DRAW_DRAW_POINTS	= 16
     } 	CDX_DRAW;
 
 

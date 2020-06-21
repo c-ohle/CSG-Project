@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
@@ -62,6 +63,7 @@ namespace csg3mf
       GetTextExtent = 13,
       DrawText = 14,
       DrawRect = 15,
+      DrawPoints = 16,
     }
 
     [ComImport, Guid("4C0EC273-CA2F-48F4-B871-E487E2774492"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
@@ -259,6 +261,21 @@ namespace csg3mf
       float2 p; p.x = float.NaN; view.Command(Cmd.PickPlane, &p); return p;
     }
     public static IFont GetFont(System.Drawing.Font p) => Factory.GetFont(p.FontFamily.Name, p.SizeInPoints, p.Style);
+    public static ITexture GetTexture(int dx, int dy, int bp, Action<Graphics> draw)
+    {
+      using (var bmp = new Bitmap(dx, dy, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+      {
+        using (var gr = Graphics.FromImage(bmp)) draw(gr);
+        var s = new System.IO.MemoryStream();
+        if (bp > 8) bmp.Save(s, System.Drawing.Imaging.ImageFormat.Png);
+        else using (var tmp = bmp.Clone(new Rectangle(0, 0, bmp.Width, bmp.Height), System.Drawing.Imaging.PixelFormat.Format1bppIndexed))
+          {
+            tmp.SetResolution(1, 1); var t = tmp.Palette; t.Entries[0] = Color.Transparent; tmp.Palette = t;
+            tmp.Save(s, System.Drawing.Imaging.ImageFormat.Png);
+          }
+        fixed (byte* p = s.GetBuffer()) return Factory.GetTexture(COM.SHCreateMemStream(p, (int)s.Length));
+      }
+    }
     public struct DC
     {
       IView p;
@@ -270,7 +287,7 @@ namespace csg3mf
       public float4x3 Transform
       {
         get { float4x3 c; p.Draw(Draw.GetTransform, &c); return c; }
-        set => p.Draw(Draw.SetTransform, &value);
+        set { p.Draw(Draw.SetTransform, &value); }
       }
       public uint Color
       {
@@ -332,6 +349,23 @@ namespace csg3mf
         fixed (char* t = s) { v.s = t; p.Draw(Draw.DrawText, &v); }
       }
       struct t1 { public float x, y; public char* s; public int n; }
+
+      static ITexture gettex()
+      {
+        return GetTexture(32, 32, 32, gr =>
+        {
+          gr.FillEllipse(System.Drawing.Brushes.Black, 1, 1, 30, 30);
+          gr.FillEllipse(System.Drawing.Brushes.White, 4, 4, 30 - 6, 30 - 6);
+        });
+      }
+      static ITexture texpt;
+      public void DrawPoints(params float3[] vv)
+      {
+        var t1 = Texture; Texture = texpt ?? (texpt = gettex());
+        float4 t; t.x = 7f; *(int*)&t.y = vv.Length;
+        fixed (float3* pv = vv) { *(float3**)&t.z = pv; p.Draw(Draw.DrawPoints, &t); }
+        Texture = t1;
+      }
     }
   }
 

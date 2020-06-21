@@ -590,18 +590,6 @@ namespace csg3mf
         }
       };
     }
-#if (false)
-    Action<int, float4x3> getmover()
-    {
-      var pp = view.Scene.Selection().ToArray();
-      var mm = pp.Select(p => p.Transform).ToArray();
-      return (id, m) =>
-      {
-        if (id == 0) { for (int i = 0; i < pp.Length; i++) pp[i].SetTransformF((float4x3)mm[i] * m); }
-        if (id == 2) AddUndo(undo(pp.Select((p, i) => undo(p, mm[i]))));
-      };
-    }
-#else
     Action<int, float4x3> getmover()
     {
       var pp = view.Scene.Selection().ToArray();
@@ -612,7 +600,6 @@ namespace csg3mf
         if (id == 2) AddUndo(undo(pp.Select((p, i) => undo(p, mm[i]))));
       };
     }
-#endif
 
     //IFont font = Factory.GetFont("Wingdings", 10, FontStyle.Regular);
     //IFont font = Factory.GetFont("Arial", 10, FontStyle.Regular);
@@ -624,36 +611,32 @@ namespace csg3mf
     {
       tool?.Invoke(4);
       var dc = new DC(view);
+      var scene = view.Scene;
 
       if (true)
       {
-        if (checkboard == null)
+        for (int a = -1, b; (b = scene.Select(a, 1)) != -1; a = b)
         {
-          using (var bmp = new Bitmap(256, 256, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
-          {
-            using (var gr = Graphics.FromImage(bmp))
-            {
-              gr.FillRectangle(Brushes.White, 0, 0, 256, 1);
-              gr.FillRectangle(Brushes.White, 0, 0, 1, 256);
-            }
-            using (var tmp = bmp.Clone(new Rectangle(0, 0, bmp.Width, bmp.Height), System.Drawing.Imaging.PixelFormat.Format1bppIndexed))
-            {
-              tmp.SetResolution(1, 1); var t = tmp.Palette; t.Entries[0] = Color.Transparent; tmp.Palette = t;
-              var s = new MemoryStream(); tmp.Save(s, System.Drawing.Imaging.ImageFormat.Png);
-              fixed (byte* p = s.GetBuffer()) checkboard = Factory.GetTexture(COM.SHCreateMemStream(p, (int)s.Length));
-            }
-            //var str = new MemoryStream(); //bmp.SetResolution(1, 1);
-            //bmp.Save(str, System.Drawing.Imaging.ImageFormat.Png);
-            //fixed (byte* p = str.GetBuffer()) checkboard = Factory.GetTexture(COM.SHCreateMemStream(p, (int)str.Length));
-          }
+          var p = scene[b]; if (!(p.Tag is XNode node)) continue;
+          var draw = node.GetMethod<Action<DC>>(); if (draw == null) continue;
+          dc.Transform = p.GetTransform(null); try { draw(dc); } catch (Exception e) { Debug.WriteLine(e.Message); }
         }
+      }
+
+      if (true)
+      {
+        if (checkboard == null) checkboard = GetTexture(256, 256, 1, gr =>
+        {
+          gr.FillRectangle(Brushes.White, 0, 0, 256, 1);
+          gr.FillRectangle(Brushes.White, 0, 0, 1, 256);
+        });
         dc.Transform = 1;
         dc.Color = 0xfe000000;
         var t1 = dc.Texture; dc.Texture = checkboard;
         dc.Mapping = 1; dc.FillRect(-100, -100, 200, 200); dc.Texture = t1;
       }
 
-      var infos = XScene.From(view.Scene).Infos;
+      var infos = XScene.From(scene).Infos;
       if (infos.Count != 0)
       {
         dc.SetOrtographic(); dc.Font = font; dc.Color = 0xff000000;
