@@ -390,6 +390,20 @@ VERTEX* CView::BeginVertices(UINT nv)
 }
 void CView::EndVertices(UINT nv, UINT mode)
 {
+  if (pickprim)
+  {
+    auto t1 = vv[VV_DIFFUSE]; SetColor(VV_DIFFUSE, pickprim != -1 ? pickprim++ : pickprim);
+    auto t2 = pickprim; pickprim = 0;
+    if (mode)
+    {
+      if ((mode & (MO_BLENDSTATE_MASK | MO_PSSHADER_MASK)) == (MO_PSSHADER_TEXTURE | MO_BLENDSTATE_ALPHA))
+        mode = (mode & ~(MO_BLENDSTATE_MASK | MO_PSSHADER_MASK)) | (MO_PSSHADER_COLOR | MO_BLENDSTATE_SOLID);
+    }
+    else SetBuffers();
+    EndVertices(nv, mode);
+    vv[VV_DIFFUSE] = t1; pickprim = t2; return;
+  }
+
   context->Unmap(ringbuffer, 0);
   if (mode != 0) { SetVertexBuffer(ringbuffer.p); SetMode(mode); SetBuffers(); }
   context->Draw(nv, rbindex); rbindex += nv;
@@ -397,7 +411,7 @@ void CView::EndVertices(UINT nv, UINT mode)
 
 void CView::Pick(const short* pt)
 {
-  iover = -1; if (!swapchain.p) return;
+  iover = 0; if (!swapchain.p) return;
   XMFLOAT2 pc(pt[0], pt[1]);
   if (!rtvtex1.p) initpixel();
   auto vp = viewport; vp.TopLeftX = -pc.x; vp.TopLeftY = -pc.y;
@@ -407,14 +421,13 @@ void CView::Pick(const short* pt)
   context->ClearDepthStencilView(dsv1.p, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
   if (scene.p)
   {
-    setproject();
-    auto& nodes = scene.p->nodes; const UINT stride = 32, offs = 0;
+    setproject(); auto& nodes = scene.p->nodes; const UINT stride = 32, offs = 0;
     SetMode(MO_TOPO_TRIANGLELISTADJ | MO_PSSHADER_COLOR | MO_DEPTHSTENCIL_ZWRITE);
     for (UINT i = 0; i < scene.p->count; i++)
     {
       auto& node = *nodes.p[i]; if (!node.ib.p) continue;
       SetMatrix(MM_WORLD, node.gettrans(scene.p));
-      SetColor(VV_DIFFUSE, i + 1); SetBuffers();
+      SetColor(VV_DIFFUSE, (i + 1) << 16); SetBuffers();
       for (UINT k = 0; k < node.materials.n; k++)
       {
         auto& ma = node.materials.p[k];
@@ -423,10 +436,12 @@ void CView::Pick(const short* pt)
       }
     }
   }
+  if (sink.p) { pickprim = -1; sink.p->Render(); pickprim = 0; }
+
   context->CopyResource(rtvcpu1, rtvtex1);
   D3D11_MAPPED_SUBRESOURCE map;
   context->Map(rtvcpu1, 0, D3D11_MAP_READ, 0, &map);
-  auto ppc = *(UINT*)map.pData; context->Unmap(rtvcpu1, 0);
+  iover = *(UINT*)map.pData; context->Unmap(rtvcpu1, 0);
   context->CopyResource(dsvcpu1, dsvtex1);
   context->Map(dsvcpu1, 0, D3D11_MAP_READ, 0, &map);
   auto ppz = *(UINT*)map.pData; context->Unmap(dsvcpu1, 0);
@@ -437,18 +452,15 @@ void CView::Pick(const short* pt)
   pickp.m128_f32[2] = (ppz & 0xffffff) / (float)0xffffff;
   pickp.m128_f32[3] = 0;
 
-  if (ppc)
-  {
-    auto& nodes = scene.p->nodes;
-    auto m = XMMatrixInverse(0, nodes.p[iover = ppc - 1]->gettrans(scene.p) * mm[MM_VIEWPROJ]);
-    vv[VV_OVERPOS] = XMVector3TransformCoord(pickp, m);
-    mm[MM_PLANE] = mm[MM_VIEWPROJ];
-  }
+  //TRACE(L"ppc  %x\n", iover);
 
-  //if (isnan(vv[VV_OVERPOS].m128_f32[0]))
-  //{
-  //  iover = -1; //todo: check
-  //}
+  if (!iover) return;
+  auto& nodes = scene.p->nodes;
+  UINT i = (iover >> 16) - 1; if (i >= nodes.n) { iover = 0; return; }
+  setproject();
+  auto m = XMMatrixInverse(0, nodes[i]->gettrans(scene.p) * mm[MM_VIEWPROJ]);
+  vv[VV_OVERPOS] = XMVector3TransformCoord(pickp, m);
+  mm[MM_PLANE] = mm[MM_VIEWPROJ];
 }
 
 void CView::setproject()
@@ -852,6 +864,11 @@ void CView::mapping(VERTEX* vv, UINT nv)
   for (UINT i = 0; i < nv; i++)
     XMStoreFloat2(&vv[i].t, XMVector3TransformCoord(XMLoadFloat4A((const XMFLOAT4A*)&vv[i].p), mm[MM_MAPPING]));
 }
+XMMATRIX XM_CALLCONV CView::W2Screen()
+{
+  //auto vs = XMMatrixTranslation(1, -1, 0) * XMMatrixScaling(viewport.Width * 0.5f, viewport.Height * -0.5f, 1); 
+  return mm[MM_WORLD] * mm[MM_VIEWPROJ] * XMMatrixScaling(viewport.Width * 0.5f, viewport.Height * 0.5f, 1);
+}
 
 HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
 {
@@ -895,6 +912,7 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
     return 0;
   case CDX_DRAW_FILL_RECT:
   {
+    if (pickprim) return 0;
     auto vv = BeginVertices(4);
     vv[0].p.x = vv[2].p.x = ((float*)data)[0];
     vv[0].p.y = vv[1].p.y = ((float*)data)[1];
@@ -906,6 +924,7 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
   }
   case CDX_DRAW_FILL_ELLIPSE:
   {
+    if (pickprim) return 0;
     float dx = ((float*)data)[2] * 0.5f, dy = ((float*)data)[3] * 0.5f, x = dx + ((float*)data)[0], y = dy + ((float*)data)[1];
     auto se = (int)(max(abs(dx), abs(dy)) * 0.25f);
     se = max(8, min(100, se)) >> 1 << 1; //var tt = (int)((float)Math.Pow(Math.Max(Math.Abs(rx), Math.Abs(ry)), 0.95f) * dc.PixelScale);
@@ -925,10 +944,12 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
     *(XMFLOAT2*)data = d_font.p->getextent(*(LPCWSTR*)(data + 2), *(UINT*)((LPCWSTR*)(data + 2) + 1));
     return 0;
   case CDX_DRAW_DRAW_TEXT:
+    if (pickprim) return 0;
     d_font.p->draw(this, *(XMFLOAT2*)data, *(LPCWSTR*)(data + 2), *(UINT*)((LPCWSTR*)(data + 2) + 1));
     return 0;
   case CDX_DRAW_DRAW_RECT:
   {
+    if (pickprim) return 0;
     auto vv = BeginVertices(5);
     vv[0].p.x = vv[3].p.x = ((float*)data)[0];
     vv[0].p.y = vv[1].p.y = ((float*)data)[1];
@@ -947,57 +968,27 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
   //}
   case CDX_DRAW_DRAW_POINTS:
   {
+    //if (pickprim) return 0;
     auto radius = *(float*)&data[0]; auto np = data[1]; auto pp = *(const XMFLOAT3**)&data[2];
-
-    //auto vs = XMMatrixTranslation(1, -1, 0) * XMMatrixScaling(viewport.Width * 0.5f, viewport.Height * -0.5f, 1);
-    auto m1 = mm[MM_WORLD] * mm[MM_VIEWPROJ] * XMMatrixScaling(viewport.Width * 0.5f, viewport.Height * 0.5f, 1);
-    auto m2 = XMMatrixInverse(0, m1);
-
-    float t1[2]; t1[0] = -radius; t1[1] = +radius;
-
+    auto m1 = W2Screen(); auto m2 = XMMatrixInverse(0, m1);
     for (UINT i = 0; i < np; i++)
     {
-      auto mp = XMVector3TransformCoord(XMLoadFloat3(&pp[i]), m1);
       auto vv = BeginVertices(4);
-      vv[1].t.x = vv[3].t.x = 1;
-      vv[2].t.y = vv[3].t.y = 1;
-      for (UINT t = 0; t < 4; t++, vv++)
+      auto mp = XMVector3TransformCoord(XMLoadFloat3(&pp[i]), m1);
+      for (UINT t = 0; t < 4; t++)
       {
-        vv->p.x = mp.m128_f32[0] + t1[(t >> 1) & 1];
-        vv->p.y = mp.m128_f32[1] + t1[t & 1];
-        vv->p.z = mp.m128_f32[2];
-        XMStoreFloat3(&vv->p, XMVector3TransformCoord(XMLoadFloat3(&vv->p), m2));
+        auto ep = mp + XMVectorSet(t & 2 ? +radius : -radius, t & 1 ? +radius : -radius, 0, 0);
+        XMStoreFloat4A((XMFLOAT4A*)(vv + t), XMVector3TransformCoord(ep, m2));
       }
-      EndVertices(4, MO_TOPO_TRIANGLESTRIP | MO_BLENDSTATE_ALPHA | MO_PSSHADER_TEXTURE | MO_RASTERIZER_NOCULL);
+      vv[1].t.x = vv[3].t.x = vv[2].t.y = vv[3].t.y = 1;
+      EndVertices(4, i == 0 ? MO_TOPO_TRIANGLESTRIP | MO_BLENDSTATE_ALPHA | MO_PSSHADER_TEXTURE | MO_RASTERIZER_NOCULL : 0);
     }
     return 0;
   }
+  case CDX_DRAW_CATCH:
+    if (pickprim)
+      pickprim = data[0] ? data[0] : -1;
+    return 0;
   }
   return E_FAIL;
 }
-
-/*
-var t2 = dc.Texture; dc.Texture = texpt32 ? ? (texpt32 = gettex(0));
-var t0 = dc.State;
-dc.PixelShader = PixelShader.AlphaTexture;
-dc.BlendState = BlendState.Alpha;
-dc.Rasterizer = Rasterizer.CullNone;
-dc.DepthStencil = DepthStencil.ZWrite;
-float4x4 m1, m2; dc.Operator(0x75, &m1); m2 = !m1; //wm * vp * vm
-float2 t1; t1.x = -radius; t1.y = +radius;
-for (int i = 0; i < np; i++)
-{
-  float3 mp = pp[i] * m1;
-  var v = dc.BeginVertices(4);
-  v[0].t.x = v[2].t.x = 0; v[1].t.x = v[3].t.x = 1;
-  v[0].t.y = v[1].t.y = 0; v[2].t.y = v[3].t.y = 1;
-  for (int t = 0; t < 4; t++, v++)
-  {
-    v->p.x = mp.x + (&t1.x)[(t >> 1) & 1];
-    v->p.y = mp.y + (&t1.x)[t & 1];
-    v->p.z = mp.z; v->p = v->p * m2;
-  }
-  dc.EndVertices(4, i == 0 ? Topology.TriangleStrip : 0);
-}
-dc.State = t0; dc.Texture = t2;
-*/

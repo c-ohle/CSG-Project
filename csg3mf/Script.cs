@@ -1121,6 +1121,7 @@ namespace csg3mf
             if (state == 1 && sp > &i) return false; // + 1
             if (state == 3 && sp >= &i) return false;
           }
+          if (state == 7) return false; //paint
           return true;
         }
         ReadOnly = true; MainFrame.Inval(); if (!Focused) UIForm.ShowView(typeof(ScriptEditor), Parent.Tag, DockStyle.Left);

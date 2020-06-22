@@ -511,7 +511,7 @@ namespace csg3mf
     internal static XNode From(INode p) => p.Tag as XNode ?? new XNode(p);
     XNode(INode p) { p.Tag = this; Marshal.Release(unk = Marshal.GetIUnknownForObject(p)); }
     protected INode Node => (INode)Marshal.GetObjectForIUnknown(unk); IntPtr unk;
-    internal bool open;
+    internal bool treeopen;
     [Category("General")]
     public string Name { get => Node.Name; set => Node.Name = value; }
     [Category("General")]
@@ -730,7 +730,7 @@ namespace csg3mf
             var r = new Rectangle(xl - (dy >> 2), y + (dy >> 1) - (dy >> 2), dy >> 1, dy >> 1); y2 = r.Bottom;
             g.FillRectangle(Brushes.White, r); g.DrawRectangle(Pens.Gray, r);
             g.DrawLine(Pens.Black, r.X + 3, (r.Y + r.Bottom) >> 1, r.Right - 3, (r.Y + r.Bottom) >> 1);
-            if (!xnode.open) g.DrawLine(Pens.Black, (r.X + r.Right) >> 1, r.Y + 3, (r.X + r.Right) >> 1, r.Bottom - 3);
+            if (!xnode.treeopen) g.DrawLine(Pens.Black, (r.X + r.Right) >> 1, r.Y + 3, (r.X + r.Right) >> 1, r.Bottom - 3);
             //TextRenderer.DrawText(g, xnode.open ? "-" : "+", font, new System.Drawing.Point(x - dy, y), Color.Black);
           }
           if (node.IsSelect) { var dx = TextRenderer.MeasureText(s, font).Width; g.FillRectangle(Focused ? SystemBrushes.GradientInactiveCaption : SystemBrushes.ButtonFace, x, y - 1, dx, dy + 2); }
@@ -741,7 +741,7 @@ namespace csg3mf
           if (pt.Y < y) return;
           if (pt.Y < y + dy)
           {
-            if (cmd == 1) { if (pt.X >= x - 16 && pt.X <= x && c != -1) { xnode.open ^= true; Invalidate(); } }
+            if (cmd == 1) { if (pt.X >= x - 16 && pt.X <= x && c != -1) { xnode.treeopen ^= true; Invalidate(); } }
             if (cmd == 1)
             {
               if (pt.X >= x && pt.X <= x + TextRenderer.MeasureText(s, font).Width)
@@ -753,7 +753,7 @@ namespace csg3mf
             y = short.MaxValue; return;
           }
         }
-        y += dy; if (c != -1 && xnode.open) draw(g, a, c, x + dy, ref y);
+        y += dy; if (c != -1 && xnode.treeopen) draw(g, a, c, x + dy, ref y);
       }
       if (g != null) g.DrawLine(SystemPens.Window, xl, y2 + 1, xl, y2 + short.MaxValue);
     }
@@ -761,7 +761,7 @@ namespace csg3mf
     int nexsibling(int i)
     {
       var p = scene[i];
-      if (p.Tag is XNode x && x.open) { var k = scene.Select(-1, i << 8); if (k != -1) return k; }
+      if (p.Tag is XNode x && x.treeopen) { var k = scene.Select(-1, i << 8); if (k != -1) return k; }
       for (; ; )
       {
         var t = p.Parent != null ? p.Parent.Index : -1;
@@ -777,7 +777,7 @@ namespace csg3mf
         case Keys.Up:
           {
             var i = scene.Select(-1, 1); if (i == -1) { if (scene.Count != 0) select(0); break; }
-            if (e.KeyCode == Keys.Left) { var p = scene[i]; if (p.Tag is XNode xn && xn.open) { xn.open = false; Invalidate(); break; } }
+            if (e.KeyCode == Keys.Left) { var p = scene[i]; if (p.Tag is XNode xn && xn.treeopen) { xn.treeopen = false; Invalidate(); break; } }
             int a = scene.Select(-1, -1 << 8), b;
             for (; a != -1 && (b = nexsibling(a)) != i; a = b) ;
             if (a != -1) select(a);
@@ -788,7 +788,7 @@ namespace csg3mf
           {
             var i = scene.Select(-1, 1); if (i == -1) { if (scene.Count != 0) select(0); break; }
             for (int t; (t = scene.Select(i, 1)) != -1; i = t) ;
-            if (e.KeyCode == Keys.Right) { var p = scene[i]; if (p.Tag is XNode xn && !xn.open) { xn.open = true; Invalidate(); break; } }
+            if (e.KeyCode == Keys.Right) { var p = scene[i]; if (p.Tag is XNode xn && !xn.treeopen) { xn.treeopen = true; Invalidate(); break; } }
             var x = nexsibling(i); if (x != -1) select(x);
           }
           break;

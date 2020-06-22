@@ -185,7 +185,8 @@ enum CDX_DRAW
         CDX_DRAW_GET_TEXTEXTENT	= 13,
         CDX_DRAW_DRAW_TEXT	= 14,
         CDX_DRAW_DRAW_RECT	= 15,
-        CDX_DRAW_DRAW_POINTS	= 16
+        CDX_DRAW_DRAW_POINTS	= 16,
+        CDX_DRAW_CATCH	= 17
     } 	CDX_DRAW;
 
 
@@ -245,6 +246,9 @@ EXTERN_C const IID IID_ICDXView;
             /* [in] */ ICDXNode *p) = 0;
         
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_OverNode( 
+            /* [retval][out] */ UINT *p) = 0;
+        
+        virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_OverId( 
             /* [retval][out] */ UINT *p) = 0;
         
         virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_OverPoint( 
@@ -338,6 +342,10 @@ EXTERN_C const IID IID_ICDXView;
             ICDXView * This,
             /* [retval][out] */ UINT *p);
         
+        /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_OverId )( 
+            ICDXView * This,
+            /* [retval][out] */ UINT *p);
+        
         /* [propget] */ HRESULT ( STDMETHODCALLTYPE *get_OverPoint )( 
             ICDXView * This,
             /* [retval][out] */ XMFLOAT3 *p);
@@ -421,6 +429,9 @@ EXTERN_C const IID IID_ICDXView;
 
 #define ICDXView_get_OverNode(This,p)	\
     ( (This)->lpVtbl -> get_OverNode(This,p) ) 
+
+#define ICDXView_get_OverId(This,p)	\
+    ( (This)->lpVtbl -> get_OverId(This,p) ) 
 
 #define ICDXView_get_OverPoint(This,p)	\
     ( (This)->lpVtbl -> get_OverPoint(This,p) ) 

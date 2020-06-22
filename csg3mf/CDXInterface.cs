@@ -64,6 +64,7 @@ namespace csg3mf
       DrawText = 14,
       DrawRect = 15,
       DrawPoints = 16,
+      Catch = 17,
     }
 
     [ComImport, Guid("4C0EC273-CA2F-48F4-B871-E487E2774492"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
@@ -76,6 +77,7 @@ namespace csg3mf
       IScene Scene { get; set; }
       INode Camera { get; set; }
       int MouseOverNode { get; }
+      int MouseOverId { get; }
       float3 MouseOverPoint { get; }
       void Draw(Draw draw, void* data);
       void Command(Cmd cmd, void* data);
@@ -276,9 +278,9 @@ namespace csg3mf
         fixed (byte* p = s.GetBuffer()) return Factory.GetTexture(COM.SHCreateMemStream(p, (int)s.Length));
       }
     }
-    public struct DC
+    public readonly struct DC
     {
-      IView p;
+      readonly IView p;
       public DC(IView p) => this.p = p;
       public void SetOrtographic()
       {
@@ -359,6 +361,7 @@ namespace csg3mf
         });
       }
       static ITexture texpt;
+      //public void AddPoint(float x, float y, float z = 0) { }
       public void DrawPoints(params float3[] vv)
       {
         var t1 = Texture; Texture = texpt ?? (texpt = gettex());
@@ -366,6 +369,14 @@ namespace csg3mf
         fixed (float3* pv = vv) { *(float3**)&t.z = pv; p.Draw(Draw.DrawPoints, &t); }
         Texture = t1;
       }
+
+      internal static int icatch;
+      public void Catch(int id = 0)
+      {
+        if (id != 0) id |= icatch << 16; 
+        p.Draw(Draw.Catch, &id);
+      }
+      
     }
   }
 
@@ -630,7 +641,7 @@ namespace csg3mf
                a._21 != b._21 || a._22 != b._22 || a._23 != b._23 || //a._24 != b._24 || 
                a._31 != b._31 || a._32 != b._32 || a._33 != b._33 || //a._34 != b._34 ||  
                a._41 != b._41 || a._42 != b._42 || a._43 != b._43;//|| a._44 != b._44;
-        //for (int i = 0; i < 12; i++) if ((&a._11)[i] != (&b._11)[i]) return true; return false;
+                                                                  //for (int i = 0; i < 12; i++) if ((&a._11)[i] != (&b._11)[i]) return true; return false;
       }
       public static float4x3 Identity => 1;
       public static float4x3 LookAt(float3 eye, float3 pos, float3 up)

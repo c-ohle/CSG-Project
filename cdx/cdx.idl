@@ -56,7 +56,8 @@ typedef enum CDX_DRAW
   CDX_DRAW_GET_TEXTEXTENT = 13, //FLOAT x, FLOAT y, LPCWSTR s, UINT n  
   CDX_DRAW_DRAW_TEXT = 14, //FLOAT x, FLOAT y, LPCWSTR s, UINT n  
   CDX_DRAW_DRAW_RECT = 15, //FLOAT x, FLOAT y, FLOAT dx, FLOAT dy  
-  CDX_DRAW_DRAW_POINTS = 16,
+  CDX_DRAW_DRAW_POINTS = 16, //FLOAT ra, UINT np, XMFLOAT3* pp
+  CDX_DRAW_CATCH = 17, //UINT
 } CDX_DRAW;
 
 [object, uuid(4C0EC273-CA2F-48F4-B871-E487E2774492), pointer_default(unique)]
@@ -75,6 +76,7 @@ interface ICDXView : IUnknown
   [propget] HRESULT Camera([out, retval] ICDXNode** p);
   [propput] HRESULT Camera([in] ICDXNode* p);
   [propget] HRESULT OverNode([out, retval] UINT* p);
+  [propget] HRESULT OverId([out, retval] UINT* p);
   [propget] HRESULT OverPoint([out, retval] XMFLOAT3* p);
   HRESULT Draw([in] CDX_DRAW idc, [in] UINT* data);
   HRESULT Command([in] CDX_CMD cmd, [in] UINT* data);

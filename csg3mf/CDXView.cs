@@ -231,8 +231,7 @@ namespace csg3mf
     protected override void OnMouseMove(MouseEventArgs e)
     {
       if (tool != null) { tool(0); Invalidate(); return; }
-      //var i = view.MouseOverNode;
-      //FindForm().Text = i != -1 ? $"over: {i} {view.Scene[i].Name} {view.MouseOverPoint}" : "";
+      Cursor = (view.MouseOverId & 0x1000) != 0 ? Cursors.Cross : Cursors.Default;
     }
     protected override void OnMouseUp(MouseEventArgs e)
     {
@@ -606,7 +605,7 @@ namespace csg3mf
     IFont font = GetFont(SystemFonts.MenuFont);
     ITexture checkboard;
     //Stopwatch sw;
-
+    
     void ISink.Render()
     {
       tool?.Invoke(4);
@@ -617,9 +616,10 @@ namespace csg3mf
       {
         for (int a = -1, b; (b = scene.Select(a, 1)) != -1; a = b)
         {
-          var p = scene[b]; if (!(p.Tag is XNode node)) continue;
-          var draw = node.GetMethod<Action<DC>>(); if (draw == null) continue;
-          dc.Transform = p.GetTransform(null); try { draw(dc); } catch (Exception e) { Debug.WriteLine(e.Message); }
+          var p = scene[b]; if (!(p.Tag is XNode xp)) continue;
+          var draw = xp.GetMethod<Action<DC>>(); if (draw == null) continue;
+          dc.Transform = p.GetTransform(null);  
+          try { DC.icatch = b + 1; draw(dc); } catch (Exception e) { Debug.WriteLine(e.Message); }
         }
       }
 

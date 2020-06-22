@@ -16,7 +16,7 @@ struct CView : ICDXView
   CComPtr<ICDXSink>                 sink;
   CComPtr<CScene>                   scene;
   CComPtr<CNode>                    camera;
-  UINT                              iover = -1;
+  UINT                              iover = 0, pickprim = 0;
   CDX_RENDER                        flags = (CDX_RENDER)0;
   float                             vscale = 0.0002f, znear = 0.1f, zfar = 100, minwz = -1;
 
@@ -48,6 +48,7 @@ struct CView : ICDXView
   void XM_CALLCONV DrawLine(XMVECTOR a, XMVECTOR b);
   void XM_CALLCONV DrawBox(XMVECTOR a, XMVECTOR b);
   void XM_CALLCONV DrawArrow(XMVECTOR p, XMVECTOR v, float r, int s = 10);
+  XMMATRIX XM_CALLCONV W2Screen();
 #ifdef __WIN32
   void* operator new(size_t s) { return  _aligned_malloc(s, 16); }
   void operator delete(void* p) { _aligned_free(p); }
@@ -108,7 +109,11 @@ struct CView : ICDXView
   HRESULT __stdcall put_Camera(ICDXNode* p);
   HRESULT __stdcall get_OverNode(UINT* p)
   {
-    *p = iover; return 0;
+    *p = (iover >> 16) - 1; return 0;
+  }
+  HRESULT __stdcall get_OverId(UINT* p)
+  {
+    *p = iover & 0xffff; return 0;
   }
   HRESULT __stdcall get_OverPoint(XMFLOAT3* p)
   {
