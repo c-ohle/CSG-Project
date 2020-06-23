@@ -262,7 +262,11 @@ namespace csg3mf
     {
       float2 p; p.x = float.NaN; view.Command(Cmd.PickPlane, &p); return p;
     }
-    public static IFont GetFont(System.Drawing.Font p) => Factory.GetFont(p.FontFamily.Name, p.SizeInPoints, p.Style);
+    public static void AddUndo(this IView view, Action undo)
+    {
+      ((MainFrame)UIForm.MainFrame).view.AddUndo(undo);
+    }
+    public static IFont GetFont(Font p) => Factory.GetFont(p.FontFamily.Name, p.SizeInPoints, p.Style);
     public static ITexture GetTexture(int dx, int dy, int bp, Action<Graphics> draw)
     {
       using (var bmp = new Bitmap(dx, dy, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
@@ -361,11 +365,11 @@ namespace csg3mf
         });
       }
       static ITexture texpt;
-      //public void AddPoint(float x, float y, float z = 0) { }
+      
       public void DrawPoints(params float3[] vv)
       {
         var t1 = Texture; Texture = texpt ?? (texpt = gettex());
-        float4 t; t.x = 7f; *(int*)&t.y = vv.Length;
+        float4 t; t.x = 8f; *(int*)&t.y = vv.Length;
         fixed (float3* pv = vv) { *(float3**)&t.z = pv; p.Draw(Draw.DrawPoints, &t); }
         Texture = t1;
       }

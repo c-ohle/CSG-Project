@@ -146,7 +146,6 @@ namespace csg3mf
        });
       Controls.Add(MainMenuStrip);
       //Controls.Add(new StatusBar());// BackColor = Color.FromArgb(80, 85, 130) });
-      //Neuron.Debugger = (p, v) => ((ScriptView)ShowView(typeof(ScriptView), p, DockStyle.Fill)).edit.Show(v);
     }
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -672,9 +671,9 @@ namespace csg3mf
       var p = h.GetValue(g);
       var d = g.PropertyDescriptor;
       var f = d.GetType().GetField("descriptors", BindingFlags.Instance | BindingFlags.NonPublic);
-      if (f == null) { view.AddUndo(XNode.undo(d, p, e.OldValue)); return; }
+      if (f == null) { view.AddUndo(XObject.undo(d, p, e.OldValue)); return; }
       var pp = (object[])p; var dd = (PropertyDescriptor[])f.GetValue(d);
-      view.AddUndo(CDXView.undo(pp.Select((a, i) => XNode.undo(dd[i], a, e.OldValue ?? oldvals[i]))));
+      view.AddUndo(CDXView.undo(pp.Select((a, i) => XObject.undo(dd[i], a, e.OldValue ?? oldvals[i]))));
     }
   }
 

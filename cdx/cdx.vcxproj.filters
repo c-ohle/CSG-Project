@@ -134,5 +134,8 @@
     <FxCompile Include="VSWorld.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="PSTextureMask.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

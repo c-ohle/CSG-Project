@@ -215,28 +215,38 @@ namespace csg3mf
       var main = mainover();
       if (main == null) tool = camera_free();
       else
-        switch (keys)
+      {
+        if (main.Tag is XNode xn)
         {
-          case Keys.None: tool = main.IsStatic ? tool_select() : obj_movxy(main); break;
-          case Keys.Control: tool = main.IsStatic ? camera_movxy() : obj_drag(main); break;
-          case Keys.Shift: tool = main.IsStatic ? camera_movz() : obj_movz(main); break;
-          case Keys.Alt: tool = main.IsStatic ? camera_rotz(0) : obj_rotz(main); break;
-          case Keys.Control | Keys.Shift: tool = main.IsStatic ? camera_rotx() : obj_rot(main, 0); break;
-          case Keys.Control | Keys.Alt: tool = main.IsStatic ? camera_rotz(1) : obj_rot(main, 1); break;
-          case Keys.Control | Keys.Alt | Keys.Shift: if (main.IsStatic) main.Select(); else tool = obj_rot(main, 2); break;
-          default: tool = tool_select(); break;
+          var func = xn.GetMethod<Func<IView, Action<int>>>();
+          if (func != null) try { tool = func(view); } catch { }
         }
-      if (tool != null) Capture = true; Invalidate();
+        if (tool == null)
+          switch (keys)
+          {
+            case Keys.None: tool = main.IsStatic ? tool_select() : obj_movxy(main); break;
+            case Keys.Control: tool = main.IsStatic ? camera_movxy() : obj_drag(main); break;
+            case Keys.Shift: tool = main.IsStatic ? camera_movz() : obj_movz(main); break;
+            case Keys.Alt: tool = main.IsStatic ? camera_rotz(0) : obj_rotz(main); break;
+            case Keys.Control | Keys.Shift: tool = main.IsStatic ? camera_rotx() : obj_rot(main, 0); break;
+            case Keys.Control | Keys.Alt: tool = main.IsStatic ? camera_rotz(1) : obj_rot(main, 1); break;
+            case Keys.Control | Keys.Alt | Keys.Shift: if (main.IsStatic) main.Select(); else tool = obj_rot(main, 2); break;
+            default: tool = tool_select(); break;
+          }
+      }
+      if (tool == null) return; Capture = true; Invalidate();
     }
     protected override void OnMouseMove(MouseEventArgs e)
     {
       if (tool != null) { tool(0); Invalidate(); return; }
       Cursor = (view.MouseOverId & 0x1000) != 0 ? Cursors.Cross : Cursors.Default;
+
+      Debug.WriteLine(view.MouseOverNode + " " + view.MouseOverPoint);
     }
     protected override void OnMouseUp(MouseEventArgs e)
     {
       if (tool == null) return;
-      tool(1); tool = null; Capture = true; Invalidate();
+      var t = tool;  tool = null; Capture = false; t(1); Invalidate();
     }
     protected override void OnLostFocus(EventArgs e)
     {
@@ -605,7 +615,7 @@ namespace csg3mf
     IFont font = GetFont(SystemFonts.MenuFont);
     ITexture checkboard;
     //Stopwatch sw;
-    
+
     void ISink.Render()
     {
       tool?.Invoke(4);
@@ -618,7 +628,7 @@ namespace csg3mf
         {
           var p = scene[b]; if (!(p.Tag is XNode xp)) continue;
           var draw = xp.GetMethod<Action<DC>>(); if (draw == null) continue;
-          dc.Transform = p.GetTransform(null);  
+          dc.Transform = p.GetTransform(null);
           try { DC.icatch = b + 1; draw(dc); } catch (Exception e) { Debug.WriteLine(e.Message); }
         }
       }

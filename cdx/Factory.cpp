@@ -10,6 +10,7 @@
 #include "ShaderInc\PSFont.h"
 #include "ShaderInc\PSMain3D.h"
 #include "ShaderInc\PSTexture3D.h"
+#include "ShaderInc\PSTextureMask.h"
 #include "ShaderInc\PSSpec3D.h"
 #include "ShaderInc\GSShadows.h"
 #include "ShaderInc\GSOutline3D.h"
@@ -42,12 +43,12 @@ static shaders _vsshaders[MO_VSSHADER_COUNT] =
 };
 static shaders _psshaders[MO_PSSHADER_COUNT] =
 {
-  { _PSMain,			sizeof(_PSMain)				}, //INV_VV_DIFFUSE
-  { _PSTexture,		sizeof(_PSTexture)		}, //INV_VV_DIFFUSE | INV_TT_DIFFUSE
-  { _PSFont,			sizeof(_PSFont)				}, //INV_VV_DIFFUSE | INV_TT_DIFFUSE
-  { _PSMain3D,		sizeof(_PSMain3D)			},
-  { _PSTexture3D,	sizeof(_PSTexture3D)	},
-  //{ _PSSpec3D,	  sizeof(_PSSpec3D)	    },
+  { _PSMain,			  sizeof(_PSMain)				  }, //INV_VV_DIFFUSE
+  { _PSTexture,		  sizeof(_PSTexture)		  }, //INV_VV_DIFFUSE | INV_TT_DIFFUSE
+  { _PSFont,			  sizeof(_PSFont)				  }, //INV_VV_DIFFUSE | INV_TT_DIFFUSE
+  { _PSMain3D,		  sizeof(_PSMain3D)			  },
+  { _PSTexture3D,	  sizeof(_PSTexture3D)	  },
+  { _PSTextureMask,	sizeof(_PSTextureMask)	},
 };
 static shaders _gsshaders[MO_GSSHADER_COUNT] =
 {
@@ -397,7 +398,7 @@ void CView::EndVertices(UINT nv, UINT mode)
     if (mode)
     {
       if ((mode & (MO_BLENDSTATE_MASK | MO_PSSHADER_MASK)) == (MO_PSSHADER_TEXTURE | MO_BLENDSTATE_ALPHA))
-        mode = (mode & ~(MO_BLENDSTATE_MASK | MO_PSSHADER_MASK)) | (MO_PSSHADER_COLOR | MO_BLENDSTATE_SOLID);
+        mode = (mode & ~(MO_BLENDSTATE_MASK | MO_PSSHADER_MASK)) | (MO_PSSHADER_TEXMASK | MO_BLENDSTATE_SOLID);
     }
     else SetBuffers();
     EndVertices(nv, mode);
@@ -456,7 +457,7 @@ void CView::Pick(const short* pt)
 
   if (!iover) return;
   auto& nodes = scene.p->nodes;
-  UINT i = (iover >> 16) - 1; if (i >= nodes.n) { iover = 0; return; }
+  UINT i = (iover >> 16) - 1; if (i >= scene.p->count) { iover = 0; return; }
   setproject();
   auto m = XMMatrixInverse(0, nodes[i]->gettrans(scene.p) * mm[MM_VIEWPROJ]);
   vv[VV_OVERPOS] = XMVector3TransformCoord(pickp, m);
@@ -968,7 +969,6 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
   //}
   case CDX_DRAW_DRAW_POINTS:
   {
-    //if (pickprim) return 0;
     auto radius = *(float*)&data[0]; auto np = data[1]; auto pp = *(const XMFLOAT3**)&data[2];
     auto m1 = W2Screen(); auto m2 = XMMatrixInverse(0, m1);
     for (UINT i = 0; i < np; i++)
@@ -981,13 +981,12 @@ HRESULT __stdcall CView::Draw(CDX_DRAW id, UINT* data)
         XMStoreFloat4A((XMFLOAT4A*)(vv + t), XMVector3TransformCoord(ep, m2));
       }
       vv[1].t.x = vv[3].t.x = vv[2].t.y = vv[3].t.y = 1;
-      EndVertices(4, i == 0 ? MO_TOPO_TRIANGLESTRIP | MO_BLENDSTATE_ALPHA | MO_PSSHADER_TEXTURE | MO_RASTERIZER_NOCULL : 0);
+      EndVertices(4, i == 0 ? MO_TOPO_TRIANGLESTRIP | MO_BLENDSTATE_ALPHA | MO_PSSHADER_TEXTURE | MO_RASTERIZER_NOCULL | MO_DEPTHSTENCIL_ZWRITE : 0);
     }
     return 0;
   }
   case CDX_DRAW_CATCH:
-    if (pickprim)
-      pickprim = data[0] ? data[0] : -1;
+    if (pickprim) pickprim = data[0] ? data[0] : -1;
     return 0;
   }
   return E_FAIL;
