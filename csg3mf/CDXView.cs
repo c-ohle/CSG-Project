@@ -240,8 +240,7 @@ namespace csg3mf
     {
       if (tool != null) { tool(0); Invalidate(); return; }
       Cursor = (view.MouseOverId & 0x1000) != 0 ? Cursors.Cross : Cursors.Default;
-
-      Debug.WriteLine(view.MouseOverNode + " " + view.MouseOverPoint);
+      //Debug.WriteLine(view.MouseOverNode + " " + view.MouseOverPoint);
     }
     protected override void OnMouseUp(MouseEventArgs e)
     {

@@ -47,7 +47,7 @@ namespace csg3mf
     class Stack : List<ParameterExpression> { internal ParameterExpression @this; internal List<object> usings = new List<object>(); internal int nstats, nusings, npub, xpos; internal List<Expression> list = new List<Expression>(); internal Dictionary<ParameterExpression, int> dict; }
     Expression Parse(LabelTarget @return, LabelTarget @break, LabelTarget @continue, int flags)
     {
-      var list = stack.list; int stackab = (flags & 1) != 0 ? 1 : stack.Count, listab = list.Count; var ep = *(Script*)ptr;
+      var list = stack.list; int stackab = (flags & 1) != 0 ? 1 : stack.Count, listab = list.Count, ifunc = 0; var ep = *(Script*)ptr;
       if ((flags & 0x01) != 0)
       {
         stack.Add(stack.@this); list.Add(Expression.Assign(stack.@this, Expression.Convert(stack[0], stack.@this.Type)));
@@ -141,7 +141,7 @@ namespace csg3mf
           var t1 = i != 0 ? stack[istack] : Expression.Variable(t0, s); stack[istack] = t1;
           if ((flags & 0x08) != 0) { stack.RemoveRange(ab, stack.Count - ab); continue; }
           var t2 = Expression.Lambda(t0, a.Parse(Expression.Label(type, "return"), null, null, 0x02), s, stack.Skip(ab));
-          stack.RemoveRange(ab, stack.Count - ab); list.Insert(0, Expression.Assign(t1, t2)); continue;
+          stack.RemoveRange(ab, stack.Count - ab); list.Insert(++ifunc, Expression.Assign(t1, t2)); continue;
         }
         for (; n.n != 0; n = a.next())
         {
@@ -232,11 +232,13 @@ namespace csg3mf
         }
         if (mo != null)
         {
-          var pp = mo.GetParameters(); 
+          var pp = mo.GetParameters();
           //if (pp[1].ParameterType.IsByRef && eb is MemberExpression me && me.Member.DeclaringType.IsValueType) 
           //{
           //  var t = Expression.Variable(eb.Type, string.Empty); stack.Add(t); eb = Expression.Assign(t, eb);
           //}
+          if ((pp[1].Attributes & ParameterAttributes.In) != 0) { }
+
           ea = Convert(ea, pp[0].ParameterType);
           eb = Convert(eb, pp[1].ParameterType);
         }
@@ -681,11 +683,11 @@ namespace csg3mf
       if (t.IsByRef)
       {
         t = t.GetElementType();
-        if (a.Type == t && a is MemberExpression ex && ex.Member.DeclaringType.IsValueType) //bypass Expressions bug, ref access to struct member  
-        {
-          var v = Expression.Variable(t, string.Empty); stack.Add(v); 
-          return Expression.Assign(v, a);
-        }
+        //if (a.Type == t && a is MemberExpression ex && ex.Member.DeclaringType.IsValueType) //bypass Expressions bug, ref access to struct member  
+        //{
+        //  var v = Expression.Variable(t, string.Empty); stack.Add(v);
+        //  return Expression.Assign(v, a);
+        //}
         return Convert(a, t);
       }
       if (a is ConstantExpression c)
@@ -911,7 +913,7 @@ namespace csg3mf
             for (; x <= i; x++) charcolor[x] = 2; continue;
           }
           var l = i; for (; l < n && IsLetter(text[l]); l++) ;
-          var r = l - i; if (r == 0) { if (charcolor[i] != 6) charcolor[i] = 0; continue; }
+          var r = l - i; if (r == 0) { if (error == null || charcolor[i] != 6) charcolor[i] = 0; continue; }
           byte color = 0;
           if (r > 1 && !(l < text.Length && char.IsDigit(text[l])))
             for (int t = 0; t < Script.keywords.Length; t++)
@@ -920,7 +922,7 @@ namespace csg3mf
               if (kw.Length == r && kw[0] == text[i] && string.Compare(text, i, kw, 0, kw.Length, true) == 0) { color = 3; break; }
             }
 
-          for (; i < l; i++) if (charcolor[i] != 6) charcolor[i] = color; i--;
+          for (; i < l; i++) if (error == null || charcolor[i] != 6) charcolor[i] = color; i--;
         }
         for (int i = 0; i < map.Count; i++) { var m = map[i]; if (m.v == 0 && m.p is Type && charcolor[m.i] != 3) color(m.i, m.n, 6); }
         for (int i = 0; i < map.Count; i++) { var m = map[i]; if ((m.v & 0xf) == 0x0A && (m.v & 0x30) != 0) color(m.i, m.n, (byte)((m.v & 0x20) != 0 ? 5 : 4)); }
@@ -1070,6 +1072,7 @@ namespace csg3mf
       }
       int breakpoint(object test)
       {
+        if (error != null) return 0;
         int x = SelectionStart, l = LineFromPos(x), a = GetLineStart(l);
         var spots = map.Where(p => (p.v & 0x0f) == 0x0A);
         var sp = spots.Where(p => p.i <= x && p.i + p.n >= x && (p.v & 0x10) != 0).OrderBy(p => p.n).LastOrDefault();
@@ -1077,6 +1080,7 @@ namespace csg3mf
         if (sp.n == 0) sp = spots.Where(p => LineFromPos(p.i) == l && (p.v & 0x10) != 0).OrderBy(p => p.i).FirstOrDefault();
         if (sp.n == 0) sp = spots.Where(p => LineFromPos(p.i) == l).OrderBy(p => p.i).FirstOrDefault();
         if (sp.n == 0) return 0; if (test != null) return 1;
+        if (state == 0) { }
         var i = map.IndexOf(sp); sp.v ^= 0x10; map[i] = sp; UpdateSyntaxColors(); Invalidate();
         return 1;
       }
@@ -1227,7 +1231,7 @@ namespace csg3mf
           {
             var type = tp.p as Type ?? (tp.p is PropertyInfo pi ? pi.PropertyType : tp.p is FieldInfo fi ? fi.FieldType : null); if (type == null) return;
             var items = type.GetMembers((tp.v != 0 ? BindingFlags.Instance : BindingFlags.Static | BindingFlags.FlattenHierarchy) |
-              (/*type==typeof(XNode) ? BindingFlags.Public | BindingFlags.NonPublic :*/ BindingFlags.Public)).
+              (type == xobject.GetType() ? BindingFlags.Public | BindingFlags.NonPublic : BindingFlags.Public)).
               Where(p => TypeHelper.__filter(p, cv == '#')).GroupBy(p => p.Name).Select(p => p.ToArray()).
               Select(p => new TypeExplorer.Item { icon = TypeHelper.image(p[0]), text = p[0].Name, info = p });
             if (tp.v != 0) items = items.Concat(Extensions(type).GroupBy(p => p.Name).Select(p => p.ToArray()).
