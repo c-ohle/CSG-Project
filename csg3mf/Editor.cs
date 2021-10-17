@@ -1411,7 +1411,7 @@ namespace csg3mf
     {
       try
       {
-        Control.CheckForIllegalCrossThreadCalls = false;
+        CheckForIllegalCrossThreadCalls = false;
         var pi = info as PropertyInfo;
         if (pi != null) return pi.GetValue(p, null);
         var fi = info as FieldInfo; if (fi != null) return fi.GetValue(p);
@@ -1420,7 +1420,7 @@ namespace csg3mf
         return p;
       }
       catch (Exception e) { return e; }
-      finally { Control.CheckForIllegalCrossThreadCalls = true; }
+      finally { CheckForIllegalCrossThreadCalls = true; }
     }
     static string unescape(string s)
     {

@@ -48,7 +48,7 @@ namespace csg3mf
           new ToolStripSeparator(),
           new UIForm.MenuItem(2100, "Properties...", Keys.Alt | Keys.Enter)});
     }
-    public new void Invalidate() { MainFrame.inval = 3; base.Invalidate(); }
+    public new void Invalidate() { MainFrame.inval = 1|2|4; base.Invalidate(); }
     public int OnCommand(int id, object test)
     {
       switch (id)

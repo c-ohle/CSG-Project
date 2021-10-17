@@ -1084,7 +1084,6 @@ namespace csg3mf
         var i = map.IndexOf(sp); sp.v ^= 0x10; map[i] = sp; UpdateSyntaxColors(); Invalidate();
         return 1;
       }
-
       void build()
       {
         Script.bps = map.Where(p => p.v == 0x1A).Select(p => p.i).ToArray();

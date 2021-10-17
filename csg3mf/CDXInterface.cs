@@ -1,11 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
+using System.Drawing.Design;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Security;
 using System.Windows.Forms;
+using System.Windows.Forms.Design;
 using System.Xml;
 
 namespace csg3mf
@@ -142,13 +146,35 @@ namespace csg3mf
       float Height { get; }
     }
 
+    [Editor(typeof(TextureEdit), typeof(UITypeEditor))]
     [ComImport, Guid("37E366F0-098E-45FB-9152-54CD33D05B21"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown), SuppressUnmanagedCodeSecurity]
     public interface ITexture
     {
       COM.IStream GetStream();
     }
 
-#if(false)
+    class TextureEdit : UITypeEditor
+    {
+      public override UITypeEditorEditStyle GetEditStyle(ITypeDescriptorContext context) => UITypeEditorEditStyle.DropDown;
+      public override object EditValue(ITypeDescriptorContext context, IServiceProvider provider, object value)
+      {
+        var lb = new ListBox() { IntegralHeight = true, BorderStyle = BorderStyle.None };
+        lb.Items.Add("Import...");
+        lb.Items.Add("(none)");
+        var editorService = (IWindowsFormsEditorService)provider.GetService(typeof(IWindowsFormsEditorService));
+        lb.SelectionMode = SelectionMode.One;
+        lb.SelectedValueChanged += (p, e) => editorService.CloseDropDown();
+        //lb.HandleCreated += (p, e) => { lb.Height = lb.ItemHeight * lb.Items.Count; lb.Parent.PerformLayout(); };
+        editorService.DropDownControl(lb);
+        if (lb.SelectedIndex == -1) return value;
+        if (lb.SelectedIndex == 1) return null;
+        var dlg = new OpenFileDialog() { Filter = "Image files|*.png;*.jpg;*.gif|All files|*.*" };
+        if (dlg.ShowDialog(context as Control) != DialogResult.OK) return value;
+        return Factory.GetTexture(COM.Stream(File.ReadAllBytes(dlg.FileName)));
+      }
+    }
+
+#if (false)
     public static void AddAnnotation(this INode p, object v)
     {
       var e = p.Tag; if (e == null) { p.Tag = v; return; }
@@ -188,6 +214,12 @@ namespace csg3mf
       var t = (CSG.Rational)0; var v = (CSG.Variant)t; (&v.vt)[1] = i;
       p.GetTransform(v); return t;
     }
+    public static CSG.Rational.Matrix GetTrans(this INode a, INode root = null)
+    {
+      var m = a.Transform;
+      for(; ; ) { var b = a.Parent; if (b == null || b == root) break; m *= b.Transform; a = b; }
+      return m;
+    }
     public static IEnumerable<INode> Descendants(this IScene p)
     {
       for (int i = 0; i < p.Count; i++) yield return p[i];
@@ -223,7 +255,7 @@ namespace csg3mf
     public static void Join(this INode a, INode b, CSG.JoinOp op)
     {
       if (a.Mesh == null || b.Mesh == null) return;
-      var m = b.Mesh.Clone(); m.Transform(b.Transform * !a.Transform);
+      var m = b.Mesh.Clone(); m.Transform(b.GetTrans() * !a.GetTrans());
       CSG.Tesselator.Join(a.Mesh, m, op); Marshal.ReleaseComObject(m);
     }
     public static void Union(this INode a, INode b) => Join(a, b, CSG.JoinOp.Union);
@@ -233,7 +265,7 @@ namespace csg3mf
     public static void Cut(this INode a, INode b)
     {
       if (a.Mesh == null) return;
-      var t = b.Transform * !a.Transform;
+      var t = b.GetTrans() * !a.GetTrans();
       CSG.Tesselator.Cut(a.Mesh, CSG.Rational.Plane.FromPointNormal(t.mp, t.mz));
     }
     public static INode AddNode(this IScene a, string name, uint color)
@@ -365,7 +397,7 @@ namespace csg3mf
         });
       }
       static ITexture texpt;
-      
+
       public void DrawPoints(params float3[] vv)
       {
         var t1 = Texture; Texture = texpt ?? (texpt = gettex());
@@ -377,10 +409,10 @@ namespace csg3mf
       internal static int icatch;
       public void Catch(int id = 0)
       {
-        if (id != 0) id |= icatch << 16; 
+        if (id != 0) id |= icatch << 16;
         p.Draw(Draw.Catch, &id);
       }
-      
+
     }
   }
 

@@ -69,7 +69,8 @@ HRESULT CNode::put_IsSelect(BOOL p)
 HRESULT CNode::AddNode(BSTR name, ICDXNode** p)
 {
   CHR(getscene()->AddNode(name, p));
-  static_cast<CNode*>(*p)->parent = this; return 0;
+  auto c = static_cast<CNode*>(*p); c->parent = this;
+  if (flags & (NODE_FL_SELECT| NODE_FL_INSEL)) c->flags |= NODE_FL_INSEL; return 0;
 }
 
 bool equals(ID3D11Buffer* buffer, const void* p, UINT n)

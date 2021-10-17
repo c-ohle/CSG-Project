@@ -1,9 +1,11 @@
 ﻿using csg3mf.Properties;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.Diagnostics;
+using System.Diagnostics.Tracing;
 using System.Drawing;
 using System.Drawing.Design;
 using System.Globalization;
@@ -14,6 +16,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Forms.Design;
 using System.Xml;
 using System.Xml.Linq;
 using static csg3mf.CDX;
@@ -105,6 +108,7 @@ namespace csg3mf
         ),
         new MenuItem("&Extra",
           new MenuItem(1121, "Project Explorer..."),
+          new MenuItem(1122, "Propview..."),
           new MenuItem(1120, "3MF Content..."),
           new MenuItem(5025 ,"Expressions..."),
           new ToolStripSeparator(),
@@ -194,6 +198,7 @@ namespace csg3mf
         case 1100: if (test == null) Close(); return 1;
         case 2100: if (test == null) ShowView(typeof(PropertyView), view, DockStyle.Left); return 1;
         case 1121: if (test == null) ShowView(typeof(ProjectView), view, DockStyle.Left); return 1;
+        case 1122: if (test == null) ShowView(typeof(PropView), view, DockStyle.Left); return 1;
         //case 2100: if (test == null) { var p = (PropertyGrid)ShowView(typeof(PropertyGrid)); p.SelectedObject = p; } return 1;
         case 1120: return OnShow3MF(test);
         case 5070: if (test == null) OnAbout(); return 1;
@@ -340,6 +345,7 @@ namespace csg3mf
   {
     bool Group(string name);
     bool Exchange<T>(string name, ref T value, string fmt = null);
+    //bool Edit(object p = null);
   }
 
   abstract class XObject : IExchange, ICustomTypeDescriptor
@@ -389,14 +395,20 @@ namespace csg3mf
     }
     internal object getprop(int id)
     {
-      var m = GetMethod<Action<IExchange>>();
-      todo = 1; exid = 0; setid = id; param = null; m(this);
+      todo = 1; exid = 0; setid = id; param = null; Exchange(this);
       return param;
     }
     internal void setprop(int id, object value)
     {
-      var m = GetMethod<Action<IExchange>>();
-      todo = 2; exid = 0; setid = id; param = value; m(this);
+      todo = 2; exid = 0; setid = id; param = value; Exchange(this); pdc = null;
+    }
+    //internal object editprop(int id, object value)
+    //{
+    //  todo = 5; exid = 0; setid = id; param = value; Exchange(this); return param;
+    //}
+    internal virtual void Exchange(IExchange ex)
+    {
+      GetMethod<Action<IExchange>>()?.Invoke(ex);
     }
 
     static int todo, exid, setid; static string group; static object param;
@@ -426,6 +438,13 @@ namespace csg3mf
       }
       return false;
     }
+    //bool IExchange.Edit(object p)
+    //{
+    //  if (todo == 0) ((List<PD>)param).Last().Add(new EditorAttribute(typeof(PD.edit), typeof(UITypeEditor)));
+    //  if (todo == 5 && setid == exid) return true;
+    //  if (p != null) param = p; return false;
+    //}
+
     static string getval(XElement e, string name)
     {
       var c = e.Elements().FirstOrDefault(p => (string)p.Attribute("name") == name);
@@ -439,7 +458,7 @@ namespace csg3mf
     EventDescriptor ICustomTypeDescriptor.GetDefaultEvent() => TypeDescriptor.GetDefaultEvent(this, true);
     PropertyDescriptor ICustomTypeDescriptor.GetDefaultProperty() => TypeDescriptor.GetDefaultProperty(this, true);
     object ICustomTypeDescriptor.GetEditor(Type editorBaseType) => editorBaseType == typeof(ComponentEditor) ? new edit() : TypeDescriptor.GetEditor(this, editorBaseType, true);
-    public class edit : ComponentEditor
+    class edit : ComponentEditor
     {
       public override bool EditComponent(ITypeDescriptorContext context, object component)
       {
@@ -453,16 +472,29 @@ namespace csg3mf
     PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties(Attribute[] attributes)
     {
       if (pdc != null) return pdc;
-      pdc = TypeDescriptor.GetProperties(this, attributes, true);
-      var m = GetMethod<Action<IExchange>>(); if (m == null) return pdc;
-      var pds = new List<PD>(); todo = exid = setid = 0; param = pds; m(this);
-      if (pds.Count != 0) pdc = new PropertyDescriptorCollection(pdc.Cast<PropertyDescriptor>().Concat(pds).ToArray());
-      return pdc;
+      if (this is XNode xn)
+      {
+        var pds = new List<PD>(); todo = exid = setid = 0; param = pds; Exchange(this);
+        return pdc = new PropertyDescriptorCollection(pds.ToArray());
+      }
+      else
+      {
+        pdc = TypeDescriptor.GetProperties(this, attributes, true);
+        var m = GetMethod<Action<IExchange>>(); if (m == null) return pdc;
+        var pds = new List<PD>(); todo = exid = setid = 0; param = pds; m(this);
+        if (pds.Count != 0) pdc = new PropertyDescriptorCollection(pdc.Cast<PropertyDescriptor>().Concat(pds).ToArray());
+        return pdc;
+      }
     }
     PropertyDescriptorCollection pdc;
     class PD : PropertyDescriptor
     {
-      public PD(int id, string name, Type t, string c, string fmt) : base(name, null) { this.id = id; type = t; category = c; this.fmt = fmt; }
+      internal PD(int id, string name, Type t, string c, string fmt) : base(name, null)
+      {
+        this.id = id; type = t; category = c; this.fmt = fmt;
+        //if (fmt != null && fmt.Contains("c;")) base.AttributeArray = new Attribute[] { new EditorAttribute(typeof(edit), typeof(UITypeEditor)) };
+      }
+      //internal void Add(Attribute p) { var a = AttributeArray; Array.Resize(ref a, a.Length + 1); a[a.Length - 1] = p; AttributeArray = a; }
       internal int id; Type type; string category, fmt;
       public override string Category => category ?? base.Category;
       public override string Description => fmt != null ? fmt.Substring(fmt.LastIndexOf(';') + 1) : base.Description;
@@ -474,6 +506,25 @@ namespace csg3mf
       public override bool ShouldSerializeValue(object component) => fmt != null && fmt.Contains("b;");
       public override object GetValue(object component) => ((XNode)component).getprop(id);
       public override void SetValue(object component, object value) => ((XNode)component).setprop(id, value);
+      //public override object GetEditor(Type editorBaseType) { var t = base.GetEditor(editorBaseType); return t; }
+      public override TypeConverter Converter
+      {
+        get { var t = base.Converter; if (t.GetType() == typeof(ReferenceConverter)) return new TypeConverter(); return t; }
+      }
+      //internal class edit : UITypeEditor
+      //{
+      //  public override UITypeEditorEditStyle GetEditStyle(ITypeDescriptorContext context)
+      //  {
+      //    return UITypeEditorEditStyle.Modal;
+      //  }
+      //  public override object EditValue(ITypeDescriptorContext context, IServiceProvider provider, object value)
+      //  {
+      //    var pd = context.PropertyDescriptor; var f = pd.GetType().GetField("descriptors", BindingFlags.Instance | BindingFlags.NonPublic);
+      //    if (f == null) return ((XNode)context.Instance).editprop(((PD)pd).id, value);
+      //    var dd = (PropertyDescriptor[])f.GetValue(pd);
+      //    return ((XNode)((object[])context.Instance)[0]).editprop(((PD)dd[0]).id, value);
+      //  }
+      //}
     }
     internal static Action undo(PropertyDescriptor pd, object p, object v)
     {
@@ -506,40 +557,108 @@ namespace csg3mf
 
   class XNode : XObject
   {
-    internal override string Title => Name;
+    internal override void Exchange(IExchange ex)
+    {
+      if (ex.Group("General"))
+      {
+        { var v = Node.Name; if (ex.Exchange("Name", ref v)) Node.Name = v; }
+        { var v = Node.IsStatic; if (ex.Exchange("Static", ref v)) Node.IsStatic = v; }
+      }
+      if (ex.Group("Material"))
+      {
+        { var v = Color.FromArgb(unchecked((int)Node.Color)); if (ex.Exchange("Color", ref v)) Node.Color = (uint)v.ToArgb(); }
+        { var v = Node.MaterialCount; ex.Exchange("MaterialCount", ref v, "r;"); }
+        {
+          var v = Texture;
+          if (ex.Exchange("Texture", ref v/*, "c;"*/)) { Texture = v; }
+          //if (ex.Edit())
+          //{
+          //  var dlg = new OpenFileDialog() { Filter = "Image files|*.png;*.jpg;*.gif|All files|*.*" };
+          //  if (dlg.ShowDialog() != DialogResult.OK) return;
+          //  v = Factory.GetTexture(COM.Stream(File.ReadAllBytes(dlg.FileName))); ex.Edit(v);
+          //}
+        }
+      }
+      if (ex.Group("Transform"))
+      {
+        { var v = Node.GetTransval(09); if (ex.Exchange("LocationX", ref v)) { var t = Node.Transform; t[09] = v; Node.Transform = t; } }
+        { var v = Node.GetTransval(10); if (ex.Exchange("LocationY", ref v)) { var t = Node.Transform; t[10] = v; Node.Transform = t; } }
+        { var v = Node.GetTransval(11); if (ex.Exchange("LocationZ", ref v)) { var t = Node.Transform; t[11] = v; Node.Transform = t; } }
+        { var v = geteuler().x * (float)(180 / Math.PI); if (ex.Exchange("RotationX", ref v)) { var e = geteuler(); e.x = v * (float)(Math.PI / 180); seteuler(e); } }
+        { var v = geteuler().y * (float)(180 / Math.PI); if (ex.Exchange("RotationY", ref v)) { var e = geteuler(); e.y = v * (float)(Math.PI / 180); seteuler(e); } }
+        { var v = geteuler().z * (float)(180 / Math.PI); if (ex.Exchange("RotationZ", ref v)) { var e = geteuler(); e.z = v * (float)(Math.PI / 180); seteuler(e); } }
+      }
+      base.Exchange(ex);
+    }
+
+    internal override string Title => Node.Name;
     internal static XNode From(INode p) => p.Tag as XNode ?? new XNode(p);
     XNode(INode p) { p.Tag = this; Marshal.Release(unk = Marshal.GetIUnknownForObject(p)); }
     protected INode Node => (INode)Marshal.GetObjectForIUnknown(unk); IntPtr unk;
     internal bool treeopen;
-    [Category("General")]
-    public string Name { get => Node.Name; set => Node.Name = value; }
-    [Category("General")]
-    public bool Static { get => Node.IsStatic; set => Node.IsStatic = value; }
-    [Category("Material")]
-    public Color Color { get => Color.FromArgb(unchecked((int)Node.Color)); set => Node.Color = (uint)value.ToArgb(); }
-    [Category("Material")]
-    public int MaterialCount { get => Node.MaterialCount; }
-    [Category("Transform")] public CSG.Rational LocationX { get => Node.GetTransval(09); set { var t = Node.Transform; t[09] = value; Node.Transform = t; } }
-    [Category("Transform")] public CSG.Rational LocationY { get => Node.GetTransval(10); set { var t = Node.Transform; t[10] = value; Node.Transform = t; } }
-    [Category("Transform")] public CSG.Rational LocationZ { get => Node.GetTransval(11); set { var t = Node.Transform; t[11] = value; Node.Transform = t; } }
-    [Category("Transform")]
-    public float RotationX
+    //[Category("General")]
+    //public string Name { get => Node.Name; set => Node.Name = value; }
+    //[Category("General")]
+    //public bool Static { get => Node.IsStatic; set => Node.IsStatic = value; }
+    //[Category("Material")]
+    //public Color Color { get => Color.FromArgb(unchecked((int)Node.Color)); set => Node.Color = (uint)value.ToArgb(); }
+    //[Category("Material")]
+    //public int MaterialCount { get => Node.MaterialCount; }
+    //[Category("Material")]//, TypeConverter(typeof(TextureConverter/*TypeConverter*/)), Editor(typeof(TextureEdit), typeof(UITypeEditor))]
+    public ITexture Texture
     {
-      get => (float)Math.Round(geteuler().x * (float)(180 / Math.PI), 4);
-      set { var e = geteuler(); e.x = value * (float)(Math.PI / 180); seteuler(e); }
+      get { if (Node.MaterialCount == 0) return null; Node.GetMaterial(0, out _, out _, out _, out var t); return t; }
+      set { Node.GetMaterial(0, out var i, out var n, out var c, out var t); Node.SetMaterial(0, i, n, c, value); }
     }
-    [Category("Transform")]
-    public float RotationY
-    {
-      get => (float)Math.Round(geteuler().y * (float)(180 / Math.PI), 4);
-      set { var e = geteuler(); e.y = value * (float)(Math.PI / 180); seteuler(e); }
-    }
-    [Category("Transform")]
-    public float RotationZ
-    {
-      get => (float)Math.Round(geteuler().z * (float)(180 / Math.PI), 4);
-      set { var e = geteuler(); e.z = value * (float)(Math.PI / 180); seteuler(e); }
-    }
+    //class TextureEdit : UITypeEditor
+    //{
+    //  public override UITypeEditorEditStyle GetEditStyle(ITypeDescriptorContext context) => UITypeEditorEditStyle.DropDown;
+    //  public override object EditValue(ITypeDescriptorContext context, IServiceProvider provider, object value)
+    //  {
+    //    var lb = new ListBox() { IntegralHeight = true, BorderStyle = BorderStyle.None };
+    //    lb.Items.Add("Import...");
+    //    lb.Items.Add("(none)");
+    //    var editorService = (IWindowsFormsEditorService)provider.GetService(typeof(IWindowsFormsEditorService));
+    //    lb.SelectionMode = SelectionMode.One;
+    //    lb.SelectedValueChanged += (p, e) => editorService.CloseDropDown();
+    //    //lb.HandleCreated += (p, e) => { lb.Height = lb.ItemHeight * lb.Items.Count; lb.Parent.PerformLayout(); };
+    //    editorService.DropDownControl(lb);
+    //    if (lb.SelectedIndex == -1) return value;
+    //    if (lb.SelectedIndex == 1) return null;
+    //    var dlg = new OpenFileDialog() { Filter = "Image files|*.png;*.jpg;*.gif|All files|*.*" };
+    //    if (dlg.ShowDialog(context as Control) != DialogResult.OK) return value;
+    //    return Factory.GetTexture(COM.Stream(File.ReadAllBytes(dlg.FileName)));
+    //  }
+    //}
+    //class TextureConverter : TypeConverter
+    //{
+    //  public override object ConvertTo(ITypeDescriptorContext context, CultureInfo culture, object value, Type destinationType)
+    //  {
+    //    return value != null ? "256 x 256" : "(none)";
+    //  }
+    //}
+
+    //[Category("Transform")] public CSG.Rational LocationX { get => Node.GetTransval(09); set { var t = Node.Transform; t[09] = value; Node.Transform = t; } }
+    //[Category("Transform")] public CSG.Rational LocationY { get => Node.GetTransval(10); set { var t = Node.Transform; t[10] = value; Node.Transform = t; } }
+    //[Category("Transform")] public CSG.Rational LocationZ { get => Node.GetTransval(11); set { var t = Node.Transform; t[11] = value; Node.Transform = t; } }
+    //[Category("Transform")]
+    //public float RotationX
+    //{
+    //  get => (float)Math.Round(geteuler().x * (float)(180 / Math.PI), 4);
+    //  set { var e = geteuler(); e.x = value * (float)(Math.PI / 180); seteuler(e); }
+    //}
+    //[Category("Transform")]
+    //public float RotationY
+    //{
+    //  get => (float)Math.Round(geteuler().y * (float)(180 / Math.PI), 4);
+    //  set { var e = geteuler(); e.y = value * (float)(Math.PI / 180); seteuler(e); }
+    //}
+    //[Category("Transform")]
+    //public float RotationZ
+    //{
+    //  get => (float)Math.Round(geteuler().z * (float)(180 / Math.PI), 4);
+    //  set { var e = geteuler(); e.z = value * (float)(Math.PI / 180); seteuler(e); }
+    //}
     (float3 a, float3 b)[] ee;
     float3 geteuler()
     {
@@ -563,17 +682,17 @@ namespace csg3mf
         t == 1 || t == -1 ? -(float)Math.Atan2(m._21, m._22) : (float)Math.Atan2(m._12, m._11));
     }
     static float4x3 euler(float3 e) => float4x3.RotationX(e.x) * float4x3.RotationY(e.y) * float4x3.RotationZ(e.z);
-#if (__DEBUG)
-    public string flt_matrix1 => $"{Node.GetTransform().mx}";
-    public string flt_matrix2 => $"{Node.GetTransform().my}";
-    public string flt_matrix3 => $"{Node.GetTransform().mz}";
-    public string flt_matrix4 => $"{Node.GetTransform().mp}";
-
-    public string rat_matrix1 => $"{Node.GetTransval(0)} {Node.GetTransval(1)} {Node.GetTransval(2)}";
-    public string rat_matrix2 => $"{Node.GetTransval(3)} {Node.GetTransval(4)} {Node.GetTransval(5)}";
-    public string rat_matrix3 => $"{Node.GetTransval(6)} {Node.GetTransval(7)} {Node.GetTransval(8)}";
-    public string rat_matrix4 => $"{Node.GetTransval(9)} {Node.GetTransval(10)} {Node.GetTransval(11)}";
-#endif
+    //#if (__DEBUG)
+    //    public string flt_matrix1 => $"{Node.GetTransform().mx}";
+    //    public string flt_matrix2 => $"{Node.GetTransform().my}";
+    //    public string flt_matrix3 => $"{Node.GetTransform().mz}";
+    //    public string flt_matrix4 => $"{Node.GetTransform().mp}";
+    //
+    //    public string rat_matrix1 => $"{Node.GetTransval(0)} {Node.GetTransval(1)} {Node.GetTransval(2)}";
+    //    public string rat_matrix2 => $"{Node.GetTransval(3)} {Node.GetTransval(4)} {Node.GetTransval(5)}";
+    //    public string rat_matrix3 => $"{Node.GetTransval(6)} {Node.GetTransval(7)} {Node.GetTransval(8)}";
+    //    public string rat_matrix4 => $"{Node.GetTransval(9)} {Node.GetTransval(10)} {Node.GetTransval(11)}";
+    //#endif
   }
 
   class XView
@@ -805,6 +924,96 @@ namespace csg3mf
     protected override void OnLostFocus(EventArgs e)
     {
       base.OnLostFocus(e); Invalidate();
+    }
+  }
+
+  class PropView : UserControl, UIForm.ICommandTarget, IExchange, IComparer<int>
+  {
+    public override string Text { get => "Properties"; set { } }
+    CDXView view; IScene scene; Font font, boldfont;
+    protected override void OnHandleCreated(EventArgs e)
+    {
+      DoubleBuffered = true; view = (CDXView)Tag; scene = view.view.Scene; //base.OnHandleCreated(e);
+      BackColor = SystemColors.Window; font = SystemFonts.MenuFont;
+      boldfont = new Font(font, FontStyle.Bold);
+      Application.Idle += OnIdle;
+    }
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+      Application.Idle -= OnIdle;
+      base.OnHandleDestroyed(e);
+    }
+    void OnIdle(object sender, EventArgs e)
+    {
+      if ((MainFrame.inval & 4) == 0) return;
+      if (!Visible) return;
+      MainFrame.inval &= ~4; Invalidate();
+    }
+    int UIForm.ICommandTarget.OnCommand(int id, object test)
+    {
+      switch (id) { case 65301: return 0; }//can close
+      return view.OnCommand(id, test);
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+      index = 0;
+      for (int a = -1, b; (b = scene.Select(a, 1)) != -1; a = b)
+      {
+        var p = XNode.From(scene[b]); p.Exchange(this); break;
+      }
+      for (; np > index; pp[--np] = null, ni = -1) ; //if (np > index) { np = index; ; }
+      if (ni == -1)
+      {
+        ni = np; if (ii == null || ii.Length < ni) Array.Resize(ref ii, ni);
+        var cat = "Misc"; for (int i = 0; i < ni; i++) { ii[i] = i; var p = pp[i]; if (p.type == null) cat = p.name; p.category = cat; }
+        Array.Sort(ii, 0, ni, this); ni = 0; 
+        for (int i = 0; i < np; i++)
+        {
+          if (pp[ii[i]].type == null && (i + 1 == np || pp[ii[i + 1]].type == null)) continue;
+          ii[ni++] = ii[i];
+        }
+      }
+
+      var g = e.Graphics; int y = 0, dy = font.Height, x1 = dy, x2 = ClientSize.Width >> 1;
+      for (int i = 0; i < ni; i++, y += dy)
+      {
+        var p = pp[ii[i]];
+        TextRenderer.DrawText(g, p.name, p.type == null ? boldfont : font, new System.Drawing.Point(x1, y), Color.Black);
+        if (p.type == null) continue;
+        if (p.sval == null) { p.sval = TypeDescriptor.GetConverter(p.type).ConvertToString(p.pval); }
+        TextRenderer.DrawText(g, p.sval, font, new System.Drawing.Point(x2, y), Color.Black);
+      }
+    }
+    int IComparer<int>.Compare(int a, int b)
+    {
+      var pa = pp[a]; var pb = pp[b];
+      var t = string.Compare(pa.category, pb.category); if (t != 0) return t;
+      return string.Compare(pa.type != null ? pa.name : string.Empty, pb.type != null ? pb.name : string.Empty);
+    }
+    class Prop
+    {
+      internal string name, category, sval;
+      internal Type type; internal object pval;
+    }
+    int index, ni, np; int[] ii; Prop[] pp = new Prop[8];
+    bool IExchange.Group(string name) { exprop(name, null); return true; }
+    bool IExchange.Exchange<T>(string name, ref T value, string fmt)
+    {
+      var p = exprop(name, typeof(T));
+      if (value == null ? p.pval == null : value.Equals(p.pval)) return false;
+      p.pval = value; p.sval = null; return false;
+    }
+    Prop exprop(string name, Type type)
+    {
+      int i = index++, k = i; Prop p = null;
+      for (; k < np && ((p = pp[k]).name != name || p.type != type); k++) ;
+      if (k == np)
+      {
+        if (np++ == pp.Length) Array.Resize(ref pp, pp.Length << 1);
+        for (; k > i; k--) pp[k] = pp[k - 1]; pp[i] = p = new Prop { name = name, type = type }; ni = -1;
+      }
+      else if (k != i) { for (; k > i; k--) pp[k] = pp[k - 1]; pp[i] = p; ni = -1; }
+      return p;
     }
   }
 

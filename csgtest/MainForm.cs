@@ -6,7 +6,7 @@ using System.Linq;
 using System.Windows.Forms;
 
 namespace csgtest
-{
+{ 
   public partial class MainForm : Form
   {
     public MainForm()
